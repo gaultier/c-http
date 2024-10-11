@@ -75,11 +75,14 @@ Arena arena_make(uint64_t size) {
 }
 
 static void dyn_grow(void *slice, uint64_t size, uint64_t align, Arena *a) {
+  ASSERT(NULL != slice);
+
   struct {
     void *data;
     uint64_t len;
     uint64_t cap;
   } replica;
+
   memcpy(&replica, slice, sizeof(replica));
 
   replica.cap = replica.cap ? replica.cap : 1;
@@ -89,6 +92,8 @@ static void dyn_grow(void *slice, uint64_t size, uint64_t align, Arena *a) {
     memcpy(data, replica.data, size * replica.len);
   }
   replica.data = data;
+
+  ASSERT(NULL != slice);
 
   memcpy(slice, &replica, sizeof(replica));
 }
