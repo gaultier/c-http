@@ -13,6 +13,13 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#define ASSERT(x)                                                              \
+  do {                                                                         \
+    if (!(x)) {                                                                \
+      abort();                                                                 \
+    }                                                                          \
+  } while (0)
+
 typedef struct {
   uint8_t *data;
   uint64_t len;
@@ -27,7 +34,7 @@ typedef struct {
 
 typedef struct {
   uint8_t *start;
-  uint8_t end;
+  uint8_t *end;
 } Arena;
 
 typedef struct {
@@ -41,6 +48,8 @@ typedef struct {
    (s)->data + (s)->len++ : (s)->data + (s)->len++)
 
 void *arena_alloc(Arena *a, uint64_t size, uint64_t align, uint64_t count) {
+  ASSERT(a->start != NULL);
+
   const uint64_t padding = -(uint64_t)a->start & (align - 1);
   const uint64_t available = (uint64_t)a->end - (uint64_t)a->start - padding;
   if (available < 0 || count > available / size) {
@@ -62,7 +71,7 @@ Arena arena_make(uint64_t size) {
     fprintf(stderr, "failed to mmap: %d %s\n", errno, strerror(errno));
     exit(errno);
   }
-  return (Arena){.start = ptr};
+  return (Arena){.start = ptr, .end = ptr};
 }
 
 static void dyn_grow(void *slice, uint64_t size, uint64_t align, Arena *a) {
