@@ -51,12 +51,15 @@ void *arena_alloc(Arena *a, uint64_t size, uint64_t align, uint64_t count) {
   ASSERT(a->start != NULL);
 
   const uint64_t padding = -(uint64_t)a->start & (align - 1);
-  const uint64_t available = (uint64_t)a->end - (uint64_t)a->start - padding;
+  const int64_t available = (uint64_t)a->end - (uint64_t)a->start - padding;
   if (available < 0 || count > available / size) {
     abort();
   }
 
   void *res = a->start + padding;
+  ASSERT(res != NULL);
+  ASSERT(res <= (void *)a->end);
+
   a->start += padding + count * size;
 
   return memset(res, 0, count * size);
@@ -71,7 +74,7 @@ Arena arena_make(uint64_t size) {
     fprintf(stderr, "failed to mmap: %d %s\n", errno, strerror(errno));
     exit(errno);
   }
-  return (Arena){.start = ptr, .end = ptr};
+  return (Arena){.start = ptr, .end = ptr + size};
 }
 
 static void dyn_grow(void *slice, uint64_t size, uint64_t align, Arena *a) {
