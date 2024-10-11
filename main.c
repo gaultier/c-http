@@ -121,7 +121,7 @@ static HttpRequest request_read() {
 static void handle_connection(int conn_fd) {
   Arena arena = arena_make(4096);
   LineBufferedReader reader = {.socket = conn_fd};
-  *dyn_push(&reader.buf, &arena) = 42;
+  // TODO: Use reader.
 
   uint8_t buf[1024] = {0};
   const int n_read = recv(conn_fd, buf, sizeof(buf), 0);
