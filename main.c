@@ -65,7 +65,7 @@ void *arena_alloc(Arena *a, uint64_t size, uint64_t align, uint64_t count) {
 
   a->start += padding + count * size;
   ASSERT(a->start <= a->end);
-  ASSERT((uint64_t)a->start % 8 == 0); // Aligned.
+  ASSERT((uint64_t)a->start % align == 0); // Aligned.
 
   return memset(res, 0, count * size);
 }
