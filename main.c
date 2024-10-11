@@ -50,7 +50,10 @@ typedef struct {
 void *arena_alloc(Arena *a, uint64_t size, uint64_t align, uint64_t count) {
   ASSERT(a->start != NULL);
 
-  const uint64_t padding = -(uint64_t)a->start & (align - 1);
+  const int64_t padding = -(uint64_t)a->start & (align - 1);
+  ASSERT(padding >= 0);
+  ASSERT(padding <= 8);
+
   const int64_t available = (uint64_t)a->end - (uint64_t)a->start - padding;
   if (available < 0 || count > available / size) {
     abort();
@@ -61,6 +64,8 @@ void *arena_alloc(Arena *a, uint64_t size, uint64_t align, uint64_t count) {
   ASSERT(res <= (void *)a->end);
 
   a->start += padding + count * size;
+  ASSERT(a->start <= a->end);
+  ASSERT((uint64_t)a->start % 8 == 0); // Aligned.
 
   return memset(res, 0, count * size);
 }
