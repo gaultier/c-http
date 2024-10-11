@@ -52,7 +52,7 @@ void *arena_alloc(Arena *a, uint64_t size, uint64_t align, uint64_t count) {
 
   const int64_t padding = -(uint64_t)a->start & (align - 1);
   ASSERT(padding >= 0);
-  ASSERT(padding <= 8);
+  ASSERT(padding <= align);
 
   const int64_t available = (uint64_t)a->end - (uint64_t)a->start - padding;
   if (available < 0 || count > available / size) {
@@ -73,7 +73,8 @@ void *arena_alloc(Arena *a, uint64_t size, uint64_t align, uint64_t count) {
 #define arena_new(a, t, n) (t *)arena_alloc(a, sizeof(t), _Alignof(t), n)
 
 Arena arena_make(uint64_t size) {
-  void *ptr = mmap(NULL, size, PROT_NONE, MAP_ANON | MAP_PRIVATE, -1, 0);
+  void *ptr =
+      mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
 
   if (ptr == NULL) {
     fprintf(stderr, "failed to mmap: %d %s\n", errno, strerror(errno));
