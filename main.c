@@ -1,13 +1,17 @@
 #define _POSIX_C_SOURCE 200809L
+#define __XSI_VISIBLE 600
 #include <errno.h>
 #include <netinet/in.h>
 #include <signal.h>
+#include <sys/signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
+
+
 
 static void handle_connection(int conn_fd) {
   uint8_t buf[1024] = {0};
@@ -33,7 +37,7 @@ int main() {
     exit(errno);
   }
 
-  const int sock_fd = socket(PF_INET, SOCK_STREAM, 0);
+  const int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (sock_fd == -1) {
     fprintf(stderr, "Failed to socket(2): %s\n", strerror(errno));
     exit(errno);
