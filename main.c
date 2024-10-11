@@ -1,17 +1,16 @@
 #define _POSIX_C_SOURCE 200809L
 #define __XSI_VISIBLE 600
+#define __BSD_VISIBLE 1
 #include <errno.h>
 #include <netinet/in.h>
 #include <signal.h>
-#include <sys/signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/signal.h>
 #include <sys/socket.h>
 #include <unistd.h>
-
-
 
 static void handle_connection(int conn_fd) {
   uint8_t buf[1024] = {0};
@@ -49,11 +48,13 @@ int main() {
     fprintf(stderr, "Failed to setsockopt(2): %s\n", strerror(errno));
     exit(errno);
   }
-//  if ((err = setsockopt(sock_fd, SOL_SOCKET, SO_REUSEPORT, &val,
-//                        sizeof(val))) == -1) {
-//    fprintf(stderr, "Failed to setsockopt(2): %s\n", strerror(errno));
-//    exit(errno);
-//  }
+#ifdef __FreeBSD__
+  if ((err = setsockopt(sock_fd, SOL_SOCKET, SO_REUSEPORT, &val,
+                        sizeof(val))) == -1) {
+    fprintf(stderr, "Failed to setsockopt(2): %s\n", strerror(errno));
+    exit(errno);
+  }
+#endif
 
   const struct sockaddr_in addr = {
       .sin_family = AF_INET,
