@@ -12,6 +12,48 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+typedef struct {
+  uint8_t *data;
+  uint64_t len;
+} Slice;
+
+typedef enum { HM_GET, HM_POST } HttpMethod;
+
+typedef struct {
+  Slice path;
+  HttpMethod method;
+} HttpRequest;
+
+typedef struct {
+  uint8_t *start;
+  uint8_t end;
+} Arena;
+
+typedef struct {
+  uint64_t buf_idx;
+  //  DynArrayU8 buf;
+  int socket;
+} LineBufferedReader;
+
+void *arena_alloc(Arena *a, uint64_t size, uint64_t align, uint64_t count) {
+  const uint64_t padding = -(uint64_t)a->start & (align - 1);
+  const uint64_t available = (uint64_t)a->end - (uint64_t)a->start - padding;
+  if (available < 0 || count > available / size) {
+    abort();
+  }
+
+  void *res = a->start + padding;
+  a->start += padding + count * size;
+
+  return memset(res, 0, count * size);
+}
+#define arena_new(a, t, n) (t *)arena_alloc(a, sizeof(t), _Alignof(t), n)
+
+static HttpRequest request_read() {
+  HttpRequest res = {0};
+  return res;
+}
+
 static void handle_connection(int conn_fd) {
   uint8_t buf[1024] = {0};
   const int n_read = recv(conn_fd, buf, sizeof(buf), 0);
