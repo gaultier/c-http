@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <sys/signal.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -30,10 +31,14 @@ typedef struct {
 } Arena;
 
 typedef struct {
-  uint64_t buf_idx;
-  //  DynArrayU8 buf;
-  int socket;
-} LineBufferedReader;
+  uint8_t *data;
+  uint64_t len, cap;
+} DynArrayU8;
+
+#define dyn_push(s, arena)                                                     \
+  ((s)->len >= (s)->cap                                                        \
+   ? dyn_grow(s, sizeof(*(s)->data), _Alignof(*(s)->data), arena),             \
+   (s)->data + (s)->len++ : (s)->data + (s)->len++)
 
 void *arena_alloc(Arena *a, uint64_t size, uint64_t align, uint64_t count) {
   const uint64_t padding = -(uint64_t)a->start & (align - 1);
@@ -47,7 +52,43 @@ void *arena_alloc(Arena *a, uint64_t size, uint64_t align, uint64_t count) {
 
   return memset(res, 0, count * size);
 }
+
 #define arena_new(a, t, n) (t *)arena_alloc(a, sizeof(t), _Alignof(t), n)
+
+Arena arena_make(uint64_t size) {
+  void *ptr = mmap(NULL, size, PROT_NONE, MAP_ANON | MAP_PRIVATE, -1, 0);
+
+  if (ptr == NULL) {
+    fprintf(stderr, "failed to mmap: %d %s\n", errno, strerror(errno));
+    exit(errno);
+  }
+  return (Arena){.start = ptr};
+}
+
+static void dyn_grow(void *slice, uint64_t size, uint64_t align, Arena *a) {
+  struct {
+    void *data;
+    uint64_t len;
+    uint64_t cap;
+  } replica;
+  memcpy(&replica, slice, sizeof(replica));
+
+  replica.cap = replica.cap ? replica.cap : 1;
+  void *data = arena_alloc(a, 2 * size, align, replica.cap);
+  replica.cap *= 2;
+  if (replica.len) {
+    memcpy(data, replica.data, size * replica.len);
+  }
+  replica.data = data;
+
+  memcpy(slice, &replica, sizeof(replica));
+}
+
+typedef struct {
+  uint64_t buf_idx;
+  DynArrayU8 buf;
+  int socket;
+} LineBufferedReader;
 
 static HttpRequest request_read() {
   HttpRequest res = {0};
@@ -55,6 +96,10 @@ static HttpRequest request_read() {
 }
 
 static void handle_connection(int conn_fd) {
+  Arena arena = arena_make(4096);
+  LineBufferedReader reader = {.socket = conn_fd};
+  *dyn_push(&reader.buf, &arena) = 42;
+
   uint8_t buf[1024] = {0};
   const int n_read = recv(conn_fd, buf, sizeof(buf), 0);
   if (n_read == -1) {
