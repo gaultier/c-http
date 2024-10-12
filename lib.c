@@ -143,31 +143,52 @@ static Arena arena_make(uint64_t size) {
 }
 
 typedef struct {
-  uint64_t buf_idx;
-  DynArrayU8 buf;
-  int socket;
-} LineBufferedReader;
+  uint64_t bytes_count;
+  int err;
+} IoOperationResult;
+
+typedef IoOperationResult (*ReadFn)(void *ctx, void *buf, size_t buf_len);
 
 typedef struct {
-  uint64_t written;
-  int err;
-} WriteResult;
+  uint64_t buf_idx;
+  DynArrayU8 buf;
+  void *ctx;
+  ReadFn read_fn;
+} LineBufferedReader;
 
-typedef WriteResult (*WriteFn)(void *ctx, const void *buf, size_t buf_len);
+static IoOperationResult line_buffered_reader_read_socket(void *ctx, void *buf,
+                                                          size_t buf_len) {
+  const ssize_t n_read = recv((int)(uint64_t)ctx, buf, buf_len, 0);
+  if (n_read == -1) {
+    return (IoOperationResult){.err = errno};
+  }
+
+  return (IoOperationResult){.bytes_count = n_read};
+}
+
+static LineBufferedReader line_buffered_reader_make_from_socket(int socket) {
+  return (LineBufferedReader){
+      .ctx = (void *)(uint64_t)socket,
+      .read_fn = line_buffered_reader_read_socket,
+  };
+}
+
+typedef IoOperationResult (*WriteFn)(void *ctx, const void *buf,
+                                     size_t buf_len);
 
 typedef struct {
   WriteFn write;
   void *ctx;
 } Writer;
 
-static WriteResult writer_write_socket(void *ctx, const void *buf,
-                                       size_t buf_len) {
+static IoOperationResult writer_write_socket(void *ctx, const void *buf,
+                                             size_t buf_len) {
   const ssize_t n_written = send((int)(uint64_t)ctx, buf, buf_len, 0);
   if (n_written == -1) {
-    return (WriteResult){.err = errno};
+    return (IoOperationResult){.err = errno};
   }
 
-  return (WriteResult){.written = n_written};
+  return (IoOperationResult){.bytes_count = n_written};
 }
 
 static Writer writer_make_from_socket(int socket) {
@@ -190,15 +211,15 @@ static Slice slice_range(Slice src, uint64_t start, uint64_t end) {
 static int writer_write_all(Writer writer, Slice slice) {
   for (uint64_t idx = 0; idx < slice.len;) {
     const Slice to_write = slice_range(slice, idx, 0);
-    const WriteResult write_res =
+    const IoOperationResult write_res =
         writer.write(writer.ctx, to_write.data, to_write.len);
     if (write_res.err) {
       return write_res.err;
     }
 
-    ASSERT(write_res.written <= slice.len);
+    ASSERT(write_res.bytes_count <= slice.len);
     ASSERT(idx <= slice.len);
-    idx += write_res.written;
+    idx += write_res.bytes_count;
     ASSERT(idx <= slice.len);
   }
   return 0;
@@ -336,12 +357,13 @@ static LineRead line_buffered_reader_read(LineBufferedReader *reader,
     }
 
     uint8_t buf[4096] = {0};
-    const ssize_t n_read = recv(reader->socket, buf, sizeof(buf), 0);
-    if (n_read == -1) {
-      continue;
+    const IoOperationResult io_result =
+        reader->read_fn(reader->ctx, buf, sizeof(buf));
+    if (io_result.err) {
+      continue; // Retry. Should we just abort?
     }
 
-    const Slice slice = {.data = buf, .len = n_read};
+    const Slice slice = {.data = buf, .len = io_result.bytes_count};
     dyn_append_slice(&reader->buf, slice, arena);
   }
   return line;
@@ -388,7 +410,7 @@ static int response_write(Writer writer, HttpResponse res, Arena *arena) {
 
 static void handle_client(int socket) {
   Arena arena = arena_make(4096);
-  LineBufferedReader reader = {.socket = socket};
+  LineBufferedReader reader = line_buffered_reader_make_from_socket(socket);
   const HttpRequestRead req = request_read(&reader, &arena);
   if (req.err) {
     exit(EINVAL);

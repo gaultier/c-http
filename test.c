@@ -38,6 +38,6 @@ static void test_slice_indexof_slice() {
   }
 }
 
-static void test_() {
+static void test_() {}
 
-  int main() { test_slice_indexof_slice(); }
+int main() { test_slice_indexof_slice(); }
