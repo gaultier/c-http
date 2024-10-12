@@ -277,8 +277,12 @@ static int64_t slice_indexof_slice(Slice haystack, Slice needle) {
     ASSERT(haystack_idx + needle.len <= haystack.len);
 
     const Slice to_search = slice_range(haystack, haystack_idx, 0);
-    const uint64_t found_idx = slice_indexof_byte(to_search, needle.data[0]);
-    ASSERT(found_idx <= to_search.len);
+    const int64_t found_idx = slice_indexof_byte(to_search, needle.data[0]);
+    if (found_idx == -1) {
+      return -1;
+    }
+
+    ASSERT(found_idx <= (int64_t)to_search.len);
     if (needle.len > to_search.len - found_idx) {
       return -1;
     }
