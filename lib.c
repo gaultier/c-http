@@ -74,6 +74,58 @@ static Slice slice_trim(Slice s, uint8_t c) {
   return res;
 }
 
+typedef struct {
+  Slice slice;
+  uint8_t sep;
+} SplitIterator;
+
+typedef struct {
+  Slice slice;
+  bool ok;
+} SplitResult;
+
+static SplitIterator slice_split_it(Slice slice, uint8_t sep) {
+  return (SplitIterator){.slice = slice, .sep = sep};
+}
+
+static int64_t slice_indexof_byte(Slice haystack, uint8_t needle) {
+  if (haystack.data == NULL) {
+    return -1;
+  }
+
+  if (haystack.len == 0) {
+    return -1;
+  }
+
+  const uint8_t *res = memchr(haystack.data, needle, haystack.len);
+  if (res == NULL) {
+    return -1;
+  }
+
+  return res - haystack.data;
+}
+
+static Slice slice_range(Slice src, uint64_t start, uint64_t end) {
+  const uint64_t real_end = end == 0 ? src.len : end;
+  ASSERT(start <= real_end);
+  ASSERT(start <= src.len);
+  ASSERT(real_end <= src.len);
+
+  Slice res = {.data = src.data + start, .len = real_end - start};
+  return res;
+}
+
+static SplitResult slice_split_next(SplitIterator *it) {
+  const int64_t idx = slice_indexof_byte(it->slice, it->sep);
+  if (-1 == idx) {
+    return (SplitResult){};
+  }
+  SplitResult res = {.slice = slice_range(it->slice, 0, idx), .ok = true};
+  it->slice = slice_range(it->slice, idx + 1, 0);
+
+  return res;
+}
+
 static const Slice NEWLINE = {.data = (uint8_t *)"\r\n", .len = 2};
 
 typedef enum { HM_UNKNOWN, HM_GET, HM_POST } HttpMethod;
@@ -234,16 +286,6 @@ static Writer writer_make_from_socket(int socket) {
   };
 }
 
-static Slice slice_range(Slice src, uint64_t start, uint64_t end) {
-  const uint64_t real_end = end == 0 ? src.len : end;
-  ASSERT(start <= real_end);
-  ASSERT(start <= src.len);
-  ASSERT(real_end <= src.len);
-
-  Slice res = {.data = src.data + start, .len = real_end - start};
-  return res;
-}
-
 static int writer_write_all(Writer writer, Slice slice) {
   for (uint64_t idx = 0; idx < slice.len;) {
     const Slice to_write = slice_range(slice, idx, 0);
@@ -266,23 +308,6 @@ typedef struct {
   int err;
   bool present;
 } LineRead;
-
-static int64_t slice_indexof_byte(Slice haystack, uint8_t needle) {
-  if (haystack.data == NULL) {
-    return -1;
-  }
-
-  if (haystack.len == 0) {
-    return -1;
-  }
-
-  const uint8_t *res = memchr(haystack.data, needle, haystack.len);
-  if (res == NULL) {
-    return -1;
-  }
-
-  return res - haystack.data;
-}
 
 static bool slice_eq(Slice a, Slice b) {
   if (a.data == NULL && b.data == NULL && a.len == b.len) {

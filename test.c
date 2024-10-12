@@ -78,6 +78,26 @@ static void test_slice_trim() {
   ASSERT(slice_eq(trimmed, slice_make_from_cstr("foo")));
 }
 
+static void test_slice_split() {
+  Slice slice = slice_make_from_cstr("hello.world.foobar");
+  SplitIterator it = slice_split_it(slice, '.');
+
+  SplitResult first = slice_split_next(&it);
+  ASSERT(true == first.ok);
+  ASSERT(slice_eq(first.slice, slice_make_from_cstr("hello")));
+
+  SplitResult second = slice_split_next(&it);
+  ASSERT(true == second.ok);
+  ASSERT(slice_eq(second.slice, slice_make_from_cstr("world")));
+
+  SplitResult third = slice_split_next(&it);
+  ASSERT(true == third.ok);
+  ASSERT(slice_eq(third.slice, slice_make_from_cstr("foobar")));
+
+  ASSERT(false == slice_split_next(&it).ok);
+  ASSERT(false == slice_split_next(&it).ok);
+}
+
 int main() {
   test_slice_indexof_slice();
   test_slice_trim();
