@@ -56,13 +56,12 @@ static Slice slice_trim_left(Slice s, uint8_t c) {
 static Slice slice_trim_right(Slice s, uint8_t c) {
   Slice res = s;
 
-  for (int64_t s_i = s.len; s_i >= 0; s_i--) {
+  for (int64_t s_i = s.len - 1; s_i >= 0; s_i--) {
     ASSERT(s.data != NULL);
     if (s.data[s_i] != c) {
       return res;
     }
 
-    res.data += 1;
     res.len -= 1;
   }
   return res;
@@ -70,7 +69,7 @@ static Slice slice_trim_right(Slice s, uint8_t c) {
 
 static Slice slice_trim(Slice s, uint8_t c) {
   Slice res = slice_trim_left(s, c);
-  res = slice_trim_right(s, c);
+  res = slice_trim_right(res, c);
 
   return res;
 }
@@ -406,9 +405,7 @@ static LineRead line_buffered_reader_read(LineBufferedReader *reader,
   return line;
 }
 
-HttpRequestRead request_parse_status_line(Slice s) {
-  Slice trimmed = slice_trim(s, ' ');
-}
+HttpRequestRead request_parse_status_line(Slice s) {}
 
 /* fn request_parse_status_line(s: []const u8) !HttpRequest { */
 /*     std.log.info("status line `{s}`", .{s}); */

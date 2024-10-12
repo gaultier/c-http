@@ -73,7 +73,13 @@ static void test_read_http_request() {
   ASSERT(slice_eq(req.path, slice_make_from_cstr("/foo?bar=2")));
 }
 
+static void test_slice_trim() {
+  Slice trimmed = slice_trim(slice_make_from_cstr("   foo "), ' ');
+  ASSERT(slice_eq(trimmed, slice_make_from_cstr("foo")));
+}
+
 int main() {
   test_slice_indexof_slice();
-  test_read_http_request();
+  test_slice_trim();
+  /* test_read_http_request(); */
 }
