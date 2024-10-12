@@ -19,10 +19,22 @@ static void test_slice_indexof_slice() {
                                     slice_from_cstr("world")));
   }
 
-  // Found, multiple occurences.
+  // Found, first occurence.
   {
     ASSERT(6 == slice_indexof_slice(slice_from_cstr("world hello hell"),
                                     slice_from_cstr("hell")));
+  }
+
+  // Found, second occurence.
+  {
+    ASSERT(10 == slice_indexof_slice(slice_from_cstr("hello fox foxy"),
+                                     slice_from_cstr("foxy")));
+  }
+
+  // Almost found, prefix matches.
+  {
+    ASSERT(-1 == slice_indexof_slice(slice_from_cstr("hello world"),
+                                     slice_from_cstr("worldly")));
   }
 }
 

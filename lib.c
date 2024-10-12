@@ -178,9 +178,9 @@ static Writer writer_make_from_socket(int socket) {
 }
 
 static Slice slice_range(Slice src, uint64_t start, uint64_t end) {
-  ASSERT(start <= end);
-  ASSERT(start <= src.len);
   const uint64_t real_end = end == 0 ? src.len : end;
+  ASSERT(start <= real_end);
+  ASSERT(start <= src.len);
   ASSERT(real_end <= src.len);
 
   Slice res = {.data = src.data + start, .len = real_end - start};
@@ -283,7 +283,7 @@ static int64_t slice_indexof_slice(Slice haystack, Slice needle) {
     }
 
     ASSERT(found_idx <= (int64_t)to_search.len);
-    if (needle.len > to_search.len - found_idx) {
+    if (found_idx + needle.len > to_search.len) {
       return -1;
     }
 
@@ -292,7 +292,7 @@ static int64_t slice_indexof_slice(Slice haystack, Slice needle) {
     if (slice_eq(found_candidate, needle)) {
       return haystack_idx + found_idx;
     }
-    haystack_idx += found_idx + NEWLINE.len;
+    haystack_idx += found_idx + 1;
   }
 
   return -1;
