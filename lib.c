@@ -169,7 +169,7 @@ typedef struct {
   HttpMethod method;
   DynArrayHttpHeaders headers;
   int err;
-} HttpRequestRead;
+} HttpRequest;
 
 typedef struct {
   uint16_t status;
@@ -482,8 +482,8 @@ static LineRead line_buffered_reader_read(LineBufferedReader *reader,
   return line;
 }
 
-HttpRequestRead request_parse_status_line(LineRead status_line) {
-  HttpRequestRead res = {0};
+HttpRequest request_parse_status_line(LineRead status_line) {
+  HttpRequest res = {0};
 
   if (!status_line.present) {
     res.err = HS_ERR_INVALID_HTTP_REQUEST;
@@ -496,7 +496,7 @@ HttpRequestRead request_parse_status_line(LineRead status_line) {
 
   SplitIterator it = slice_split_it(status_line.line, ' ');
 
-  HttpRequestRead req = {0};
+  HttpRequest req = {0};
 
   {
     SplitResult method = slice_split_next(&it);
@@ -552,14 +552,14 @@ HttpRequestRead request_parse_status_line(LineRead status_line) {
   return req;
 }
 
-static HttpRequestRead request_read_headers(HttpRequestRead req,
-                                            LineBufferedReader *reader,
-                                            Arena *arena) {
+static HttpRequest request_read_headers(HttpRequest req,
+                                        LineBufferedReader *reader,
+                                        Arena *arena) {
   if (req.err) {
     return req;
   }
 
-  HttpRequestRead res = req;
+  HttpRequest res = req;
 
   for (uint64_t _i = 0; _i < MAX_REQUEST_LINES; _i++) {
     const LineRead line = line_buffered_reader_read(reader, arena);
@@ -591,9 +591,9 @@ static HttpRequestRead request_read_headers(HttpRequestRead req,
   return res;
 }
 
-static HttpRequestRead request_read(LineBufferedReader *reader, Arena *arena) {
+static HttpRequest request_read(LineBufferedReader *reader, Arena *arena) {
   const LineRead status_line = line_buffered_reader_read(reader, arena);
-  HttpRequestRead req = request_parse_status_line(status_line);
+  HttpRequest req = request_parse_status_line(status_line);
   req = request_read_headers(req, reader, arena);
 
   return req;
@@ -631,23 +631,33 @@ static void http_response_push_header_cstr(HttpResponse *res, char *key,
                             slice_make_from_cstr(value), arena);
 }
 
-static void handle_client(int socket) {
+typedef HttpResponse (*HttpRequestHandleFn)(HttpRequest req, Arena *arena);
+
+static void handle_client(int socket, HttpRequestHandleFn handle) {
   Arena arena = arena_make(CLIENT_MEM);
   LineBufferedReader reader = line_buffered_reader_make_from_socket(socket);
-  const HttpRequestRead req = request_read(&reader, &arena);
+  const HttpRequest req = request_read(&reader, &arena);
   if (req.err) {
     exit(EINVAL);
   }
 
-  HttpResponse res = {.status = 201}; // Dummy status code.
-  http_response_push_header_cstr(&res, "Content-Type", "text/html", &arena);
-  http_response_push_header_cstr(&res, "Connection", "close", &arena);
+  HttpResponse res = handle(req, &arena);
 
   Writer writer = writer_make_from_socket(socket);
   response_write(writer, res, &arena);
 
   fprintf(stderr, "[D001] arena use %ld\n",
           CLIENT_MEM - (arena.end - arena.start));
+}
+
+static HttpResponse my_http_request_handler(HttpRequest req, Arena *arena) {
+  ASSERT(0 == req.err);
+
+  HttpResponse res = {.status = 201}; // Dummy status code.
+  http_response_push_header_cstr(&res, "Content-Type", "text/html", arena);
+  http_response_push_header_cstr(&res, "Connection", "close", arena);
+
+  return res;
 }
 
 static int run() {
@@ -707,7 +717,7 @@ static int run() {
       fprintf(stderr, "Failed to fork(2): err=%s\n", strerror(errno));
       exit(errno);
     } else if (pid == 0) { // Child
-      handle_client(conn_fd);
+      handle_client(conn_fd, my_http_request_handler);
       exit(0);
     } else { // Parent
       // Fds are duplicated by fork(2) and need to be
