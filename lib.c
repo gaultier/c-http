@@ -169,6 +169,8 @@ typedef struct {
 
 typedef struct {
   uint16_t status;
+  DynArrayHttpHeaders headers;
+  int err;
 } HttpResponse;
 
 typedef struct {
@@ -595,6 +597,15 @@ static int response_write(Writer writer, HttpResponse res, Arena *arena) {
   dyn_array_u8_append_cstr(&sb, "HTTP/1.1 ", arena);
   dyn_array_u8_append_u16(&sb, res.status, arena);
   dyn_array_u8_append_cstr(&sb, "\r\n", arena);
+
+  for (uint64_t i = 0; i < res.headers.len; i++) {
+    HttpHeader header = res.headers.data[i];
+    dyn_append_slice(&sb, header.key, arena);
+    dyn_array_u8_append_cstr(&sb, ": ", arena);
+    dyn_append_slice(&sb, header.value, arena);
+    dyn_array_u8_append_cstr(&sb, "\r\n", arena);
+  }
+
   dyn_array_u8_append_cstr(&sb, "\r\n", arena);
 
   const Slice slice = dyn_array_u8_to_slice(sb);
@@ -609,7 +620,14 @@ static void handle_client(int socket) {
     exit(EINVAL);
   }
 
-  const HttpResponse res = {.status = 201};
+  HttpResponse res = {.status = 201};
+  *dyn_push(&res.headers, &arena) =
+      (HttpHeader){.key = slice_make_from_cstr("Content-Type"),
+                   .value = slice_make_from_cstr("text/html")};
+  *dyn_push(&res.headers, &arena) =
+      (HttpHeader){.key = slice_make_from_cstr("Connection"),
+                   .value = slice_make_from_cstr("close")};
+
   Writer writer = writer_make_from_socket(socket);
   response_write(writer, res, &arena);
 }
