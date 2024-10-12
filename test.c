@@ -101,5 +101,6 @@ static void test_slice_split() {
 int main() {
   test_slice_indexof_slice();
   test_slice_trim();
+  test_slice_split();
   /* test_read_http_request(); */
 }

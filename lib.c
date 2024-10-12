@@ -32,6 +32,15 @@ typedef struct {
   uint64_t len;
 } Slice;
 
+static bool slice_is_empty(Slice s) {
+  if (s.len == 0) {
+    return true;
+  }
+
+  ASSERT(s.data != NULL);
+  return false;
+}
+
 static Slice slice_make_from_cstr(char *s) {
   const uint64_t s_len = strlen(s);
   const Slice slice = {.data = (uint8_t *)s, .len = s_len};
@@ -89,11 +98,7 @@ static SplitIterator slice_split_it(Slice slice, uint8_t sep) {
 }
 
 static int64_t slice_indexof_byte(Slice haystack, uint8_t needle) {
-  if (haystack.data == NULL) {
-    return -1;
-  }
-
-  if (haystack.len == 0) {
+  if (slice_is_empty(haystack)) {
     return -1;
   }
 
@@ -116,10 +121,18 @@ static Slice slice_range(Slice src, uint64_t start, uint64_t end) {
 }
 
 static SplitResult slice_split_next(SplitIterator *it) {
-  const int64_t idx = slice_indexof_byte(it->slice, it->sep);
-  if (-1 == idx) {
+  if (slice_is_empty(it->slice)) {
     return (SplitResult){};
   }
+
+  const int64_t idx = slice_indexof_byte(it->slice, it->sep);
+  if (-1 == idx) {
+    // Last element.
+    SplitResult res = {.slice = it->slice, .ok = true};
+    it->slice = (Slice){0};
+    return res;
+  }
+
   SplitResult res = {.slice = slice_range(it->slice, 0, idx), .ok = true};
   it->slice = slice_range(it->slice, idx + 1, 0);
 
@@ -430,7 +443,11 @@ static LineRead line_buffered_reader_read(LineBufferedReader *reader,
   return line;
 }
 
-HttpRequestRead request_parse_status_line(Slice s) {}
+HttpRequestRead request_parse_status_line(Slice s) {
+  SplitIterator it = slice_split_it(s, ' ');
+
+  SplitResult first = slice_split_next(&it);
+}
 
 /* fn request_parse_status_line(s: []const u8) !HttpRequest { */
 /*     std.log.info("status line `{s}`", .{s}); */
