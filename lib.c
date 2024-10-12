@@ -15,6 +15,10 @@
 #include <unistd.h>
 
 static const uint64_t MAX_REQUEST_LINES = 512;
+static const uint64_t CLIENT_MEM = 4096;
+static const uint16_t PORT = 12345;
+static const int LISTEN_BACKLOG = 1024;
+#define MAX_LINE_LENGTH 1024
 
 #define ASSERT(x)                                                              \
   do {                                                                         \
@@ -465,7 +469,7 @@ static LineRead line_buffered_reader_read(LineBufferedReader *reader,
       return line;
     }
 
-    uint8_t buf[4096] = {0};
+    uint8_t buf[MAX_LINE_LENGTH] = {0};
     const IoOperationResult io_result =
         reader->read_fn(reader->ctx, buf, sizeof(buf));
     if (io_result.err) {
@@ -628,25 +632,26 @@ static void http_response_push_header_cstr(HttpResponse *res, char *key,
 }
 
 static void handle_client(int socket) {
-  Arena arena = arena_make(4096);
+  Arena arena = arena_make(CLIENT_MEM);
   LineBufferedReader reader = line_buffered_reader_make_from_socket(socket);
   const HttpRequestRead req = request_read(&reader, &arena);
   if (req.err) {
     exit(EINVAL);
   }
 
-  HttpResponse res = {.status = 201};
+  HttpResponse res = {.status = 201}; // Dummy status code.
   http_response_push_header_cstr(&res, "Content-Type", "text/html", &arena);
   http_response_push_header_cstr(&res, "Connection", "close", &arena);
 
   Writer writer = writer_make_from_socket(socket);
   response_write(writer, res, &arena);
 
-  fprintf(stderr, "[D001] %ld\n", 4096 - (arena.end - arena.start));
+  fprintf(stderr, "[D001] arena use %ld\n",
+          CLIENT_MEM - (arena.end - arena.start));
 }
 
 static int run() {
-  const uint16_t port = 12345;
+  const uint16_t port = PORT;
   struct sigaction sa = {.sa_flags = SA_NOCLDWAIT};
   int err = 0;
   if (-1 == (err = sigaction(SIGCHLD, &sa, NULL))) {
@@ -685,7 +690,7 @@ static int run() {
     exit(errno);
   }
 
-  if ((err = listen(sock_fd, 16 * 1024)) == -1) {
+  if ((err = listen(sock_fd, LISTEN_BACKLOG)) == -1) {
     fprintf(stderr, "Failed to listen(2): %s\n", strerror(errno));
     exit(errno);
   }
