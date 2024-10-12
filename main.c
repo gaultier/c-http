@@ -9,8 +9,9 @@ static HttpResponse my_http_request_handler(HttpRequest req, Arena *arena) {
   if (HM_GET == req.method &&
       (slice_eq(req.path, slice_make_from_cstr("/")) ||
        slice_eq(req.path, slice_make_from_cstr("/index.html")))) {
-    res.status = 200; // Dummy status code.
+    res.status = 200;
     http_response_push_header_cstr(&res, "Content-Type", "text/html", arena);
+    http_response_register_file_for_sending(&res, "index.html");
   } else {
     res.status = 404;
   }

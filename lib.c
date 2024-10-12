@@ -2,6 +2,7 @@
 #define __XSI_VISIBLE 600
 #define __BSD_VISIBLE 1
 #include <errno.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -10,12 +11,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/sendfile.h>
 #include <sys/signal.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 static const uint64_t MAX_REQUEST_LINES = 512;
-static const uint64_t CLIENT_MEM = 4096;
+static const uint64_t CLIENT_MEM = 8192;
 static const uint16_t PORT = 12345;
 static const int LISTEN_BACKLOG = 1024;
 #define MAX_LINE_LENGTH 1024
@@ -175,6 +178,7 @@ typedef struct {
   uint16_t status;
   DynArrayHttpHeaders headers;
   int err;
+  char *file_path;
 } HttpResponse;
 
 typedef struct {
@@ -617,7 +621,35 @@ static int response_write(Writer writer, HttpResponse res, Arena *arena) {
   dyn_array_u8_append_cstr(&sb, "\r\n", arena);
 
   const Slice slice = dyn_array_u8_to_slice(sb);
-  return writer_write_all(writer, slice);
+
+  int err = writer_write_all(writer, slice);
+  if (0 != err) {
+    return err;
+  }
+
+  if (NULL != res.file_path) {
+    int file_fd = open(res.file_path, O_RDONLY);
+    if (file_fd == -1) {
+      return errno;
+    }
+
+    struct stat st = {0};
+    if (-1 == stat(res.file_path, &st)) {
+      return errno;
+    }
+
+    ssize_t sent =
+        sendfile((int)(uint64_t)writer.ctx, file_fd, NULL, st.st_size);
+    if (-1 == sent) {
+      return errno;
+    }
+    if (sent != st.st_size) {
+      // TODO: Retry.
+      return ERANGE;
+    }
+  }
+
+  return 0;
 }
 
 static void http_response_push_header(HttpResponse *res, Slice key, Slice value,
@@ -629,6 +661,11 @@ static void http_response_push_header_cstr(HttpResponse *res, char *key,
                                            char *value, Arena *arena) {
   http_response_push_header(res, slice_make_from_cstr(key),
                             slice_make_from_cstr(value), arena);
+}
+
+static void http_response_register_file_for_sending(HttpResponse *res,
+                                                    char *path) {
+  res->file_path = path;
 }
 
 typedef HttpResponse (*HttpRequestHandleFn)(HttpRequest req, Arena *arena);
