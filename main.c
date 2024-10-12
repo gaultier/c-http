@@ -60,8 +60,7 @@ typedef struct {
 void *arena_alloc(Arena *a, uint64_t size, uint64_t align, uint64_t count) {
   ASSERT(a->start != NULL);
 
-  const int64_t padding = -(uint64_t)a->start & (align - 1);
-  ASSERT(padding >= 0);
+  const uint64_t padding = (int64_t)(-(uint64_t)a->start & (align - 1));
   ASSERT(padding <= align);
 
   const int64_t available = (uint64_t)a->end - (uint64_t)a->start - padding;
@@ -234,28 +233,24 @@ static LineRead line_buffered_reader_read(LineBufferedReader *reader,
   return line;
 }
 
-static HttpRequest request_read() {
+static HttpRequest request_read(LineBufferedReader *reader, Arena *arena) {
   HttpRequest res = {0};
+
+  line_buffered_reader_read(reader, arena);
+
   return res;
 }
 
 static void handle_connection(int conn_fd) {
   Arena arena = arena_make(4096);
   LineBufferedReader reader = {.socket = conn_fd};
-  // TODO: Use reader.
+  request_read(&reader, &arena);
 
-  uint8_t buf[1024] = {0};
-  const int n_read = recv(conn_fd, buf, sizeof(buf), 0);
-  if (n_read == -1) {
-    fprintf(stderr, "failed to recvfrom(2): %s\n", strerror(errno));
-    exit(errno);
-  }
-
-  const int n_written = send(conn_fd, buf, sizeof(buf), 0);
-  if (n_written == -1) {
-    fprintf(stderr, "failed to sendto(2): %s\n", strerror(errno));
-    exit(errno);
-  }
+  //  const int n_written = send(conn_fd, buf, sizeof(buf), 0);
+  //  if (n_written == -1) {
+  //    fprintf(stderr, "failed to sendto(2): %s\n", strerror(errno));
+  //    exit(errno);
+  //  }
 }
 
 int main() {
