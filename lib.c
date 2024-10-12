@@ -489,7 +489,7 @@ static LineRead line_buffered_reader_read(LineBufferedReader *reader,
   return line;
 }
 
-HttpRequest request_parse_status_line(LineRead status_line) {
+static HttpRequest request_parse_status_line(LineRead status_line) {
   HttpRequest res = {0};
 
   if (!status_line.present) {
