@@ -48,7 +48,7 @@ static bool slice_is_empty(Slice s) {
   return false;
 }
 
-static Slice slice_make_from_cstr(char *s) {
+static Slice S(char *s) {
   const uint64_t s_len = strlen(s);
   const Slice slice = {.data = (uint8_t *)s, .len = s_len};
   return slice;
@@ -263,7 +263,7 @@ static Slice dyn_array_u8_to_slice(DynArrayU8 dyn) {
 }
 
 static void dyn_array_u8_append_cstr(DynArrayU8 *dyn, char *s, Arena *arena) {
-  dyn_append_slice(dyn, slice_make_from_cstr(s), arena);
+  dyn_append_slice(dyn, S(s), arena);
 }
 
 static void dyn_array_u8_append_u16(DynArrayU8 *dyn, uint16_t n, Arena *arena) {
@@ -512,9 +512,9 @@ static HttpRequest request_parse_status_line(LineRead status_line) {
       return req;
     }
 
-    if (slice_eq(method.slice, slice_make_from_cstr("GET"))) {
+    if (slice_eq(method.slice, S("GET"))) {
       req.method = HM_GET;
-    } else if (slice_eq(method.slice, slice_make_from_cstr("POST"))) {
+    } else if (slice_eq(method.slice, S("POST"))) {
       req.method = HM_POST;
     } else {
       // FIXME: More.
@@ -550,7 +550,7 @@ static HttpRequest request_parse_status_line(LineRead status_line) {
       return req;
     }
 
-    if (!slice_eq(http_version.slice, slice_make_from_cstr("HTTP/1.1"))) {
+    if (!slice_eq(http_version.slice, S("HTTP/1.1"))) {
       req.err = HS_ERR_INVALID_HTTP_REQUEST;
       return req;
     }
@@ -668,8 +668,7 @@ static void http_response_push_header(HttpResponse *res, Slice key, Slice value,
 
 static void http_response_push_header_cstr(HttpResponse *res, char *key,
                                            char *value, Arena *arena) {
-  http_response_push_header(res, slice_make_from_cstr(key),
-                            slice_make_from_cstr(value), arena);
+  http_response_push_header(res, S(key), S(value), arena);
 }
 
 static void http_response_register_file_for_sending(HttpResponse *res,

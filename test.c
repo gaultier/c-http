@@ -2,42 +2,25 @@
 
 static void test_slice_indexof_slice() {
   // Empty haystack.
-  { ASSERT(-1 == slice_indexof_slice((Slice){}, slice_make_from_cstr("fox"))); }
+  { ASSERT(-1 == slice_indexof_slice((Slice){}, S("fox"))); }
 
   // Empty needle.
-  {
-    ASSERT(-1 == slice_indexof_slice(slice_make_from_cstr("hello"), (Slice){}));
-  }
+  { ASSERT(-1 == slice_indexof_slice(S("hello"), (Slice){})); }
 
   // Not found.
-  {
-    ASSERT(-1 == slice_indexof_slice(slice_make_from_cstr("hello world"),
-                                     slice_make_from_cstr("foobar")));
-  }
+  { ASSERT(-1 == slice_indexof_slice(S("hello world"), S("foobar"))); }
 
   // Found, one occurence.
-  {
-    ASSERT(6 == slice_indexof_slice(slice_make_from_cstr("hello world"),
-                                    slice_make_from_cstr("world")));
-  }
+  { ASSERT(6 == slice_indexof_slice(S("hello world"), S("world"))); }
 
   // Found, first occurence.
-  {
-    ASSERT(6 == slice_indexof_slice(slice_make_from_cstr("world hello hell"),
-                                    slice_make_from_cstr("hell")));
-  }
+  { ASSERT(6 == slice_indexof_slice(S("world hello hell"), S("hell"))); }
 
   // Found, second occurence.
-  {
-    ASSERT(10 == slice_indexof_slice(slice_make_from_cstr("hello fox foxy"),
-                                     slice_make_from_cstr("foxy")));
-  }
+  { ASSERT(10 == slice_indexof_slice(S("hello fox foxy"), S("foxy"))); }
 
   // Almost found, prefix matches.
-  {
-    ASSERT(-1 == slice_indexof_slice(slice_make_from_cstr("hello world"),
-                                     slice_make_from_cstr("worldly")));
-  }
+  { ASSERT(-1 == slice_indexof_slice(S("hello world"), S("worldly"))); }
 }
 
 static IoOperationResult
@@ -60,51 +43,49 @@ static LineBufferedReader line_buffered_reader_make_from_slice(Slice *slice) {
 }
 
 static void test_read_http_request() {
-  Slice req_slice =
-      slice_make_from_cstr("GET /foo?bar=2 HTTP/1.1\r\nHost: "
-                           "localhost:12345\r\nAccept: */*\r\n\r\n");
+  Slice req_slice = S("GET /foo?bar=2 HTTP/1.1\r\nHost: "
+                      "localhost:12345\r\nAccept: */*\r\n\r\n");
   LineBufferedReader reader = line_buffered_reader_make_from_slice(&req_slice);
   Arena arena = arena_make(4096);
-  const HttpRequestRead req = request_read(&reader, &arena);
+  const HttpRequest req = request_read(&reader, &arena);
 
   ASSERT(reader.buf_idx == req_slice.len); // Read all.
   ASSERT(0 == req.err);
   ASSERT(HM_GET == req.method);
-  ASSERT(slice_eq(req.path, slice_make_from_cstr("/foo?bar=2")));
+  ASSERT(slice_eq(req.path, S("/foo?bar=2")));
 
   ASSERT(2 == req.headers.len);
-  ASSERT(slice_eq(req.headers.data[0].key, slice_make_from_cstr("Host")));
-  ASSERT(slice_eq(req.headers.data[0].value,
-                  slice_make_from_cstr("localhost:12345")));
-  ASSERT(slice_eq(req.headers.data[1].key, slice_make_from_cstr("Accept")));
-  ASSERT(slice_eq(req.headers.data[1].value, slice_make_from_cstr("*/*")));
+  ASSERT(slice_eq(req.headers.data[0].key, S("Host")));
+  ASSERT(slice_eq(req.headers.data[0].value, S("localhost:12345")));
+  ASSERT(slice_eq(req.headers.data[1].key, S("Accept")));
+  ASSERT(slice_eq(req.headers.data[1].value, S("*/*")));
 }
 
 static void test_slice_trim() {
-  Slice trimmed = slice_trim(slice_make_from_cstr("   foo "), ' ');
-  ASSERT(slice_eq(trimmed, slice_make_from_cstr("foo")));
+  Slice trimmed = slice_trim(S("   foo "), ' ');
+  ASSERT(slice_eq(trimmed, S("foo")));
 }
 
 static void test_slice_split() {
-  Slice slice = slice_make_from_cstr("hello..world...foobar");
+  Slice slice = S("hello..world...foobar");
   SplitIterator it = slice_split_it(slice, '.');
 
   {
     SplitResult elem = slice_split_next(&it);
     ASSERT(true == elem.ok);
-    ASSERT(slice_eq(elem.slice, slice_make_from_cstr("hello")));
+    ASSERT(slice_eq(elem.slice, S("hello")));
   }
 
   {
     SplitResult elem = slice_split_next(&it);
     ASSERT(true == elem.ok);
-    ASSERT(slice_eq(elem.slice, slice_make_from_cstr("world")));
+    ASSERT(slice_eq(elem.slice, S("world")));
   }
 
   {
     SplitResult elem = slice_split_next(&it);
     ASSERT(true == elem.ok);
-    ASSERT(slice_eq(elem.slice, slice_make_from_cstr("foobar")));
+    ASSERT(slice_eq(elem.slice, S("foobar")));
   }
 
   ASSERT(false == slice_split_next(&it).ok);
