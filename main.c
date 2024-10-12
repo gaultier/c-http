@@ -12,11 +12,12 @@ static HttpResponse my_http_request_handler(HttpRequest req, Arena *arena) {
     res.status = 200;
     http_response_push_header_cstr(&res, "Content-Type", "text/html", arena);
     http_response_register_file_for_sending(&res, "index.html");
-  } else if (HM_POST == req.method) {
+  } else if (HM_POST == req.method &&
+             slice_eq(req.path, slice_make_from_cstr("/comment"))) {
     res.status = 201;
     http_response_push_header_cstr(&res, "Content-Type", "application/json",
                                    arena);
-    res.body = slice_make_from_cstr("[1,2,3]");
+    res.body = slice_make_from_cstr("{\"id\": 1}");
   } else {
     res.status = 404;
   }
