@@ -386,7 +386,7 @@ static int response_write(Writer writer, HttpResponse res, Arena *arena) {
   return writer_write_all(writer, slice);
 }
 
-static void handle_connection(int socket) {
+static void handle_client(int socket) {
   Arena arena = arena_make(4096);
   LineBufferedReader reader = {.socket = socket};
   const HttpRequestRead req = request_read(&reader, &arena);
@@ -456,7 +456,7 @@ static int run() {
       fprintf(stderr, "Failed to fork(2): err=%s\n", strerror(errno));
       exit(errno);
     } else if (pid == 0) { // Child
-      handle_connection(conn_fd);
+      handle_client(conn_fd);
       exit(0);
     } else { // Parent
       // Fds are duplicated by fork(2) and need to be
