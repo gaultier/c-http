@@ -451,64 +451,81 @@ static LineRead line_buffered_reader_read(LineBufferedReader *reader,
   return line;
 }
 
-HttpRequestRead request_parse_status_line(Slice s) {
-  SplitIterator it = slice_split_it(s, ' ');
-
-  SplitResult first = slice_split_next(&it);
-}
-
-/* fn request_parse_status_line(s: []const u8) !HttpRequest { */
-/*     std.log.info("status line `{s}`", .{s}); */
-/*     const space = [_]u8{ ' ', '\r' }; */
-
-/*     var it = std.mem.splitScalar(u8, s, ' '); */
-
-/*     var req: HttpRequest = undefined; */
-/*     if (it.next()) |method| { */
-/*         const method_trimmed = std.mem.trim(u8, method, space[0..]); */
-
-/*         if (std.mem.eql(u8, method_trimmed, "GET")) { */
-/*             req.method = .Get; */
-/*         } else if (std.mem.eql(u8, method_trimmed, "POST")) { */
-/*             req.method = .Post; */
-/*         } else { */
-/*             std.log.err("invalid http method `{s}` `{s}`", .{ s, method });
- */
-/*             return error.InvalidHttpMethod; */
-/*         } */
-/*     } else { */
-/*         return error.MissingHttpMethod; */
-/*     } */
-
-/*     if (it.next()) |path| { */
-/*         const path_trimmed = std.mem.trim(u8, path, space[0..]); */
-/*         req.path = path_trimmed; */
-/*     } else { */
-/*         return error.InvalidUri; */
-/*     } */
-
-/*     if (it.next()) |http_version| { */
-/*         const http_version_trimmed = std.mem.trim(u8, http_version,
- * space[0..]); */
-/*         std.log.info("http_version=`{s}`", .{http_version_trimmed}); */
-/*         if (!std.mem.eql(u8, http_version_trimmed, "HTTP/1.1")) { */
-/*             return error.InvalidHttpVersion; */
-/*         } */
-/*     } */
-
-/*     return req; */
-/* } */
-
-static HttpRequestRead request_read(LineBufferedReader *reader, Arena *arena) {
+HttpRequestRead request_parse_status_line(LineRead status_line) {
   HttpRequestRead res = {0};
 
-  const LineRead status_line = line_buffered_reader_read(reader, arena);
   if (!status_line.present) {
     res.err = HS_ERR_INVALID_HTTP_REQUEST;
     return res;
   }
   if (status_line.err) {
     res.err = status_line.err;
+    return res;
+  }
+
+  SplitIterator it = slice_split_it(status_line.line, ' ');
+
+  HttpRequestRead req = {0};
+
+  {
+    SplitResult method = slice_split_next(&it);
+    if (!method.ok) {
+      req.err = HS_ERR_INVALID_HTTP_REQUEST;
+      return req;
+    }
+
+    if (slice_eq(method.slice, slice_make_from_cstr("GET"))) {
+      req.method = HM_GET;
+    } else if (slice_eq(method.slice, slice_make_from_cstr("POST"))) {
+      req.method = HM_POST;
+    } else {
+      // FIXME: More.
+      req.err = HS_ERR_INVALID_HTTP_REQUEST;
+      return req;
+    }
+  }
+
+  {
+    SplitResult path = slice_split_next(&it);
+    if (!path.ok) {
+      req.err = HS_ERR_INVALID_HTTP_REQUEST;
+      return req;
+    }
+
+    if (slice_is_empty(path.slice)) {
+      req.err = HS_ERR_INVALID_HTTP_REQUEST;
+      return req;
+    }
+
+    if (path.slice.data[0] != '/') {
+      req.err = HS_ERR_INVALID_HTTP_REQUEST;
+      return req;
+    }
+
+    req.path = path.slice;
+  }
+
+  {
+    SplitResult http_version = slice_split_next(&it);
+    if (!http_version.ok) {
+      req.err = HS_ERR_INVALID_HTTP_REQUEST;
+      return req;
+    }
+
+    if (!slice_eq(http_version.slice, slice_make_from_cstr("HTTP/1.1"))) {
+      req.err = HS_ERR_INVALID_HTTP_REQUEST;
+      return req;
+    }
+  }
+
+  return req;
+}
+
+static HttpRequestRead request_read(LineBufferedReader *reader, Arena *arena) {
+  const LineRead status_line = line_buffered_reader_read(reader, arena);
+  HttpRequestRead res = request_parse_status_line(status_line);
+  if (res.err) {
+    res.err = HS_ERR_INVALID_HTTP_REQUEST;
     return res;
   }
 
