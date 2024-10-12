@@ -68,9 +68,16 @@ static void test_read_http_request() {
   const HttpRequestRead req = request_read(&reader, &arena);
 
   ASSERT(reader.buf_idx == req_slice.len); // Read all.
-  ASSERT(req.err == 0);
-  ASSERT(req.method == HM_GET);
+  ASSERT(0 == req.err);
+  ASSERT(HM_GET == req.method);
   ASSERT(slice_eq(req.path, slice_make_from_cstr("/foo?bar=2")));
+
+  ASSERT(2 == req.headers.len);
+  ASSERT(slice_eq(req.headers.data[0].key, slice_make_from_cstr("Host")));
+  ASSERT(slice_eq(req.headers.data[0].value,
+                  slice_make_from_cstr("localhost:12345")));
+  ASSERT(slice_eq(req.headers.data[1].key, slice_make_from_cstr("Accept")));
+  ASSERT(slice_eq(req.headers.data[1].value, slice_make_from_cstr("*/*")));
 }
 
 static void test_slice_trim() {

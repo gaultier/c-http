@@ -163,6 +163,7 @@ typedef struct {
 typedef struct {
   Slice path;
   HttpMethod method;
+  DynArrayHttpHeaders headers;
   int err;
 } HttpRequestRead;
 
@@ -531,13 +532,14 @@ HttpRequestRead request_parse_status_line(LineRead status_line) {
   return req;
 }
 
-static HttpRequestRead request_read(LineBufferedReader *reader, Arena *arena) {
-  const LineRead status_line = line_buffered_reader_read(reader, arena);
-  HttpRequestRead res = request_parse_status_line(status_line);
-  if (res.err) {
-    res.err = HS_ERR_INVALID_HTTP_REQUEST;
-    return res;
+static HttpRequestRead request_read_headers(HttpRequestRead req,
+                                            LineBufferedReader *reader,
+                                            Arena *arena) {
+  if (req.err) {
+    return req;
   }
+
+  HttpRequestRead res = req;
 
   for (uint64_t _i = 0; _i < MAX_REQUEST_LINES; _i++) {
     const LineRead line = line_buffered_reader_read(reader, arena);
@@ -547,12 +549,34 @@ static HttpRequestRead request_read(LineBufferedReader *reader, Arena *arena) {
       return res;
     }
 
-    if (!line.present || line.line.len == 0) {
+    if (!line.present || slice_is_empty(line.line)) {
       break;
     }
-  }
 
+    SplitIterator it = slice_split_it(line.line, ':');
+    SplitResult key = slice_split_next(&it);
+    if (!key.ok) {
+      res.err = HS_ERR_INVALID_HTTP_REQUEST;
+      return res;
+    }
+
+    Slice key_trimmed = slice_trim(key.slice, ' ');
+
+    Slice value = it.slice; // Remainder.
+    Slice value_trimmed = slice_trim(value, ' ');
+
+    HttpHeader header = {.key = key_trimmed, .value = value_trimmed};
+    *dyn_push(&res.headers, arena) = header;
+  }
   return res;
+}
+
+static HttpRequestRead request_read(LineBufferedReader *reader, Arena *arena) {
+  const LineRead status_line = line_buffered_reader_read(reader, arena);
+  HttpRequestRead req = request_parse_status_line(status_line);
+  req = request_read_headers(req, reader, arena);
+
+  return req;
 }
 
 static int response_write(Writer writer, HttpResponse res, Arena *arena) {
