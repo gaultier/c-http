@@ -171,6 +171,8 @@ typedef struct {
   Slice path; // FIXME: Should be a parsed URL/URI.
   HttpMethod method;
   DynArrayHttpHeaders headers;
+  // TODO: fill.
+  Slice body;
   int err;
 } HttpRequest;
 
@@ -179,6 +181,7 @@ typedef struct {
   DynArrayHttpHeaders headers;
   int err;
   char *file_path;
+  Slice body;
 } HttpResponse;
 
 typedef struct {
@@ -604,6 +607,9 @@ static HttpRequest request_read(LineBufferedReader *reader, Arena *arena) {
 }
 
 static int response_write(Writer writer, HttpResponse res, Arena *arena) {
+  // Invalid to both want to serve a file and a body.
+  ASSERT(NULL == res.file_path || slice_is_empty(res.body));
+
   DynArrayU8 sb = {0};
 
   dyn_array_u8_append_cstr(&sb, "HTTP/1.1 ", arena);
@@ -619,6 +625,9 @@ static int response_write(Writer writer, HttpResponse res, Arena *arena) {
   }
 
   dyn_array_u8_append_cstr(&sb, "\r\n", arena);
+  if (!slice_is_empty(res.body)) {
+    dyn_append_slice(&sb, res.body, arena);
+  }
 
   const Slice slice = dyn_array_u8_to_slice(sb);
 
