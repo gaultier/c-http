@@ -32,7 +32,7 @@ typedef struct {
   uint64_t len;
 } Slice;
 
-static Slice slice_from_cstr(char *s) {
+static Slice slice_make_from_cstr(char *s) {
   const uint64_t s_len = strlen(s);
   const Slice slice = {.data = (uint8_t *)s, .len = s_len};
   return slice;
@@ -126,7 +126,7 @@ static Slice dyn_array_u8_to_slice(DynArrayU8 dyn) {
 }
 
 static void dyn_array_u8_append_cstr(DynArrayU8 *dyn, char *s, Arena *arena) {
-  dyn_append_slice(dyn, slice_from_cstr(s), arena);
+  dyn_append_slice(dyn, slice_make_from_cstr(s), arena);
 }
 
 #define arena_new(a, t, n) (t *)arena_alloc(a, sizeof(t), _Alignof(t), n)
@@ -156,8 +156,8 @@ typedef struct {
   ReadFn read_fn;
 } LineBufferedReader;
 
-static IoOperationResult line_buffered_reader_read_socket(void *ctx, void *buf,
-                                                          size_t buf_len) {
+static IoOperationResult
+line_buffered_reader_read_from_socket(void *ctx, void *buf, size_t buf_len) {
   const ssize_t n_read = recv((int)(uint64_t)ctx, buf, buf_len, 0);
   if (n_read == -1) {
     return (IoOperationResult){.err = errno};
@@ -169,7 +169,7 @@ static IoOperationResult line_buffered_reader_read_socket(void *ctx, void *buf,
 static LineBufferedReader line_buffered_reader_make_from_socket(int socket) {
   return (LineBufferedReader){
       .ctx = (void *)(uint64_t)socket,
-      .read_fn = line_buffered_reader_read_socket,
+      .read_fn = line_buffered_reader_read_from_socket,
   };
 }
 
@@ -181,8 +181,8 @@ typedef struct {
   void *ctx;
 } Writer;
 
-static IoOperationResult writer_write_socket(void *ctx, const void *buf,
-                                             size_t buf_len) {
+static IoOperationResult writer_write_from_socket(void *ctx, const void *buf,
+                                                  size_t buf_len) {
   const ssize_t n_written = send((int)(uint64_t)ctx, buf, buf_len, 0);
   if (n_written == -1) {
     return (IoOperationResult){.err = errno};
@@ -194,7 +194,7 @@ static IoOperationResult writer_write_socket(void *ctx, const void *buf,
 static Writer writer_make_from_socket(int socket) {
   return (Writer){
       .ctx = (void *)(uint64_t)socket,
-      .write = writer_write_socket,
+      .write = writer_write_from_socket,
   };
 }
 

@@ -2,42 +2,68 @@
 
 static void test_slice_indexof_slice() {
   // Empty haystack.
-  { ASSERT(-1 == slice_indexof_slice((Slice){}, slice_from_cstr("fox"))); }
+  { ASSERT(-1 == slice_indexof_slice((Slice){}, slice_make_from_cstr("fox"))); }
 
   // Empty needle.
-  { ASSERT(-1 == slice_indexof_slice(slice_from_cstr("hello"), (Slice){})); }
+  {
+    ASSERT(-1 == slice_indexof_slice(slice_make_from_cstr("hello"), (Slice){}));
+  }
 
   // Not found.
   {
-    ASSERT(-1 == slice_indexof_slice(slice_from_cstr("hello world"),
-                                     slice_from_cstr("foobar")));
+    ASSERT(-1 == slice_indexof_slice(slice_make_from_cstr("hello world"),
+                                     slice_make_from_cstr("foobar")));
   }
 
   // Found, one occurence.
   {
-    ASSERT(6 == slice_indexof_slice(slice_from_cstr("hello world"),
-                                    slice_from_cstr("world")));
+    ASSERT(6 == slice_indexof_slice(slice_make_from_cstr("hello world"),
+                                    slice_make_from_cstr("world")));
   }
 
   // Found, first occurence.
   {
-    ASSERT(6 == slice_indexof_slice(slice_from_cstr("world hello hell"),
-                                    slice_from_cstr("hell")));
+    ASSERT(6 == slice_indexof_slice(slice_make_from_cstr("world hello hell"),
+                                    slice_make_from_cstr("hell")));
   }
 
   // Found, second occurence.
   {
-    ASSERT(10 == slice_indexof_slice(slice_from_cstr("hello fox foxy"),
-                                     slice_from_cstr("foxy")));
+    ASSERT(10 == slice_indexof_slice(slice_make_from_cstr("hello fox foxy"),
+                                     slice_make_from_cstr("foxy")));
   }
 
   // Almost found, prefix matches.
   {
-    ASSERT(-1 == slice_indexof_slice(slice_from_cstr("hello world"),
-                                     slice_from_cstr("worldly")));
+    ASSERT(-1 == slice_indexof_slice(slice_make_from_cstr("hello world"),
+                                     slice_make_from_cstr("worldly")));
   }
 }
 
-static void test_() {}
+static IoOperationResult
+line_buffered_reader_read_from_slice(void *ctx, void *buf, size_t buf_len) {
+  Slice *slice = ctx;
+
+  ASSERT(buf != NULL);
+  ASSERT(slice->data != NULL);
+  ASSERT(slice->len <= buf_len);
+
+  memcpy(buf, slice->data, slice->len);
+  return (IoOperationResult){.bytes_count = slice->len};
+}
+
+static LineBufferedReader line_buffered_reader_make_from_slice(Slice *slice) {
+  return (LineBufferedReader){
+      .ctx = slice,
+      .read_fn = line_buffered_reader_read_from_slice,
+  };
+}
+
+static void test_read_http_request() {
+  Slice req_slice =
+      slice_make_from_cstr("GET /foo?bar=2 HTTP/1.1\r\nHost: "
+                           "localhost:12345\r\nAccept: */*\r\n\r\n");
+  LineBufferedReader reader = line_buffered_reader_make_from_slice(&req_slice);
+}
 
 int main() { test_slice_indexof_slice(); }
