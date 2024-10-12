@@ -46,7 +46,7 @@ static void test_read_http_request() {
   Slice req_slice = S("GET /foo?bar=2 HTTP/1.1\r\nHost: "
                       "localhost:12345\r\nAccept: */*\r\n\r\n");
   LineBufferedReader reader = line_buffered_reader_make_from_slice(&req_slice);
-  Arena arena = arena_make(4096);
+  Arena arena = arena_make_from_virtual_mem(4096);
   const HttpRequest req = request_read(&reader, &arena);
 
   ASSERT(reader.buf_idx == req_slice.len); // Read all.

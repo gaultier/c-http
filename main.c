@@ -23,4 +23,4 @@ static HttpResponse my_http_request_handler(HttpRequest req, Arena *arena) {
   return res;
 }
 
-int main() { run(my_http_request_handler); }
+int main() { return run(my_http_request_handler); }

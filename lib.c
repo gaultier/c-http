@@ -30,6 +30,8 @@ static const int LISTEN_BACKLOG = 1024;
     }                                                                          \
   } while (0)
 
+#define MUST_USE __attribute__((warn_unused_result))
+
 typedef enum {
   HS_ERR_INVALID_HTTP_REQUEST,
 } HS_ERROR;
@@ -39,7 +41,7 @@ typedef struct {
   uint64_t len;
 } Slice;
 
-static bool slice_is_empty(Slice s) {
+MUST_USE static bool slice_is_empty(Slice s) {
   if (s.len == 0) {
     return true;
   }
@@ -48,13 +50,13 @@ static bool slice_is_empty(Slice s) {
   return false;
 }
 
-static Slice S(char *s) {
+MUST_USE static Slice S(char *s) {
   const uint64_t s_len = strlen(s);
   const Slice slice = {.data = (uint8_t *)s, .len = s_len};
   return slice;
 }
 
-static Slice slice_trim_left(Slice s, uint8_t c) {
+MUST_USE static Slice slice_trim_left(Slice s, uint8_t c) {
   Slice res = s;
 
   for (uint64_t s_i = 0; s_i < s.len; s_i++) {
@@ -69,7 +71,7 @@ static Slice slice_trim_left(Slice s, uint8_t c) {
   return res;
 }
 
-static Slice slice_trim_right(Slice s, uint8_t c) {
+MUST_USE static Slice slice_trim_right(Slice s, uint8_t c) {
   Slice res = s;
 
   for (int64_t s_i = s.len - 1; s_i >= 0; s_i--) {
@@ -83,7 +85,7 @@ static Slice slice_trim_right(Slice s, uint8_t c) {
   return res;
 }
 
-static Slice slice_trim(Slice s, uint8_t c) {
+MUST_USE static Slice slice_trim(Slice s, uint8_t c) {
   Slice res = slice_trim_left(s, c);
   res = slice_trim_right(res, c);
 
@@ -100,11 +102,11 @@ typedef struct {
   bool ok;
 } SplitResult;
 
-static SplitIterator slice_split_it(Slice slice, uint8_t sep) {
+MUST_USE static SplitIterator slice_split_it(Slice slice, uint8_t sep) {
   return (SplitIterator){.slice = slice, .sep = sep};
 }
 
-static int64_t slice_indexof_byte(Slice haystack, uint8_t needle) {
+MUST_USE static int64_t slice_indexof_byte(Slice haystack, uint8_t needle) {
   if (slice_is_empty(haystack)) {
     return -1;
   }
@@ -117,7 +119,7 @@ static int64_t slice_indexof_byte(Slice haystack, uint8_t needle) {
   return res - haystack.data;
 }
 
-static Slice slice_range(Slice src, uint64_t start, uint64_t end) {
+MUST_USE static Slice slice_range(Slice src, uint64_t start, uint64_t end) {
   const uint64_t real_end = end == 0 ? src.len : end;
   ASSERT(start <= real_end);
   ASSERT(start <= src.len);
@@ -127,7 +129,7 @@ static Slice slice_range(Slice src, uint64_t start, uint64_t end) {
   return res;
 }
 
-static SplitResult slice_split_next(SplitIterator *it) {
+MUST_USE static SplitResult slice_split_next(SplitIterator *it) {
   if (slice_is_empty(it->slice)) {
     return (SplitResult){};
   }
@@ -153,8 +155,6 @@ static SplitResult slice_split_next(SplitIterator *it) {
   }
   return (SplitResult){};
 }
-
-static const Slice NEWLINE = {.data = (uint8_t *)"\r\n", .len = 2};
 
 typedef enum { HM_UNKNOWN, HM_GET, HM_POST } HttpMethod;
 
@@ -194,8 +194,8 @@ typedef struct {
   uint64_t len, cap;
 } DynArrayU8;
 
-static void *arena_alloc(Arena *a, uint64_t size, uint64_t align,
-                         uint64_t count) {
+MUST_USE static void *arena_alloc(Arena *a, uint64_t size, uint64_t align,
+                                  uint64_t count) {
   ASSERT(a->start != NULL);
 
   const uint64_t padding = (int64_t)(-(uint64_t)a->start & (align - 1));
@@ -234,7 +234,7 @@ static void dyn_grow(void *slice, uint64_t size, uint64_t align, Arena *a) {
   } else if (a->start == replica.data + size * replica.cap) { // Optimization.
     // This is the case of growing the array which is at the end of the arena.
     // In that case we can simply bump the arena pointer and avoid any copies.
-    arena_alloc(a, size, 1, replica.cap);
+    (void)arena_alloc(a, size, 1, replica.cap);
   } else { // General case.
     void *data = arena_alloc(a, 2 * size, align, replica.cap);
     memcpy(data, replica.data, size * replica.len);
@@ -258,7 +258,7 @@ static void dyn_grow(void *slice, uint64_t size, uint64_t align, Arena *a) {
     }                                                                          \
   } while (0)
 
-static Slice dyn_array_u8_to_slice(DynArrayU8 dyn) {
+MUST_USE static Slice dyn_array_u8_to_slice(DynArrayU8 dyn) {
   return (Slice){.data = dyn.data, .len = dyn.len};
 }
 
@@ -278,7 +278,7 @@ static void dyn_array_u8_append_u16(DynArrayU8 *dyn, uint16_t n, Arena *arena) {
 
 #define arena_new(a, t, n) (t *)arena_alloc(a, sizeof(t), _Alignof(t), n)
 
-static Arena arena_make(uint64_t size) {
+MUST_USE static Arena arena_make_from_virtual_mem(uint64_t size) {
   void *ptr =
       mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
 
@@ -303,7 +303,7 @@ typedef struct {
   ReadFn read_fn;
 } LineBufferedReader;
 
-static IoOperationResult
+MUST_USE static IoOperationResult
 line_buffered_reader_read_from_socket(void *ctx, void *buf, size_t buf_len) {
   const ssize_t n_read = recv((int)(uint64_t)ctx, buf, buf_len, 0);
   if (n_read == -1) {
@@ -313,7 +313,8 @@ line_buffered_reader_read_from_socket(void *ctx, void *buf, size_t buf_len) {
   return (IoOperationResult){.bytes_count = n_read};
 }
 
-static LineBufferedReader line_buffered_reader_make_from_socket(int socket) {
+MUST_USE static LineBufferedReader
+line_buffered_reader_make_from_socket(int socket) {
   return (LineBufferedReader){
       .ctx = (void *)(uint64_t)socket,
       .read_fn = line_buffered_reader_read_from_socket,
@@ -328,8 +329,8 @@ typedef struct {
   void *ctx;
 } Writer;
 
-static IoOperationResult writer_write_from_socket(void *ctx, const void *buf,
-                                                  size_t buf_len) {
+MUST_USE static IoOperationResult
+writer_write_from_socket(void *ctx, const void *buf, size_t buf_len) {
   const ssize_t n_written = send((int)(uint64_t)ctx, buf, buf_len, 0);
   if (n_written == -1) {
     return (IoOperationResult){.err = errno};
@@ -338,14 +339,14 @@ static IoOperationResult writer_write_from_socket(void *ctx, const void *buf,
   return (IoOperationResult){.bytes_count = n_written};
 }
 
-static Writer writer_make_from_socket(int socket) {
+MUST_USE static Writer writer_make_from_socket(int socket) {
   return (Writer){
       .ctx = (void *)(uint64_t)socket,
       .write = writer_write_from_socket,
   };
 }
 
-static int writer_write_all(Writer writer, Slice slice) {
+MUST_USE static int writer_write_all(Writer writer, Slice slice) {
   for (uint64_t idx = 0; idx < slice.len;) {
     const Slice to_write = slice_range(slice, idx, 0);
     const IoOperationResult write_res =
@@ -368,7 +369,7 @@ typedef struct {
   bool present;
 } LineRead;
 
-static bool slice_eq(Slice a, Slice b) {
+MUST_USE static bool slice_eq(Slice a, Slice b) {
   if (a.data == NULL && b.data == NULL && a.len == b.len) {
     return true;
   }
@@ -390,7 +391,7 @@ static bool slice_eq(Slice a, Slice b) {
   return memcmp(a.data, b.data, a.len) == 0;
 }
 
-static int64_t slice_indexof_slice(Slice haystack, Slice needle) {
+MUST_USE static int64_t slice_indexof_slice(Slice haystack, Slice needle) {
   if (haystack.data == NULL) {
     return -1;
   }
@@ -439,12 +440,16 @@ static int64_t slice_indexof_slice(Slice haystack, Slice needle) {
   return -1;
 }
 
-static Slice dyn_array_u8_range(DynArrayU8 src, uint64_t start, uint64_t end) {
+MUST_USE static Slice dyn_array_u8_range(DynArrayU8 src, uint64_t start,
+                                         uint64_t end) {
   Slice src_slice = {.data = src.data, .len = src.len};
   return slice_range(src_slice, start, end);
 }
 
-static LineRead line_buffered_reader_consume(LineBufferedReader *reader) {
+MUST_USE static LineRead
+line_buffered_reader_consume(LineBufferedReader *reader) {
+  const Slice NEWLINE = S("\r\n");
+
   LineRead res = {0};
 
   if (reader->buf_idx >= reader->buf.len) {
@@ -466,8 +471,8 @@ static LineRead line_buffered_reader_consume(LineBufferedReader *reader) {
   return res;
 }
 
-static LineRead line_buffered_reader_read(LineBufferedReader *reader,
-                                          Arena *arena) {
+MUST_USE static LineRead line_buffered_reader_read(LineBufferedReader *reader,
+                                                   Arena *arena) {
   LineRead line = {0};
 
   for (uint64_t _i = 0; _i < 10; _i++) {
@@ -489,7 +494,7 @@ static LineRead line_buffered_reader_read(LineBufferedReader *reader,
   return line;
 }
 
-static HttpRequest request_parse_status_line(LineRead status_line) {
+MUST_USE static HttpRequest request_parse_status_line(LineRead status_line) {
   HttpRequest res = {0};
 
   if (!status_line.present) {
@@ -559,9 +564,9 @@ static HttpRequest request_parse_status_line(LineRead status_line) {
   return req;
 }
 
-static HttpRequest request_read_headers(HttpRequest req,
-                                        LineBufferedReader *reader,
-                                        Arena *arena) {
+MUST_USE static HttpRequest request_read_headers(HttpRequest req,
+                                                 LineBufferedReader *reader,
+                                                 Arena *arena) {
   if (req.err) {
     return req;
   }
@@ -598,7 +603,8 @@ static HttpRequest request_read_headers(HttpRequest req,
   return res;
 }
 
-static HttpRequest request_read(LineBufferedReader *reader, Arena *arena) {
+MUST_USE static HttpRequest request_read(LineBufferedReader *reader,
+                                         Arena *arena) {
   const LineRead status_line = line_buffered_reader_read(reader, arena);
   HttpRequest req = request_parse_status_line(status_line);
   req = request_read_headers(req, reader, arena);
@@ -606,7 +612,8 @@ static HttpRequest request_read(LineBufferedReader *reader, Arena *arena) {
   return req;
 }
 
-static int response_write(Writer writer, HttpResponse res, Arena *arena) {
+MUST_USE static int response_write(Writer writer, HttpResponse res,
+                                   Arena *arena) {
   // Invalid to both want to serve a file and a body.
   ASSERT(NULL == res.file_path || slice_is_empty(res.body));
 
@@ -679,7 +686,7 @@ static void http_response_register_file_for_sending(HttpResponse *res,
 typedef HttpResponse (*HttpRequestHandleFn)(HttpRequest req, Arena *arena);
 
 static void handle_client(int socket, HttpRequestHandleFn handle) {
-  Arena arena = arena_make(CLIENT_MEM);
+  Arena arena = arena_make_from_virtual_mem(CLIENT_MEM);
   LineBufferedReader reader = line_buffered_reader_make_from_socket(socket);
   const HttpRequest req = request_read(&reader, &arena);
   if (req.err) {
@@ -689,13 +696,13 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
   HttpResponse res = handle(req, &arena);
 
   Writer writer = writer_make_from_socket(socket);
-  response_write(writer, res, &arena);
+  (void)response_write(writer, res, &arena);
 
   fprintf(stderr, "[D001] arena use %ld\n",
           CLIENT_MEM - (arena.end - arena.start));
 }
 
-static int run(HttpRequestHandleFn request_handler) {
+MUST_USE static int run(HttpRequestHandleFn request_handler) {
   const uint16_t port = PORT;
   struct sigaction sa = {.sa_flags = SA_NOCLDWAIT};
   int err = 0;
