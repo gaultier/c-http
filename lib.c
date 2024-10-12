@@ -206,7 +206,6 @@ static void *arena_alloc(Arena *a, uint64_t size, uint64_t align,
   return memset(res, 0, count * size);
 }
 
-// TODO: Optimize for the case of an allocation at the end of the arena.
 static void dyn_grow(void *slice, uint64_t size, uint64_t align, Arena *a) {
   ASSERT(NULL != slice);
 
@@ -218,16 +217,21 @@ static void dyn_grow(void *slice, uint64_t size, uint64_t align, Arena *a) {
 
   memcpy(&replica, slice, sizeof(replica));
 
-  replica.cap = replica.cap ? replica.cap : 1;
-  void *data = arena_alloc(a, 2 * size, align, replica.cap);
-  replica.cap *= 2;
-  if (replica.len) {
+  if (NULL == replica.data) { // First allocation
+    replica.cap = 1;
+    replica.data = arena_alloc(a, 2 * size, align, replica.cap);
+  } else if (a->start == replica.data + size * replica.cap) { // Optimization.
+    // This is the case of growing the array which is at the end of the arena.
+    // In that case we can simply bump the arena pointer and avoid any copies.
+    arena_alloc(a, size, 1, replica.cap);
+  } else { // General case.
+    void *data = arena_alloc(a, 2 * size, align, replica.cap);
     memcpy(data, replica.data, size * replica.len);
+    replica.data = data;
   }
-  replica.data = data;
+  replica.cap *= 2;
 
   ASSERT(NULL != slice);
-
   memcpy(slice, &replica, sizeof(replica));
 }
 
