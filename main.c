@@ -128,6 +128,33 @@ typedef struct {
   bool present;
 } LineRead;
 
+static int64_t slice_indexof_byte(Slice haystack, uint8_t needle) {
+  if (haystack.data == NULL) {
+    return -1;
+  }
+
+  if (haystack.len == 0) {
+    return -1;
+  }
+
+  const uint8_t *res = memchr(haystack.data, needle, haystack.len);
+  if (res == NULL) {
+    return -1;
+  }
+
+  return res - haystack.data;
+}
+
+Slice slice_range(Slice src, uint64_t start, uint64_t end) {
+  ASSERT(start <= end);
+  ASSERT(start <= src.len);
+  const uint64_t real_end = end == 0 ? src.len : end;
+  ASSERT(real_end <= src.len);
+
+  Slice res = {.data = src.data + start, .len = real_end - start};
+  return res;
+}
+
 static int64_t slice_indexof_slice(Slice haystack, Slice needle) {
   if (haystack.data == NULL) {
     return -1;
@@ -155,33 +182,21 @@ static int64_t slice_indexof_slice(Slice haystack, Slice needle) {
     ASSERT(haystack_idx < haystack.len);
     ASSERT(haystack_idx + needle.len <= haystack.len);
 
-    const uint8_t *res =
-        memchr(haystack.data + haystack_idx, needle.data[0], needle.len);
-    if (res == NULL) {
+    const Slice to_search = slice_range(haystack, haystack_idx, 0);
+    const uint64_t found_idx = slice_indexof_byte(to_search, needle.data[0]);
+    ASSERT(found_idx <= to_search.len);
+    if (needle.len < to_search.len - found_idx) {
       return -1;
     }
 
-    const uint64_t found_idx = res - haystack.data;
-    ASSERT(found_idx <= needle.len);
-
-    const int cmp = memcmp(res, needle.data, needle.len);
+    const int cmp = memcmp(to_search.data, needle.data, needle.len);
     if (cmp == 0) {
-      return found_idx;
+      return haystack_idx + found_idx;
     }
-    haystack_idx += found_idx + 1;
+    haystack_idx += found_idx + NEWLINE.len;
   }
 
   return -1;
-}
-
-Slice slice_range(Slice src, uint64_t start, uint64_t end) {
-  ASSERT(start <= end);
-  ASSERT(start <= src.len);
-  const uint64_t real_end = end == 0 ? src.len : end;
-  ASSERT(real_end <= src.len);
-
-  Slice res = {.data = src.data + start, .len = real_end - start};
-  return res;
 }
 
 Slice dyn_array_u8_range(DynArrayU8 src, uint64_t start, uint64_t end) {
