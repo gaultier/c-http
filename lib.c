@@ -637,6 +637,8 @@ static void handle_client(int socket) {
 
   Writer writer = writer_make_from_socket(socket);
   response_write(writer, res, &arena);
+
+  fprintf(stderr, "[D001] %ld\n", 4096 - (arena.end - arena.start));
 }
 
 static int run() {
