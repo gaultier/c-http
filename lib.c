@@ -612,6 +612,17 @@ static int response_write(Writer writer, HttpResponse res, Arena *arena) {
   return writer_write_all(writer, slice);
 }
 
+static void http_response_push_header(HttpResponse *res, Slice key, Slice value,
+                                      Arena *arena) {
+  *dyn_push(&res->headers, arena) = (HttpHeader){.key = key, .value = value};
+}
+
+static void http_response_push_header_cstr(HttpResponse *res, char *key,
+                                           char *value, Arena *arena) {
+  http_response_push_header(res, slice_make_from_cstr(key),
+                            slice_make_from_cstr(value), arena);
+}
+
 static void handle_client(int socket) {
   Arena arena = arena_make(4096);
   LineBufferedReader reader = line_buffered_reader_make_from_socket(socket);
@@ -621,12 +632,8 @@ static void handle_client(int socket) {
   }
 
   HttpResponse res = {.status = 201};
-  *dyn_push(&res.headers, &arena) =
-      (HttpHeader){.key = slice_make_from_cstr("Content-Type"),
-                   .value = slice_make_from_cstr("text/html")};
-  *dyn_push(&res.headers, &arena) =
-      (HttpHeader){.key = slice_make_from_cstr("Connection"),
-                   .value = slice_make_from_cstr("close")};
+  http_response_push_header_cstr(&res, "Content-Type", "text/html", &arena);
+  http_response_push_header_cstr(&res, "Connection", "close", &arena);
 
   Writer writer = writer_make_from_socket(socket);
   response_write(writer, res, &arena);
