@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <netinet/in.h>
 #include <signal.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,6 +25,8 @@ typedef struct {
   uint8_t *data;
   uint64_t len;
 } Slice;
+
+static const Slice NEWLINE = {.data = (uint8_t *)"\r\n", .len = 2};
 
 typedef enum { HM_GET, HM_POST } HttpMethod;
 
@@ -46,6 +49,13 @@ typedef struct {
   ((s)->len >= (s)->cap                                                        \
    ? dyn_grow(s, sizeof(*(s)->data), _Alignof(*(s)->data), arena),             \
    (s)->data + (s)->len++ : (s)->data + (s)->len++)
+
+#define dyn_append_slice(dst, src, arena)                                      \
+  do {                                                                         \
+    for (uint64_t i = 0; i < src.len; i++) {                                   \
+      *dyn_push(dst, arena) = src.data[i];                                     \
+    }                                                                          \
+  } while (0)
 
 void *arena_alloc(Arena *a, uint64_t size, uint64_t align, uint64_t count) {
   ASSERT(a->start != NULL);
@@ -112,6 +122,117 @@ typedef struct {
   DynArrayU8 buf;
   int socket;
 } LineBufferedReader;
+
+typedef struct {
+  Slice line;
+  int err;
+  bool present;
+} LineRead;
+
+static int64_t slice_indexof_slice(Slice haystack, Slice needle) {
+  if (haystack.data == NULL) {
+    return -1;
+  }
+
+  if (haystack.len == 0) {
+    return -1;
+  }
+
+  if (needle.data == NULL) {
+    return -1;
+  }
+
+  if (needle.len == 0) {
+    return -1;
+  }
+
+  if (needle.len > haystack.len) {
+    return -1;
+  }
+
+  uint64_t haystack_idx = 0;
+
+  for (uint64_t _i = 0; _i < haystack.len; _i++) {
+    ASSERT(haystack_idx < haystack.len);
+    ASSERT(haystack_idx + needle.len <= haystack.len);
+
+    const uint8_t *res =
+        memchr(haystack.data + haystack_idx, needle.data[0], needle.len);
+    if (res == NULL) {
+      return -1;
+    }
+
+    const uint64_t found_idx = res - haystack.data;
+    ASSERT(found_idx <= needle.len);
+
+    const int cmp = memcmp(res, needle.data, needle.len);
+    if (cmp == 0) {
+      return found_idx;
+    }
+    haystack_idx += found_idx + 1;
+  }
+
+  return -1;
+}
+
+Slice slice_range(Slice src, uint64_t start, uint64_t end) {
+  ASSERT(start <= end);
+  ASSERT(start <= src.len);
+  const uint64_t real_end = end == 0 ? src.len : end;
+  ASSERT(real_end <= src.len);
+
+  Slice res = {.data = src.data + start, .len = real_end - start};
+  return res;
+}
+
+Slice dyn_array_u8_range(DynArrayU8 src, uint64_t start, uint64_t end) {
+  Slice src_slice = {.data = src.data, .len = src.len};
+  return slice_range(src_slice, start, end);
+}
+
+static LineRead line_buffered_reader_consume(LineBufferedReader *reader) {
+  LineRead res = {0};
+
+  if (reader->buf_idx >= reader->buf.len) {
+    return res;
+  }
+
+  const Slice to_search = dyn_array_u8_range(reader->buf, reader->buf_idx, 0);
+  const int64_t newline_idx = slice_indexof_slice(to_search, NEWLINE);
+
+  if (newline_idx == -1) {
+    return res;
+  }
+
+  res.line = dyn_array_u8_range(reader->buf, reader->buf_idx,
+                                reader->buf_idx + newline_idx);
+  res.present = true;
+  reader->buf_idx += newline_idx + NEWLINE.len;
+
+  return res;
+}
+
+static LineRead line_buffered_reader_read(LineBufferedReader *reader,
+                                          Arena *arena) {
+  LineRead line = {0};
+
+  for (uint64_t _i = 0; _i < 10; _i++) {
+    line = line_buffered_reader_consume(reader);
+    if (line.present) {
+      return line;
+    }
+
+    uint8_t buf[4096] = {0};
+    const ssize_t n_read = recv(reader->socket, buf, sizeof(buf), 0);
+    if (n_read == -1) {
+      continue;
+    }
+
+    const Slice slice = {.data = buf, .len = n_read};
+    dyn_append_slice(&reader->buf, slice, arena);
+  }
+  return line;
+}
 
 static HttpRequest request_read() {
   HttpRequest res = {0};
