@@ -125,18 +125,26 @@ static SplitResult slice_split_next(SplitIterator *it) {
     return (SplitResult){};
   }
 
-  const int64_t idx = slice_indexof_byte(it->slice, it->sep);
-  if (-1 == idx) {
-    // Last element.
-    SplitResult res = {.slice = it->slice, .ok = true};
-    it->slice = (Slice){0};
-    return res;
+  for (uint64_t _i = 0; _i < it->slice.len; _i++) {
+    const int64_t idx = slice_indexof_byte(it->slice, it->sep);
+    if (-1 == idx) {
+      // Last element.
+      SplitResult res = {.slice = it->slice, .ok = true};
+      it->slice = (Slice){0};
+      return res;
+    }
+
+    if (idx == 0) { // Multiple continguous separators.
+      it->slice = slice_range(it->slice, idx + 1, 0);
+      continue;
+    } else {
+      SplitResult res = {.slice = slice_range(it->slice, 0, idx), .ok = true};
+      it->slice = slice_range(it->slice, idx + 1, 0);
+
+      return res;
+    }
   }
-
-  SplitResult res = {.slice = slice_range(it->slice, 0, idx), .ok = true};
-  it->slice = slice_range(it->slice, idx + 1, 0);
-
-  return res;
+  return (SplitResult){};
 }
 
 static const Slice NEWLINE = {.data = (uint8_t *)"\r\n", .len = 2};
