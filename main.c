@@ -155,6 +155,28 @@ Slice slice_range(Slice src, uint64_t start, uint64_t end) {
   return res;
 }
 
+bool slice_eq(Slice a, Slice b) {
+  if (a.data == NULL && b.data == NULL && a.len == b.len) {
+    return true;
+  }
+  if (a.data == NULL) {
+    return false;
+  }
+  if (b.data == NULL) {
+    return false;
+  }
+
+  if (a.len != b.len) {
+    return false;
+  }
+
+  ASSERT(a.data != NULL);
+  ASSERT(b.data != NULL);
+  ASSERT(a.len == b.len);
+
+  return memcmp(a.data, b.data, a.len) == 0;
+}
+
 static int64_t slice_indexof_slice(Slice haystack, Slice needle) {
   if (haystack.data == NULL) {
     return -1;
@@ -185,12 +207,13 @@ static int64_t slice_indexof_slice(Slice haystack, Slice needle) {
     const Slice to_search = slice_range(haystack, haystack_idx, 0);
     const uint64_t found_idx = slice_indexof_byte(to_search, needle.data[0]);
     ASSERT(found_idx <= to_search.len);
-    if (needle.len < to_search.len - found_idx) {
+    if (needle.len > to_search.len - found_idx) {
       return -1;
     }
 
-    const int cmp = memcmp(to_search.data, needle.data, needle.len);
-    if (cmp == 0) {
+    const Slice found_candidate =
+        slice_range(to_search, found_idx, found_idx + needle.len);
+    if (slice_eq(found_candidate, needle)) {
       return haystack_idx + found_idx;
     }
     haystack_idx += found_idx + NEWLINE.len;
