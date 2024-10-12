@@ -2,6 +2,7 @@
 set -ex
 
 EXTRA_FLAGS=""
+CC="${CC:-clang}"
 
 error() {
 	printf "ERROR: %s\n" "$1"
@@ -24,13 +25,13 @@ case $1 in
 		;;
 esac
 
-clang -std=c11 -Wall -Wextra -g -Wno-gnu-alignof-expression main.c -o main.bin "$EXTRA_FLAGS"
+"$CC" -std=c11 -Wall -Wextra -g -Wno-gnu-alignof-expression main.c -o main.bin "$EXTRA_FLAGS"
 }
 
 if [ $# -eq 0 ]; then
 	build debug
 elif [ $# -eq 1 ]; then
-  build $1
+  build "$1"
 else
 	error "Too many arguments!"
 fi
