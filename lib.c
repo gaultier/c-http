@@ -152,6 +152,15 @@ static const Slice NEWLINE = {.data = (uint8_t *)"\r\n", .len = 2};
 typedef enum { HM_UNKNOWN, HM_GET, HM_POST } HttpMethod;
 
 typedef struct {
+  Slice key, value;
+} HttpHeader;
+
+typedef struct {
+  HttpHeader *data;
+  uint64_t len, cap;
+} DynArrayHttpHeaders;
+
+typedef struct {
   Slice path;
   HttpMethod method;
   int err;
@@ -194,6 +203,7 @@ static void *arena_alloc(Arena *a, uint64_t size, uint64_t align,
   return memset(res, 0, count * size);
 }
 
+// TODO: Optimize for the case of an allocation at the end of the arena.
 static void dyn_grow(void *slice, uint64_t size, uint64_t align, Arena *a) {
   ASSERT(NULL != slice);
 
