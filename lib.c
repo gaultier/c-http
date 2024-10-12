@@ -15,6 +15,7 @@
 #include <sys/signal.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 static const uint64_t MAX_REQUEST_LINES = 512;
@@ -686,6 +687,9 @@ static void http_response_register_file_for_sending(HttpResponse *res,
 typedef HttpResponse (*HttpRequestHandleFn)(HttpRequest req, Arena *arena);
 
 static void handle_client(int socket, HttpRequestHandleFn handle) {
+  struct timespec ts_start = {0};
+  clock_gettime(CLOCK_MONOTONIC_RAW, &ts_start);
+
   Arena arena = arena_make_from_virtual_mem(CLIENT_MEM);
   LineBufferedReader reader = line_buffered_reader_make_from_socket(socket);
   const HttpRequest req = request_read(&reader, &arena);
@@ -698,8 +702,12 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
   Writer writer = writer_make_from_socket(socket);
   (void)response_write(writer, res, &arena);
 
-  fprintf(stderr, "[D001] arena use %ld\n",
-          CLIENT_MEM - (arena.end - arena.start));
+  struct timespec ts_end = {0};
+  clock_gettime(CLOCK_MONOTONIC_RAW, &ts_end);
+  fprintf(stderr, "[D001] arena_use=%ld duration=%lds%ldus\n",
+          CLIENT_MEM - (arena.end - arena.start),
+          ts_end.tv_sec - ts_start.tv_sec,
+          (ts_end.tv_nsec - ts_start.tv_nsec) / 1000);
 }
 
 MUST_USE static int run(HttpRequestHandleFn request_handler) {
