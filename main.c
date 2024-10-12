@@ -14,6 +14,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+static const uint64_t MAX_REQUEST_LINES = 512;
+
 #define ASSERT(x)                                                              \
   do {                                                                         \
     if (!(x)) {                                                                \
@@ -37,8 +39,12 @@ typedef enum { HM_GET, HM_POST } HttpMethod;
 typedef struct {
   Slice path;
   HttpMethod method;
-  int error;
+  int err;
 } HttpRequestRead;
+
+typedef struct {
+  uint16_t status;
+} HttpResponse;
 
 typedef struct {
   uint8_t *start;
@@ -49,18 +55,6 @@ typedef struct {
   uint8_t *data;
   uint64_t len, cap;
 } DynArrayU8;
-
-#define dyn_push(s, arena)                                                     \
-  ((s)->len >= (s)->cap                                                        \
-   ? dyn_grow(s, sizeof(*(s)->data), _Alignof(*(s)->data), arena),             \
-   (s)->data + (s)->len++ : (s)->data + (s)->len++)
-
-#define dyn_append_slice(dst, src, arena)                                      \
-  do {                                                                         \
-    for (uint64_t i = 0; i < src.len; i++) {                                   \
-      *dyn_push(dst, arena) = src.data[i];                                     \
-    }                                                                          \
-  } while (0)
 
 void *arena_alloc(Arena *a, uint64_t size, uint64_t align, uint64_t count) {
   ASSERT(a->start != NULL);
@@ -82,19 +76,6 @@ void *arena_alloc(Arena *a, uint64_t size, uint64_t align, uint64_t count) {
   ASSERT((uint64_t)a->start % align == 0); // Aligned.
 
   return memset(res, 0, count * size);
-}
-
-#define arena_new(a, t, n) (t *)arena_alloc(a, sizeof(t), _Alignof(t), n)
-
-Arena arena_make(uint64_t size) {
-  void *ptr =
-      mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
-
-  if (ptr == NULL) {
-    fprintf(stderr, "failed to mmap: %d %s\n", errno, strerror(errno));
-    exit(errno);
-  }
-  return (Arena){.start = ptr, .end = ptr + size};
 }
 
 static void dyn_grow(void *slice, uint64_t size, uint64_t align, Arena *a) {
@@ -121,11 +102,64 @@ static void dyn_grow(void *slice, uint64_t size, uint64_t align, Arena *a) {
   memcpy(slice, &replica, sizeof(replica));
 }
 
+#define dyn_push(s, arena)                                                     \
+  ((s)->len >= (s)->cap                                                        \
+   ? dyn_grow(s, sizeof(*(s)->data), _Alignof(*(s)->data), arena),             \
+   (s)->data + (s)->len++ : (s)->data + (s)->len++)
+
+#define dyn_append_slice(dst, src, arena)                                      \
+  do {                                                                         \
+    for (uint64_t i = 0; i < src.len; i++) {                                   \
+      *dyn_push(dst, arena) = src.data[i];                                     \
+    }                                                                          \
+  } while (0)
+
+Slice dyn_array_u8_to_slice(DynArrayU8 dyn) {
+  return (Slice){.data = dyn.data, .len = dyn.len};
+}
+
+void dyn_array_u8_append_cstr(DynArrayU8 *dyn, char *s, Arena *arena) {
+  const uint64_t s_len = strlen(s);
+  const Slice slice = {.data = (uint8_t *)s, .len = s_len};
+  dyn_append_slice(dyn, slice, arena);
+}
+
+#define arena_new(a, t, n) (t *)arena_alloc(a, sizeof(t), _Alignof(t), n)
+
+Arena arena_make(uint64_t size) {
+  void *ptr =
+      mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+
+  if (ptr == NULL) {
+    fprintf(stderr, "failed to mmap: %d %s\n", errno, strerror(errno));
+    exit(errno);
+  }
+  return (Arena){.start = ptr, .end = ptr + size};
+}
+
 typedef struct {
   uint64_t buf_idx;
   DynArrayU8 buf;
   int socket;
 } LineBufferedReader;
+
+typedef ssize_t (*WriteFn)(void *ctx, const void *buf, size_t buf_len);
+
+typedef struct {
+  WriteFn write;
+  void *ctx;
+} Writer;
+
+ssize_t writer_write_socket(void *ctx, const void *buf, size_t buf_len) {
+  return send((int)(uint64_t)ctx, buf, buf_len, 0);
+}
+
+Writer writer_make_from_socket(int socket) {
+  return (Writer){
+      .ctx = (void *)(uint64_t)socket,
+      .write = writer_write_socket,
+  };
+}
 
 typedef struct {
   Slice line;
@@ -281,17 +315,51 @@ static HttpRequestRead request_read(LineBufferedReader *reader, Arena *arena) {
 
   const LineRead status_line = line_buffered_reader_read(reader, arena);
   if (!status_line.present) {
-    res.error = HS_ERR_INVALID_HTTP_REQUEST;
+    res.err = HS_ERR_INVALID_HTTP_REQUEST;
     return res;
+  }
+  if (status_line.err) {
+    res.err = status_line.err;
+    return res;
+  }
+
+  for (uint64_t _i = 0; _i < MAX_REQUEST_LINES; _i++) {
+    const LineRead line = line_buffered_reader_read(reader, arena);
+
+    if (line.err) {
+      res.err = line.err;
+      return res;
+    }
+
+    if (!line.present || line.line.len == 0) {
+      break;
+    }
   }
 
   return res;
 }
 
-static void handle_connection(int conn_fd) {
+static void response_write(Writer writer, HttpResponse res, Arena *arena) {
+  DynArrayU8 sb = {0};
+
+  dyn_array_u8_append_cstr(&sb, "HTTP/1.1 200\r\n", arena);
+  dyn_array_u8_append_cstr(&sb, "\r\n", arena);
+
+  const Slice slice = dyn_array_u8_to_slice(sb);
+  writer.write(writer.ctx, slice.data, slice.len);
+}
+
+static void handle_connection(int socket) {
   Arena arena = arena_make(4096);
-  LineBufferedReader reader = {.socket = conn_fd};
-  request_read(&reader, &arena);
+  LineBufferedReader reader = {.socket = socket};
+  const HttpRequestRead req = request_read(&reader, &arena);
+  if (req.err) {
+    exit(EINVAL);
+  }
+
+  const HttpResponse res = {.status = 201};
+  Writer writer = writer_make_from_socket(socket);
+  response_write(writer, res, &arena);
 
   //  const int n_written = send(conn_fd, buf, sizeof(buf), 0);
   //  if (n_written == -1) {
