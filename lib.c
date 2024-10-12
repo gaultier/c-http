@@ -249,6 +249,16 @@ static void dyn_array_u8_append_cstr(DynArrayU8 *dyn, char *s, Arena *arena) {
   dyn_append_slice(dyn, slice_make_from_cstr(s), arena);
 }
 
+static void dyn_array_u8_append_u16(DynArrayU8 *dyn, uint16_t n, Arena *arena) {
+  uint8_t tmp[30] = {0};
+  const int written_count = snprintf((char *)tmp, sizeof(tmp), "%u", n);
+
+  ASSERT(written_count > 0);
+
+  Slice slice = {.data = tmp, .len = written_count};
+  dyn_append_slice(dyn, slice, arena);
+}
+
 #define arena_new(a, t, n) (t *)arena_alloc(a, sizeof(t), _Alignof(t), n)
 
 static Arena arena_make(uint64_t size) {
@@ -582,7 +592,9 @@ static HttpRequestRead request_read(LineBufferedReader *reader, Arena *arena) {
 static int response_write(Writer writer, HttpResponse res, Arena *arena) {
   DynArrayU8 sb = {0};
 
-  dyn_array_u8_append_cstr(&sb, "HTTP/1.1 200\r\n", arena);
+  dyn_array_u8_append_cstr(&sb, "HTTP/1.1 ", arena);
+  dyn_array_u8_append_u16(&sb, res.status, arena);
+  dyn_array_u8_append_cstr(&sb, "\r\n", arena);
   dyn_array_u8_append_cstr(&sb, "\r\n", arena);
 
   const Slice slice = dyn_array_u8_to_slice(sb);
