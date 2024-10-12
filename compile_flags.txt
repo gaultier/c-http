@@ -2,3 +2,5 @@
  -Wall
  -Wextra
 -Wno-gnu-alignof-expression
+-Wconversion
+-Wno-sign-conversion 

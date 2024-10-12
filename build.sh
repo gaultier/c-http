@@ -15,7 +15,7 @@ case $1 in
     EXTRA_FLAGS="-O0"
     ;;
   asan)
-    EXTRA_FLAGS="-fsanitize=address "
+    EXTRA_FLAGS="-fsanitize=address,undefined"
     ;;
   release)
     EXTRA_FLAGS="-O3"
@@ -25,7 +25,7 @@ case $1 in
 		;;
 esac
 
-"$CC" -std=c11 -Wall -Wextra -g -Wno-gnu-alignof-expression main.c -o main.bin "$EXTRA_FLAGS"
+"$CC" -std=c11 -Wall -Wextra -Wno-gnu-alignof-expression -Wconversion -Wno-sign-conversion -g -gsplit-dwarf main.c -o main.bin "$EXTRA_FLAGS"
 }
 
 if [ $# -eq 0 ]; then
