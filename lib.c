@@ -650,25 +650,7 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
           CLIENT_MEM - (arena.end - arena.start));
 }
 
-static HttpResponse my_http_request_handler(HttpRequest req, Arena *arena) {
-  ASSERT(0 == req.err);
-
-  HttpResponse res = {0};
-  http_response_push_header_cstr(&res, "Connection", "close", arena);
-
-  if (HM_GET == req.method &&
-      (slice_eq(req.path, slice_make_from_cstr("/")) ||
-       slice_eq(req.path, slice_make_from_cstr("/index.html")))) {
-    res.status = 200; // Dummy status code.
-    http_response_push_header_cstr(&res, "Content-Type", "text/html", arena);
-  } else {
-    res.status = 404;
-  }
-
-  return res;
-}
-
-static int run() {
+static int run(HttpRequestHandleFn request_handler) {
   const uint16_t port = PORT;
   struct sigaction sa = {.sa_flags = SA_NOCLDWAIT};
   int err = 0;
@@ -725,7 +707,7 @@ static int run() {
       fprintf(stderr, "Failed to fork(2): err=%s\n", strerror(errno));
       exit(errno);
     } else if (pid == 0) { // Child
-      handle_client(conn_fd, my_http_request_handler);
+      handle_client(conn_fd, request_handler);
       exit(0);
     } else { // Parent
       // Fds are duplicated by fork(2) and need to be
