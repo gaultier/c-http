@@ -21,6 +21,10 @@
     }                                                                          \
   } while (0)
 
+typedef enum {
+  HS_ERR_INVALID_HTTP_REQUEST,
+} HS_ERROR;
+
 typedef struct {
   uint8_t *data;
   uint64_t len;
@@ -33,7 +37,8 @@ typedef enum { HM_GET, HM_POST } HttpMethod;
 typedef struct {
   Slice path;
   HttpMethod method;
-} HttpRequest;
+  int error;
+} HttpRequestRead;
 
 typedef struct {
   uint8_t *start;
@@ -271,10 +276,14 @@ static LineRead line_buffered_reader_read(LineBufferedReader *reader,
   return line;
 }
 
-static HttpRequest request_read(LineBufferedReader *reader, Arena *arena) {
-  HttpRequest res = {0};
+static HttpRequestRead request_read(LineBufferedReader *reader, Arena *arena) {
+  HttpRequestRead res = {0};
 
-  line_buffered_reader_read(reader, arena);
+  const LineRead status_line = line_buffered_reader_read(reader, arena);
+  if (!status_line.present) {
+    res.error = HS_ERR_INVALID_HTTP_REQUEST;
+    return res;
+  }
 
   return res;
 }
