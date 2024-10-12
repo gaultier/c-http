@@ -38,6 +38,43 @@ static Slice slice_make_from_cstr(char *s) {
   return slice;
 }
 
+static Slice slice_trim_left(Slice s, uint8_t c) {
+  Slice res = s;
+
+  for (uint64_t s_i = 0; s_i < s.len; s_i++) {
+    ASSERT(s.data != NULL);
+    if (s.data[s_i] != c) {
+      return res;
+    }
+
+    res.data += 1;
+    res.len -= 1;
+  }
+  return res;
+}
+
+static Slice slice_trim_right(Slice s, uint8_t c) {
+  Slice res = s;
+
+  for (int64_t s_i = s.len; s_i >= 0; s_i--) {
+    ASSERT(s.data != NULL);
+    if (s.data[s_i] != c) {
+      return res;
+    }
+
+    res.data += 1;
+    res.len -= 1;
+  }
+  return res;
+}
+
+static Slice slice_trim(Slice s, uint8_t c) {
+  Slice res = slice_trim_left(s, c);
+  res = slice_trim_right(s, c);
+
+  return res;
+}
+
 static const Slice NEWLINE = {.data = (uint8_t *)"\r\n", .len = 2};
 
 typedef enum { HM_UNKNOWN, HM_GET, HM_POST } HttpMethod;
@@ -368,6 +405,52 @@ static LineRead line_buffered_reader_read(LineBufferedReader *reader,
   }
   return line;
 }
+
+HttpRequestRead request_parse_status_line(Slice s) {
+  Slice trimmed = slice_trim(s, ' ');
+}
+
+/* fn request_parse_status_line(s: []const u8) !HttpRequest { */
+/*     std.log.info("status line `{s}`", .{s}); */
+/*     const space = [_]u8{ ' ', '\r' }; */
+
+/*     var it = std.mem.splitScalar(u8, s, ' '); */
+
+/*     var req: HttpRequest = undefined; */
+/*     if (it.next()) |method| { */
+/*         const method_trimmed = std.mem.trim(u8, method, space[0..]); */
+
+/*         if (std.mem.eql(u8, method_trimmed, "GET")) { */
+/*             req.method = .Get; */
+/*         } else if (std.mem.eql(u8, method_trimmed, "POST")) { */
+/*             req.method = .Post; */
+/*         } else { */
+/*             std.log.err("invalid http method `{s}` `{s}`", .{ s, method });
+ */
+/*             return error.InvalidHttpMethod; */
+/*         } */
+/*     } else { */
+/*         return error.MissingHttpMethod; */
+/*     } */
+
+/*     if (it.next()) |path| { */
+/*         const path_trimmed = std.mem.trim(u8, path, space[0..]); */
+/*         req.path = path_trimmed; */
+/*     } else { */
+/*         return error.InvalidUri; */
+/*     } */
+
+/*     if (it.next()) |http_version| { */
+/*         const http_version_trimmed = std.mem.trim(u8, http_version,
+ * space[0..]); */
+/*         std.log.info("http_version=`{s}`", .{http_version_trimmed}); */
+/*         if (!std.mem.eql(u8, http_version_trimmed, "HTTP/1.1")) { */
+/*             return error.InvalidHttpVersion; */
+/*         } */
+/*     } */
+
+/*     return req; */
+/* } */
 
 static HttpRequestRead request_read(LineBufferedReader *reader, Arena *arena) {
   HttpRequestRead res = {0};
