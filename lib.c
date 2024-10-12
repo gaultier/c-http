@@ -40,7 +40,7 @@ static Slice slice_make_from_cstr(char *s) {
 
 static const Slice NEWLINE = {.data = (uint8_t *)"\r\n", .len = 2};
 
-typedef enum { HM_GET, HM_POST } HttpMethod;
+typedef enum { HM_UNKNOWN, HM_GET, HM_POST } HttpMethod;
 
 typedef struct {
   Slice path;

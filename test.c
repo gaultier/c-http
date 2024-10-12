@@ -64,6 +64,16 @@ static void test_read_http_request() {
       slice_make_from_cstr("GET /foo?bar=2 HTTP/1.1\r\nHost: "
                            "localhost:12345\r\nAccept: */*\r\n\r\n");
   LineBufferedReader reader = line_buffered_reader_make_from_slice(&req_slice);
+  Arena arena = arena_make(4096);
+  const HttpRequestRead req = request_read(&reader, &arena);
+
+  ASSERT(reader.buf_idx == req_slice.len); // Read all.
+  ASSERT(req.err == 0);
+  ASSERT(req.method == HM_GET);
+  ASSERT(slice_eq(req.path, slice_make_from_cstr("/foo?bar=2")));
 }
 
-int main() { test_slice_indexof_slice(); }
+int main() {
+  test_slice_indexof_slice();
+  test_read_http_request();
+}
