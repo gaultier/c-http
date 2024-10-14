@@ -371,33 +371,26 @@ MUST_USE static LogEntry LCS(char *k, Slice v) {
 
 MUST_USE static Slice log_entry_quote_value(Slice entry, Arena *arena) {
   uint64_t quote_count = slice_count_u8(entry, '"');
-  if (quote_count == 0) {
+  if (quote_count == 0) { // Optimization: do not quote anything.
     return entry;
   }
 
-  Slice res = {
-      .data = arena_new(arena, uint8_t, entry.len + quote_count),
-      .len = entry.len + quote_count,
-  };
-  uint64_t i_res = 0;
-  for (uint64_t i_entry = 0; i_entry < entry.len; i_entry++) {
-    ASSERT(i_res < res.len);
+  DynArrayU8 sb = {0};
+  *dyn_push(&sb, arena) = '"';
 
-    if (entry.data[i_entry] != '"') {
-      res.data[i_res] = entry.data[i_entry];
-      i_res += 1;
+  for (uint64_t i = 0; i < entry.len; i++) {
+    uint8_t c = entry.data[i];
+    if ('"' != c) { // Easy case.
+      *dyn_push(&sb, arena) = c;
       continue;
     }
 
-    res.data[i_res] = '\\';
-    i_res += 1;
-    ASSERT(i_res < res.len);
-    res.data[i_res] = entry.data[i_entry];
-    i_res += 1;
-    ASSERT(i_res <= res.len);
+    *dyn_push(&sb, arena) = '\\';
+    *dyn_push(&sb, arena) = c;
   }
+  *dyn_push(&sb, arena) = '"';
 
-  return res;
+  return dyn_array_u8_to_slice(sb);
 }
 
 MUST_USE static Slice make_log_line(Slice msg, Arena *arena, int32_t args_count,
