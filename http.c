@@ -6,7 +6,9 @@
 #include <netinet/in.h>
 #include <signal.h>
 #include <stdint.h>
+#ifdef __linux__
 #include <sys/sendfile.h>
+#endif
 #include <sys/signal.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -516,7 +518,7 @@ typedef HttpResponse (*HttpRequestHandleFn)(HttpRequest req, Arena *arena);
 
 static void handle_client(int socket, HttpRequestHandleFn handle) {
   struct timespec ts_start = {0};
-  clock_gettime(CLOCK_MONOTONIC_RAW, &ts_start);
+  clock_gettime(CLOCK_MONOTONIC_COARSE, &ts_start);
 
   Arena arena = arena_make_from_virtual_mem(CLIENT_MEM);
   Reader reader = reader_make_from_socket(socket);
@@ -536,7 +538,7 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
   (void)response_write(writer, res, &arena);
 
   struct timespec ts_end = {0};
-  clock_gettime(CLOCK_MONOTONIC_RAW, &ts_end);
+  clock_gettime(CLOCK_MONOTONIC_COARSE, &ts_end);
 
   const uint64_t mem_use = CLIENT_MEM - (arena.end - arena.start);
   const uint64_t duration_us = (ts_end.tv_sec - ts_start.tv_sec) * 1000 * 1000 +
