@@ -216,17 +216,12 @@ reader_read_until_slice(Reader *reader, Slice needle, Arena *arena) {
       continue;
     }
 
-    io.slice.len = idx;
-
-    // Found and did not read anything in excess: easy case, return.
-    if (idx == (int64_t)(io.slice.len - needle.len)) {
-      return io;
-    }
-
-    // Found but read some in excess, need to rewind a bit.
+    // Found but maybe read some in excess, need to rewind a bit.
     uint64_t excess_read = io.slice.len - (idx + needle.len);
     ASSERT(reader->buf_idx >= excess_read);
     reader->buf_idx -= excess_read;
+    io.slice.len = idx;
+    return io;
   }
 
   io.err = EINTR;
