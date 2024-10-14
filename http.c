@@ -144,7 +144,7 @@ typedef struct {
   bool present;
 } LineRead;
 
-MUST_USE static LineRead reader_consume(Reader *reader) {
+MUST_USE static LineRead reader_consume_line(Reader *reader) {
   const Slice NEWLINE = S("\r\n");
 
   LineRead res = {0};
@@ -168,7 +168,7 @@ MUST_USE static LineRead reader_consume(Reader *reader) {
   return res;
 }
 
-MUST_USE static int reader_read_all(ReadFn read_fn, Slice out, void *ctx) {
+MUST_USE static int reader_read_all(Reader *reader, Slice out) {
   uint64_t idx = 0;
   int err = 0;
 
@@ -193,7 +193,7 @@ MUST_USE static LineRead reader_read_line(Reader *reader, Arena *arena) {
   LineRead line = {0};
 
   for (uint64_t _i = 0; _i < 10; _i++) {
-    line = reader_consume(reader);
+    line = reader_consume_line(reader);
     if (line.present) {
       return line;
     }
@@ -341,7 +341,7 @@ MUST_USE static HttpRequest request_read_body(HttpRequest req, Reader *reader,
   res.body.len = content_length;
   res.body.data = arena_new(arena, uint8_t, content_length);
 
-  res.err = reader_read_all(reader->read_fn, res.body, reader->ctx);
+  res.err = reader_read_all(reader, res.body);
 
   return res;
 }
