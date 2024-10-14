@@ -391,6 +391,10 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
   Arena arena = arena_make_from_virtual_mem(CLIENT_MEM);
   LineBufferedReader reader = line_buffered_reader_make_from_socket(socket);
   const HttpRequest req = request_read(&reader, &arena);
+
+  log("htp_request_start", arena, LCS("path", req.path),
+      LCI("body_length", req.body.len), LCI("err", req.err),
+      LCS("method", http_method_to_s(req.method)));
   if (req.err) {
     exit(EINVAL);
   }
