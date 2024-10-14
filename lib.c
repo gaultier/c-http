@@ -331,7 +331,7 @@ static void dyn_array_u8_append_u64(DynArrayU8 *dyn, uint64_t n, Arena *arena) {
 
 static void dyn_array_u8_append_u128_hex(DynArrayU8 *dyn, __uint128_t n,
                                          Arena *arena) {
-  uint8_t tmp[32] = {0};
+  uint8_t tmp[32 + 1] = {0};
   snprintf((char *)&tmp[0], 16, "%lx", (uint64_t)(n << 8));
   snprintf((char *)&tmp[16], 16, "%lx", (uint64_t)(n & UINT64_MAX));
 
