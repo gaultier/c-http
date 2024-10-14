@@ -160,7 +160,8 @@ static void test_make_log_line() {
   Slice log_line = make_log_line(S("foobar"), &arena, 2, LCI("num", 42),
                                  LCS("slice", S("hello \"world\"")));
 
-  Slice expected = S("message=foobar num=42 slice=\"hello \\\"world\\\"\"\n");
+  Slice expected =
+      S("message=\"foobar\" num=42 slice=\"hello \\\"world\\\"\"\n");
   ASSERT(slice_eq(expected, log_line));
 }
 
