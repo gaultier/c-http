@@ -1,5 +1,6 @@
 #pragma once
 #include <errno.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -206,6 +207,14 @@ MUST_USE static int64_t slice_indexof_slice(Slice haystack, Slice needle) {
   return -1;
 }
 
+MUST_USE static uint64_t slice_count_u8(Slice s, uint8_t c) {
+  uint64_t res = 0;
+  for (uint64_t i = 0; i < s.len; i++) {
+    res += (s.data[i] == c);
+  }
+  return res;
+}
+
 typedef struct {
   uint8_t *start;
   uint8_t *end;
@@ -294,9 +303,9 @@ static void dyn_array_u8_append_cstr(DynArrayU8 *dyn, char *s, Arena *arena) {
   dyn_append_slice(dyn, S(s), arena);
 }
 
-static void dyn_array_u8_append_u16(DynArrayU8 *dyn, uint16_t n, Arena *arena) {
+static void dyn_array_u8_append_u64(DynArrayU8 *dyn, uint64_t n, Arena *arena) {
   uint8_t tmp[30] = {0};
-  const int written_count = snprintf((char *)tmp, sizeof(tmp), "%u", n);
+  const int written_count = snprintf((char *)tmp, sizeof(tmp), "%lu", n);
 
   ASSERT(written_count > 0);
 
@@ -315,4 +324,97 @@ MUST_USE static Arena arena_make_from_virtual_mem(uint64_t size) {
     exit(errno);
   }
   return (Arena){.start = ptr, .end = ptr + size};
+}
+
+typedef enum {
+  LV_SLICE,
+  LV_U64,
+} LogValueKind;
+
+typedef struct {
+  LogValueKind kind;
+  union {
+    Slice s;
+    uint64_t n;
+  };
+} LogValue;
+
+typedef struct {
+  Slice key;
+  LogValue value;
+} LogEntry;
+
+#define L(k, v) _Generic((v), Slice: ((LogEntry){.key=S(k),.value.kind=LV_SLICE,.value.slice=value}), char*:((LogEntry){.key=S(k), .value.kind=LV_SLICE,.value.slice==S(value)), uint64_t: ((LogEntry){.key=S(k),.value.kind=LV_U64,.value.n=value}))
+
+#define LOG_ARGS_COUNT(...) (sizeof((int[]){__VA_ARGS__}) / sizeof(LogEntry))
+#define log(msg, arena, ...)                                                   \
+  do {                                                                         \
+    Arena tmp_arena = *arena;                                                  \
+    Slice log_line = make_log_line(msg, &tmp_arena, args_count, ...);          \
+    write(stderr, log_line.data, log_line.len);                                \
+  } while (0)
+
+Slice log_entry_quote_value(Slice entry, Arena *arena) {
+  uint64_t quote_count = slice_count_u8(entry, '"');
+  if (quote_count == 0) {
+    return entry;
+  }
+
+  Slice res = {
+      .data = arena_new(arena, uint8_t, entry.len + quote_count),
+      .len = entry.len + quote_count,
+  };
+  uint64_t i_res = 0;
+  for (uint64_t i_entry = 0; i_entry < entry.len; i_entry++) {
+    ASSERT(i_res < res.len);
+
+    if (entry.data[i_entry] != '"') {
+      res.data[i_res] = entry.data[i_entry];
+      i_res += 1;
+      continue;
+    }
+
+    res.data[i_res] = '\\';
+    i_res += 1;
+    ASSERT(i_res < res.len);
+    res.data[i_res] = entry.data[i_entry];
+    i_res += 1;
+    ASSERT(i_res <= res.len);
+  }
+
+  return res;
+}
+
+Slice make_log_line(Slice msg, Arena *arena, int32_t args_count, ...) {
+  DynArrayU8 sb = {0};
+  dyn_append_slice(&sb, S("message="), arena);
+  dyn_append_slice(&sb, msg, arena);
+  dyn_append_slice(&sb, S(" "), arena);
+
+  va_list argp = {0};
+  va_start(argp, args_count);
+  for (int32_t i = 0; i < args_count; i++) {
+    LogEntry entry = va_arg(argp, LogEntry);
+    ASSERT(0 == slice_count_u8(entry.key, '"'));
+
+    dyn_append_slice(&sb, entry.key, arena);
+    dyn_append_slice(&sb, S("="), arena);
+
+    switch (entry.value.kind) {
+    case LV_SLICE: {
+      Slice value = log_entry_quote_value(entry.value.s, arena);
+      dyn_append_slice(&sb, value, arena);
+    }
+    case LV_U64:
+      dyn_array_u8_append_u64(&sb, entry.value.n, arena);
+      break;
+    default:
+      ASSERT(0 && "invalid LogValueKind");
+    }
+
+    dyn_append_slice(&sb, S(" "), arena);
+  }
+  va_end(argp);
+
+  return dyn_array_u8_to_slice(sb);
 }
