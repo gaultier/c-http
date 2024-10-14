@@ -184,32 +184,14 @@ MUST_USE static int64_t slice_indexof_slice(Slice haystack, Slice needle) {
     return -1;
   }
 
-  uint64_t haystack_idx = 0;
-
-  for (uint64_t _i = 0; _i < haystack.len; _i++) {
-    ASSERT(haystack_idx < haystack.len);
-    ASSERT(haystack_idx + needle.len <= haystack.len);
-
-    const Slice to_search = slice_range(haystack, haystack_idx, 0);
-    const int64_t found_idx = slice_indexof_byte(to_search, needle.data[0]);
-    if (found_idx == -1) {
-      return -1;
-    }
-
-    ASSERT(found_idx <= (int64_t)to_search.len);
-    if (found_idx + needle.len > to_search.len) {
-      return -1;
-    }
-
-    const Slice found_candidate =
-        slice_range(to_search, found_idx, found_idx + needle.len);
-    if (slice_eq(found_candidate, needle)) {
-      return haystack_idx + found_idx;
-    }
-    haystack_idx += found_idx + 1;
+  void *ptr = memmem(haystack.data, haystack.len, needle.data, needle.len);
+  if (NULL == ptr) {
+    return -1;
   }
 
-  return -1;
+  uint64_t res = (uint8_t *)ptr - haystack.data;
+  ASSERT(res < haystack.len);
+  return res;
 }
 
 MUST_USE static uint64_t slice_count_u8(Slice s, uint8_t c) {
