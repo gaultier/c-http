@@ -194,21 +194,19 @@ MUST_USE static LineRead line_buffered_reader_read(LineBufferedReader *reader,
 }
 
 MUST_USE static HttpRequest request_parse_status_line(LineRead status_line) {
-  HttpRequest res = {0};
-  arc4random_buf(&res.id, sizeof(res.id));
+  HttpRequest req = {0};
+  arc4random_buf(&req.id, sizeof(req.id));
 
   if (!status_line.present) {
-    res.err = HS_ERR_INVALID_HTTP_REQUEST;
-    return res;
+    req.err = HS_ERR_INVALID_HTTP_REQUEST;
+    return req;
   }
   if (status_line.err) {
-    res.err = status_line.err;
-    return res;
+    req.err = status_line.err;
+    return req;
   }
 
   SplitIterator it = slice_split_it(status_line.line, ' ');
-
-  HttpRequest req = {0};
 
   {
     SplitResult method = slice_split_next(&it);
