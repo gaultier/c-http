@@ -77,10 +77,10 @@ typedef struct {
   DynArrayU8 buf;
   void *ctx;
   ReadFn read_fn;
-} LineBufferedReader;
+} Reader;
 
-MUST_USE static IoOperationResult
-line_buffered_reader_read_from_socket(void *ctx, void *buf, size_t buf_len) {
+MUST_USE static IoOperationResult reader_read_from_socket(void *ctx, void *buf,
+                                                          size_t buf_len) {
   const ssize_t n_read = recv((int)(uint64_t)ctx, buf, buf_len, 0);
   if (n_read == -1) {
     return (IoOperationResult){.err = errno};
@@ -89,11 +89,10 @@ line_buffered_reader_read_from_socket(void *ctx, void *buf, size_t buf_len) {
   return (IoOperationResult){.bytes_count = n_read};
 }
 
-MUST_USE static LineBufferedReader
-line_buffered_reader_make_from_socket(int socket) {
-  return (LineBufferedReader){
+MUST_USE static Reader reader_make_from_socket(int socket) {
+  return (Reader){
       .ctx = (void *)(uint64_t)socket,
-      .read_fn = line_buffered_reader_read_from_socket,
+      .read_fn = reader_read_from_socket,
   };
 }
 
@@ -145,8 +144,7 @@ typedef struct {
   bool present;
 } LineRead;
 
-MUST_USE static LineRead
-line_buffered_reader_consume(LineBufferedReader *reader) {
+MUST_USE static LineRead reader_consume(Reader *reader) {
   const Slice NEWLINE = S("\r\n");
 
   LineRead res = {0};
@@ -191,12 +189,11 @@ MUST_USE static int reader_read_all(ReadFn read_fn, Slice out, void *ctx) {
   return err;
 }
 
-MUST_USE static LineRead line_buffered_reader_read(LineBufferedReader *reader,
-                                                   Arena *arena) {
+MUST_USE static LineRead reader_read(Reader *reader, Arena *arena) {
   LineRead line = {0};
 
   for (uint64_t _i = 0; _i < 10; _i++) {
-    line = line_buffered_reader_consume(reader);
+    line = reader_consume(reader);
     if (line.present) {
       return line;
     }
@@ -284,14 +281,13 @@ MUST_USE static HttpRequest request_parse_status_line(LineRead status_line) {
 }
 
 MUST_USE static HttpRequest request_read_headers(HttpRequest req,
-                                                 LineBufferedReader *reader,
-                                                 Arena *arena) {
+                                                 Reader *reader, Arena *arena) {
   ASSERT(!req.err);
 
   HttpRequest res = req;
 
   for (uint64_t _i = 0; _i < MAX_REQUEST_LINES; _i++) {
-    const LineRead line = line_buffered_reader_read(reader, arena);
+    const LineRead line = reader_read(reader, arena);
 
     if (line.err) {
       res.err = line.err;
@@ -336,8 +332,7 @@ request_parse_content_length_maybe(HttpRequest req) {
   return (ParseNumberResult){0};
 }
 
-MUST_USE static HttpRequest request_read_body(HttpRequest req,
-                                              LineBufferedReader *reader,
+MUST_USE static HttpRequest request_read_body(HttpRequest req, Reader *reader,
                                               uint64_t content_length,
                                               Arena *arena) {
   ASSERT(!req.err);
@@ -351,9 +346,8 @@ MUST_USE static HttpRequest request_read_body(HttpRequest req,
   return res;
 }
 
-MUST_USE static HttpRequest request_read(LineBufferedReader *reader,
-                                         Arena *arena) {
-  const LineRead status_line = line_buffered_reader_read(reader, arena);
+MUST_USE static HttpRequest request_read(Reader *reader, Arena *arena) {
+  const LineRead status_line = reader_read(reader, arena);
 
   HttpRequest req = request_parse_status_line(status_line);
   if (req.err) {
@@ -456,7 +450,7 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
   clock_gettime(CLOCK_MONOTONIC_RAW, &ts_start);
 
   Arena arena = arena_make_from_virtual_mem(CLIENT_MEM);
-  LineBufferedReader reader = line_buffered_reader_make_from_socket(socket);
+  Reader reader = reader_make_from_socket(socket);
   const HttpRequest req = request_read(&reader, &arena);
 
   log("htp_request_start", arena, LCS("path", req.path),

@@ -23,8 +23,8 @@ static void test_slice_indexof_slice() {
   { ASSERT(-1 == slice_indexof_slice(S("hello world"), S("worldly"))); }
 }
 
-static IoOperationResult
-line_buffered_reader_read_from_slice(void *ctx, void *buf, size_t buf_len) {
+static IoOperationResult reader_read_from_slice(void *ctx, void *buf,
+                                                size_t buf_len) {
   Slice *slice = ctx;
 
   ASSERT(buf != NULL);
@@ -35,17 +35,17 @@ line_buffered_reader_read_from_slice(void *ctx, void *buf, size_t buf_len) {
   return (IoOperationResult){.bytes_count = slice->len};
 }
 
-static LineBufferedReader line_buffered_reader_make_from_slice(Slice *slice) {
-  return (LineBufferedReader){
+static Reader reader_make_from_slice(Slice *slice) {
+  return (Reader){
       .ctx = slice,
-      .read_fn = line_buffered_reader_read_from_slice,
+      .read_fn = reader_read_from_slice,
   };
 }
 
 static void test_read_http_request() {
   Slice req_slice = S("GET /foo?bar=2 HTTP/1.1\r\nHost: "
                       "localhost:12345\r\nAccept: */*\r\n\r\n");
-  LineBufferedReader reader = line_buffered_reader_make_from_slice(&req_slice);
+  Reader reader = reader_make_from_slice(&req_slice);
   Arena arena = arena_make_from_virtual_mem(4096);
   const HttpRequest req = request_read(&reader, &arena);
 
