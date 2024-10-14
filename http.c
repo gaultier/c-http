@@ -242,7 +242,7 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
 
     ASSERT(remaining_to_read > 0);
 
-    IoOperationResult res = reader_read(reader, arena);
+    res = reader_read(reader, arena);
     if (res.err) {
       return res;
     }
