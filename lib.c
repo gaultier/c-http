@@ -344,14 +344,21 @@ typedef struct {
   LogValue value;
 } LogEntry;
 
-#define L(k, v) _Generic((v), Slice: ((LogEntry){.key=S(k),.value.kind=LV_SLICE,.value.slice=value}), char*:((LogEntry){.key=S(k), .value.kind=LV_SLICE,.value.slice==S(value)), uint64_t: ((LogEntry){.key=S(k),.value.kind=LV_U64,.value.n=value}))
+static LogEntry LCI(char *k, uint64_t v) {
+  return ((LogEntry){
+      .key = S(k),
+      .value.kind = LV_U64,
+      .value.n = v,
+  });
+}
 
-#define LOG_ARGS_COUNT(...) (sizeof((int[]){__VA_ARGS__}) / sizeof(LogEntry))
-#define log(msg, arena, ...)                                                   \
+#define LOG_ARGS_COUNT(...)                                                    \
+  (sizeof((LogEntry[]){__VA_ARGS__}) / sizeof(LogEntry))
+#define log(msg, tmp_arena, ...)                                               \
   do {                                                                         \
-    Arena tmp_arena = *arena;                                                  \
-    Slice log_line = make_log_line(msg, &tmp_arena, args_count, ...);          \
-    write(stderr, log_line.data, log_line.len);                                \
+    Slice log_line = make_log_line(S(msg), &tmp_arena,                         \
+                                   LOG_ARGS_COUNT(__VA_ARGS__), __VA_ARGS__);  \
+    write(2, log_line.data, log_line.len);                                     \
   } while (0)
 
 Slice log_entry_quote_value(Slice entry, Arena *arena) {
@@ -415,6 +422,8 @@ Slice make_log_line(Slice msg, Arena *arena, int32_t args_count, ...) {
     dyn_append_slice(&sb, S(" "), arena);
   }
   va_end(argp);
+
+  dyn_append_slice(&sb, S("\n"), arena);
 
   return dyn_array_u8_to_slice(sb);
 }

@@ -389,10 +389,12 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
 
   struct timespec ts_end = {0};
   clock_gettime(CLOCK_MONOTONIC_RAW, &ts_end);
-  fprintf(stderr, "[D001] arena_use=%ld duration=%lds%ldus\n",
-          CLIENT_MEM - (arena.end - arena.start),
-          ts_end.tv_sec - ts_start.tv_sec,
-          (ts_end.tv_nsec - ts_start.tv_nsec) / 1000);
+
+  const uint64_t mem_use = CLIENT_MEM - (arena.end - arena.start);
+  const uint64_t duration_us = (ts_end.tv_sec - ts_start.tv_sec) * 1000 * 1000 +
+                               (ts_end.tv_nsec - ts_start.tv_nsec) / 1000;
+  log("htp_request_end", arena, LCI("arena_use", mem_use),
+      LCI("duration_us", duration_us));
 }
 
 MUST_USE static int run(HttpRequestHandleFn request_handler) {
