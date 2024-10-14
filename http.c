@@ -170,6 +170,27 @@ line_buffered_reader_consume(LineBufferedReader *reader) {
   return res;
 }
 
+MUST_USE static int reader_read_all(ReadFn read_fn, Slice out, void *ctx) {
+  uint64_t idx = 0;
+  int err = 0;
+
+  for (uint64_t i = 0; i < out.len; i++) {
+    Slice remaining = slice_range(out, idx, 0);
+    if (slice_is_empty(remaining)) {
+      break;
+    }
+
+    IoOperationResult res = read_fn(ctx, remaining.data, remaining.len);
+    if (res.err) {
+      return res.err;
+    }
+
+    idx += res.bytes_count;
+    ASSERT(idx <= out.len);
+  }
+  return err;
+}
+
 MUST_USE static LineRead line_buffered_reader_read(LineBufferedReader *reader,
                                                    Arena *arena) {
   LineRead line = {0};
@@ -321,6 +342,12 @@ MUST_USE static HttpRequest request_read_body(HttpRequest req,
                                               Arena *arena) {
   ASSERT(!req.err);
   HttpRequest res = req;
+
+  res.body.len = content_length;
+  res.body.data = arena_new(arena, uint8_t, content_length);
+
+  res.err = reader_read_all(reader->read_fn, res.body, reader->ctx);
+
   return res;
 }
 
