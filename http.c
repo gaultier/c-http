@@ -265,9 +265,7 @@ MUST_USE static HttpRequest request_parse_status_line(LineRead status_line) {
 MUST_USE static HttpRequest request_read_headers(HttpRequest req,
                                                  LineBufferedReader *reader,
                                                  Arena *arena) {
-  if (req.err) {
-    return req;
-  }
+  ASSERT(!req.err);
 
   HttpRequest res = req;
 
@@ -301,11 +299,54 @@ MUST_USE static HttpRequest request_read_headers(HttpRequest req,
   return res;
 }
 
+MUST_USE static ParseNumberResult
+request_parse_content_length_maybe(HttpRequest req) {
+  ASSERT(!req.err);
+
+  for (uint64_t i = 0; i < req.headers.len; i++) {
+    HttpHeader h = req.headers.data[i];
+
+    if (!slice_eq(S("Content-Length"), h.key)) {
+      continue;
+    }
+
+    return slice_parse_u64_decimal(h.value);
+  }
+  return (ParseNumberResult){0};
+}
+
+MUST_USE static HttpRequest request_read_body(HttpRequest req,
+                                              LineBufferedReader *reader,
+                                              uint64_t content_length,
+                                              Arena *arena) {
+  ASSERT(!req.err);
+  HttpRequest res = req;
+  return res;
+}
+
 MUST_USE static HttpRequest request_read(LineBufferedReader *reader,
                                          Arena *arena) {
   const LineRead status_line = line_buffered_reader_read(reader, arena);
+
   HttpRequest req = request_parse_status_line(status_line);
+  if (req.err) {
+    return req;
+  }
+
   req = request_read_headers(req, reader, arena);
+  if (req.err) {
+    return req;
+  }
+
+  ParseNumberResult content_length = request_parse_content_length_maybe(req);
+  if (content_length.err) {
+    req.err = HS_ERR_INVALID_HTTP_REQUEST;
+    return req;
+  }
+
+  if (content_length.present) {
+    req = request_read_body(req, reader, content_length.n, arena);
+  }
 
   return req;
 }

@@ -221,6 +221,32 @@ MUST_USE static uint64_t slice_count_u8(Slice s, uint8_t c) {
 }
 
 typedef struct {
+  uint64_t n;
+  bool err;
+  bool present;
+} ParseNumberResult;
+
+MUST_USE static ParseNumberResult slice_parse_u64_decimal(Slice slice) {
+  Slice trimmed = slice_trim(slice, ' ');
+
+  ParseNumberResult res = {0};
+
+  for (uint64_t i = 0; i < trimmed.len; i++) {
+    uint8_t c = trimmed.data[i];
+
+    if (!('0' <= c && c <= '9')) { // Error.
+      res.err = true;
+      return res;
+    }
+
+    res.n *= 10;
+    res.n += (uint8_t)trimmed.data[i] - '0';
+  }
+  res.present = true;
+  return res;
+}
+
+typedef struct {
   uint8_t *start;
   uint8_t *end;
 } Arena;
