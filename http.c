@@ -148,6 +148,11 @@ typedef struct {
 
 MUST_USE static IoOperationResult reader_read_from_buffer(Reader *reader) {
   ASSERT(reader->buf.len >= reader->buf_idx);
+
+  if (reader->buf_idx == reader->buf.len) {
+    return (IoOperationResult){0};
+  }
+
   IoOperationResult res = {
       .slice.data = &reader->buf.data[reader->buf_idx],
       .slice.len = reader->buf.len - reader->buf_idx,
@@ -191,9 +196,33 @@ MUST_USE static IoOperationResult
 reader_read_until_slice(Reader *reader, Slice needle, Arena *arena) {
   ASSERT(reader->buf.len >= reader->buf_idx);
 
-  IoOperationResult res = {0};
-  // TODO
-  return res;
+  IoOperationResult io = {0};
+
+  for (uint64_t i = 0; i < 128; i++) // FIXME
+  {
+    io = reader_read(reader, arena);
+    if (io.err) {
+      return io;
+    }
+
+    int64_t idx = slice_indexof_slice(io.slice, needle);
+    // Not found, continue reading.
+    if (idx == -1) {
+      continue;
+    }
+
+    // Found and did not read anything in excess: easy case, return.
+    if (idx == (int64_t)(io.slice.len - needle.len)) {
+      return io;
+    }
+
+    // Found but read some in excess, need to rewind a bit.
+    uint64_t excess_read = io.slice.len - (idx + needle.len);
+    ASSERT(reader->buf_idx >= excess_read);
+    reader->buf_idx -= excess_read;
+  }
+
+  return io;
 }
 
 MUST_USE static int reader_read_all(Reader *reader, uint64_t content_length,
