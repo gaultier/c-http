@@ -1,4 +1,4 @@
-#include "lib.c"
+#include "http.c"
 
 static HttpResponse my_http_request_handler(HttpRequest req, Arena *arena) {
   ASSERT(0 == req.err);
