@@ -26,6 +26,19 @@ typedef enum {
 
 typedef enum { HM_UNKNOWN, HM_GET, HM_POST } HttpMethod;
 
+Slice static http_method_to_s(HttpMethod m) {
+  switch (m) {
+  case HM_UNKNOWN:
+    return S("unknown");
+  case HM_GET:
+    return S("GET");
+  case HM_POST:
+    return S("POST");
+  default:
+    ASSERT(0);
+  }
+}
+
 typedef struct {
   Slice key, value;
 } HttpHeader;
@@ -394,7 +407,8 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
   const uint64_t duration_us = (ts_end.tv_sec - ts_start.tv_sec) * 1000 * 1000 +
                                (ts_end.tv_nsec - ts_start.tv_nsec) / 1000;
   log("htp_request_end", arena, LCI("arena_use", mem_use),
-      LCI("duration_us", duration_us));
+      LCI("duration_us", duration_us), LCS("path", req.path),
+      LCS("method", http_method_to_s(req.method)));
 }
 
 MUST_USE static int run(HttpRequestHandleFn request_handler) {

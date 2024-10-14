@@ -352,6 +352,14 @@ MUST_USE static LogEntry LCI(char *k, uint64_t v) {
   });
 }
 
+MUST_USE static LogEntry LCS(char *k, Slice v) {
+  return ((LogEntry){
+      .key = S(k),
+      .value.kind = LV_SLICE,
+      .value.s = v,
+  });
+}
+
 #define LOG_ARGS_COUNT(...)                                                    \
   (sizeof((LogEntry[]){__VA_ARGS__}) / sizeof(LogEntry))
 #define log(msg, tmp_arena, ...)                                               \
