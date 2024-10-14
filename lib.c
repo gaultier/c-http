@@ -288,6 +288,16 @@ MUST_USE static Slice dyn_array_u8_range(DynArrayU8 src, uint64_t start,
    ? dyn_grow(s, sizeof(*(s)->data), _Alignof(*(s)->data), arena),             \
    (s)->data + (s)->len++ : (s)->data + (s)->len++)
 
+#define dyn_pop(s)                                                             \
+  do {                                                                         \
+    ASSERT((s)->len > 0);                                                      \
+    memset(&(s)->data[(s)->len - 1], 0, sizeof((s)->data[(s)->len - 1]));      \
+    (s)->len -= 1;                                                             \
+  } while (0)
+
+#define dyn_last(s)                                                            \
+  ((s).len == 0 ? (*((typeof((s).data[0]))*)NULL) : ((s).data[(s).len - 1]))
+
 #define dyn_append_slice(dst, src, arena)                                      \
   do {                                                                         \
     for (uint64_t i = 0; i < src.len; i++) {                                   \
@@ -404,7 +414,6 @@ MUST_USE static Slice make_log_line(Slice msg, Arena *arena, int32_t args_count,
   va_start(argp, args_count);
   for (int32_t i = 0; i < args_count; i++) {
     LogEntry entry = va_arg(argp, LogEntry);
-    ASSERT(0 == slice_count_u8(entry.key, '"'));
 
     dyn_append_slice(&sb, entry.key, arena);
     dyn_append_slice(&sb, S("="), arena);
@@ -425,6 +434,8 @@ MUST_USE static Slice make_log_line(Slice msg, Arena *arena, int32_t args_count,
   }
   va_end(argp);
 
+  ASSERT(' ' == dyn_last(sb));
+  dyn_pop(&sb);
   dyn_append_slice(&sb, S("\n"), arena);
 
   return dyn_array_u8_to_slice(sb);
