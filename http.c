@@ -1,6 +1,7 @@
-#define _POSIX_C_SOURCE 200809L
-#define __XSI_VISIBLE 600
-#define __BSD_VISIBLE 1
+#pragma once
+
+#include "lib.c"
+
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <signal.h>
@@ -11,8 +12,6 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
-
-#include "lib.c"
 
 static const uint64_t MAX_REQUEST_LINES = 512;
 static const uint64_t CLIENT_MEM = 8192;
@@ -49,6 +48,7 @@ typedef struct {
 } DynArrayHttpHeaders;
 
 typedef struct {
+  __uint128_t id;
   Slice path; // FIXME: Should be a parsed URL/URI.
   HttpMethod method;
   DynArrayHttpHeaders headers;
@@ -195,6 +195,7 @@ MUST_USE static LineRead line_buffered_reader_read(LineBufferedReader *reader,
 
 MUST_USE static HttpRequest request_parse_status_line(LineRead status_line) {
   HttpRequest res = {0};
+  arc4random_buf(&res.id, sizeof(res.id));
 
   if (!status_line.present) {
     res.err = HS_ERR_INVALID_HTTP_REQUEST;

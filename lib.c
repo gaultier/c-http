@@ -1,4 +1,9 @@
 #pragma once
+#define _POSIX_C_SOURCE 200809L
+#define __XSI_VISIBLE 600
+#define __BSD_VISIBLE 1
+#define _XOPEN_SOURCE 700
+#define _DEFAULT_SOURCE 1
 #include <errno.h>
 #include <stdarg.h>
 #include <stdbool.h>
