@@ -189,7 +189,7 @@ MUST_USE static int reader_read_all(ReadFn read_fn, Slice out, void *ctx) {
   return err;
 }
 
-MUST_USE static LineRead reader_read(Reader *reader, Arena *arena) {
+MUST_USE static LineRead reader_read_line(Reader *reader, Arena *arena) {
   LineRead line = {0};
 
   for (uint64_t _i = 0; _i < 10; _i++) {
@@ -287,7 +287,7 @@ MUST_USE static HttpRequest request_read_headers(HttpRequest req,
   HttpRequest res = req;
 
   for (uint64_t _i = 0; _i < MAX_REQUEST_LINES; _i++) {
-    const LineRead line = reader_read(reader, arena);
+    const LineRead line = reader_read_line(reader, arena);
 
     if (line.err) {
       res.err = line.err;
@@ -347,7 +347,7 @@ MUST_USE static HttpRequest request_read_body(HttpRequest req, Reader *reader,
 }
 
 MUST_USE static HttpRequest request_read(Reader *reader, Arena *arena) {
-  const LineRead status_line = reader_read(reader, arena);
+  const LineRead status_line = reader_read_line(reader, arena);
 
   HttpRequest req = request_parse_status_line(status_line);
   if (req.err) {
