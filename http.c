@@ -228,8 +228,8 @@ reader_read_until_slice(Reader *reader, Slice needle, Arena *arena) {
   return io;
 }
 
-MUST_USE static int reader_read_all(Reader *reader, uint64_t content_length,
-                                    Arena *arena) {
+MUST_USE static int reader_read_exactly(Reader *reader, uint64_t content_length,
+                                        Arena *arena) {
   uint64_t remaining_to_read = content_length;
 
   for (uint64_t i = 0; i < content_length; i++) {
@@ -396,7 +396,7 @@ MUST_USE static HttpRequest request_read_body(HttpRequest req, Reader *reader,
   ASSERT(!req.err);
   HttpRequest res = req;
 
-  res.err = reader_read_all(reader, content_length, arena);
+  res.err = reader_read_exactly(reader, content_length, arena);
 
   return res;
 }
