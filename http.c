@@ -172,13 +172,25 @@ MUST_USE static int reader_read_all(Reader *reader, Slice out) {
   uint64_t idx = 0;
   int err = 0;
 
+  Slice remaining_to_read = out;
+  uint64_t already_read_count = reader->buf.len - reader->buf_idx;
+  if (already_read_count > 0) {
+    ASSERT(reader->buf.len > 0);
+    ASSERT(reader->buf.data != NULL);
+    ASSERT(already_read_count == remaining_to_read.len);
+    memcpy(remaining_to_read.data, &reader->buf.data[reader->buf_idx],
+           already_read_count);
+
+    remaining_to_read.len -= already_read_count;
+  }
+
   for (uint64_t i = 0; i < out.len; i++) {
-    Slice remaining = slice_range(out, idx, 0);
-    if (slice_is_empty(remaining)) {
+    if (slice_is_empty(remaining_to_read)) {
       break;
     }
 
-    IoOperationResult res = read_fn(ctx, remaining.data, remaining.len);
+    IoOperationResult res = reader->read_fn(reader->ctx, remaining_to_read.data,
+                                            remaining_to_read.len);
     if (res.err) {
       return res.err;
     }
