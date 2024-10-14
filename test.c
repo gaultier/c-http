@@ -92,9 +92,24 @@ static void test_slice_split() {
   ASSERT(false == slice_split_next(&it).ok);
 }
 
+static void test_log_entry_quote_value() {
+  Arena arena = arena_make_from_virtual_mem(4096);
+  // Noop.
+  {
+    Slice s = S("hello");
+    ASSERT(slice_eq(s, log_entry_quote_value(s, &arena)));
+  }
+  {
+    Slice s = S("{\"id\": 1}");
+    Slice expected = S("{\\\"id\\\": 1}");
+    ASSERT(slice_eq(expected, log_entry_quote_value(s, &arena)));
+  }
+}
+
 int main() {
   test_slice_indexof_slice();
   test_slice_trim();
   test_slice_split();
   test_read_http_request();
+  test_log_entry_quote_value();
 }
