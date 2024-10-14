@@ -344,7 +344,7 @@ typedef struct {
   LogValue value;
 } LogEntry;
 
-static LogEntry LCI(char *k, uint64_t v) {
+MUST_USE static LogEntry LCI(char *k, uint64_t v) {
   return ((LogEntry){
       .key = S(k),
       .value.kind = LV_U64,
@@ -361,7 +361,7 @@ static LogEntry LCI(char *k, uint64_t v) {
     write(2, log_line.data, log_line.len);                                     \
   } while (0)
 
-Slice log_entry_quote_value(Slice entry, Arena *arena) {
+MUST_USE static Slice log_entry_quote_value(Slice entry, Arena *arena) {
   uint64_t quote_count = slice_count_u8(entry, '"');
   if (quote_count == 0) {
     return entry;
@@ -392,7 +392,8 @@ Slice log_entry_quote_value(Slice entry, Arena *arena) {
   return res;
 }
 
-Slice make_log_line(Slice msg, Arena *arena, int32_t args_count, ...) {
+MUST_USE static Slice make_log_line(Slice msg, Arena *arena, int32_t args_count,
+                                    ...) {
   DynArrayU8 sb = {0};
   dyn_append_slice(&sb, S("message="), arena);
   dyn_append_slice(&sb, msg, arena);
