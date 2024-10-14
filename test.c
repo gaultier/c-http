@@ -141,10 +141,11 @@ static void test_slice_split() {
 
 static void test_log_entry_quote_value() {
   Arena arena = arena_make_from_virtual_mem(4096);
-  // Noop.
+  // Nothing to escape.
   {
     Slice s = S("hello");
-    ASSERT(slice_eq(s, log_entry_quote_value(s, &arena)));
+    Slice expected = S("\"hello\"");
+    ASSERT(slice_eq(expected, log_entry_quote_value(s, &arena)));
   }
   {
     Slice s = S("{\"id\": 1}");

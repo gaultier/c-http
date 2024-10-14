@@ -522,9 +522,10 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
   Reader reader = reader_make_from_socket(socket);
   const HttpRequest req = request_read(&reader, &arena);
 
-  log("htp_request_start", arena, LCS("path", req.path),
+  log("http_request_start", arena, LCS("path", req.path),
       LCI("body_length", req.body.len), LCI("err", req.err),
-      LCII("request_id", req.id), LCS("method", http_method_to_s(req.method)));
+      LCS("body", req.body), LCII("request_id", req.id),
+      LCS("method", http_method_to_s(req.method)));
   if (req.err) {
     exit(EINVAL);
   }
@@ -540,7 +541,7 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
   const uint64_t mem_use = CLIENT_MEM - (arena.end - arena.start);
   const uint64_t duration_us = (ts_end.tv_sec - ts_start.tv_sec) * 1000 * 1000 +
                                (ts_end.tv_nsec - ts_start.tv_nsec) / 1000;
-  log("htp_request_end", arena, LCI("arena_use", mem_use),
+  log("http_request_end", arena, LCI("arena_use", mem_use),
       LCI("duration_us", duration_us), LCS("path", req.path),
       LCS("method", http_method_to_s(req.method)));
 }

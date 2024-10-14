@@ -414,11 +414,6 @@ MUST_USE static LogEntry LCS(char *k, Slice v) {
   } while (0)
 
 MUST_USE static Slice log_entry_quote_value(Slice entry, Arena *arena) {
-  uint64_t quote_count = slice_count_u8(entry, '"');
-  if (quote_count == 0) { // Optimization: do not quote anything.
-    return entry;
-  }
-
   DynArrayU8 sb = {0};
   *dyn_push(&sb, arena) = '"';
 
@@ -441,7 +436,7 @@ MUST_USE static Slice make_log_line(Slice msg, Arena *arena, int32_t args_count,
                                     ...) {
   DynArrayU8 sb = {0};
   dyn_append_slice(&sb, S("message="), arena);
-  dyn_append_slice(&sb, msg, arena);
+  dyn_append_slice(&sb, log_entry_quote_value(msg, arena), arena);
   dyn_append_slice(&sb, S(" "), arena);
 
   va_list argp = {0};
@@ -462,7 +457,9 @@ MUST_USE static Slice make_log_line(Slice msg, Arena *arena, int32_t args_count,
       dyn_array_u8_append_u64(&sb, entry.value.n64, arena);
       break;
     case LV_U128:
+      dyn_append_slice(&sb, S("\""), arena);
       dyn_array_u8_append_u128_hex(&sb, entry.value.n128, arena);
+      dyn_append_slice(&sb, S("\""), arena);
       break;
     default:
       ASSERT(0 && "invalid LogValueKind");
