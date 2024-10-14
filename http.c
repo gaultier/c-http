@@ -228,24 +228,29 @@ reader_read_until_slice(Reader *reader, Slice needle, Arena *arena) {
   return io;
 }
 
-MUST_USE static int reader_read_exactly(Reader *reader, uint64_t content_length,
-                                        Arena *arena) {
+MUST_USE static IoOperationResult
+reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
   uint64_t remaining_to_read = content_length;
+
+  IoOperationResult res = {0};
 
   for (uint64_t i = 0; i < content_length; i++) {
     if (0 == remaining_to_read) {
-      break;
+      ASSERT(res.slice.len == content_length);
+      return res;
     }
+
+    ASSERT(remaining_to_read > 0);
 
     IoOperationResult res = reader_read(reader, arena);
     if (res.err) {
-      return res.err;
+      return res;
     }
 
     ASSERT(res.slice.len <= remaining_to_read);
     remaining_to_read -= res.slice.len;
   }
-  return 0;
+  return res;
 }
 
 MUST_USE static LineRead reader_read_line(Reader *reader, Arena *arena) {
@@ -396,7 +401,13 @@ MUST_USE static HttpRequest request_read_body(HttpRequest req, Reader *reader,
   ASSERT(!req.err);
   HttpRequest res = req;
 
-  res.err = reader_read_exactly(reader, content_length, arena);
+  IoOperationResult io = reader_read_exactly(reader, content_length, arena);
+  if (io.err) {
+    res.err = io.err;
+    return res;
+  }
+
+  res.body = io.slice;
 
   return res;
 }
