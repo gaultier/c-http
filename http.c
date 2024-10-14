@@ -168,6 +168,10 @@ MUST_USE static LineRead reader_consume_line(Reader *reader) {
   return res;
 }
 
+MUST_USE static IoOperationResult reader_read(Reader *reader, Slice out) {
+  return reader->read_fn(reader->ctx, out.data, out.len);
+}
+
 MUST_USE static int reader_read_all(Reader *reader, Slice out) {
   uint64_t idx = 0;
   int err = 0;
@@ -189,8 +193,7 @@ MUST_USE static int reader_read_all(Reader *reader, Slice out) {
       break;
     }
 
-    IoOperationResult res = reader->read_fn(reader->ctx, remaining_to_read.data,
-                                            remaining_to_read.len);
+    IoOperationResult res = reader_read(reader, remaining_to_read);
     if (res.err) {
       return res.err;
     }
