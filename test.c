@@ -23,29 +23,37 @@ static void test_slice_indexof_slice() {
   { ASSERT(-1 == slice_indexof_slice(S("hello world"), S("worldly"))); }
 }
 
+typedef struct {
+  Slice slice;
+  uint64_t idx;
+} MemReadContext;
+
 static IoOperationResult reader_read_from_slice(void *ctx, void *buf,
                                                 size_t buf_len) {
-  Slice *slice = ctx;
+  MemReadContext *mem_ctx = ctx;
 
   ASSERT(buf != NULL);
-  ASSERT(slice->data != NULL);
-  ASSERT(slice->len <= buf_len);
+  ASSERT(mem_ctx->slice.data != NULL);
+  if (mem_ctx->idx >= mem_ctx->slice.len) {
+    return (IoOperationResult){.err = EINVAL};
+  }
 
-  memcpy(buf, slice->data, slice->len);
-  return (IoOperationResult){.bytes_count = slice->len};
+  memcpy(buf, mem_ctx->slice.data, mem_ctx->slice.len);
+  return (IoOperationResult){.bytes_count = mem_ctx->slice.len};
 }
 
-static Reader reader_make_from_slice(Slice *slice) {
+static Reader reader_make_from_slice(MemReadContext *ctx) {
   return (Reader){
-      .ctx = slice,
+      .ctx = ctx,
       .read_fn = reader_read_from_slice,
   };
 }
 
-static void test_read_http_request() {
+static void test_read_http_request_without_body() {
   Slice req_slice = S("GET /foo?bar=2 HTTP/1.1\r\nHost: "
                       "localhost:12345\r\nAccept: */*\r\n\r\n");
-  Reader reader = reader_make_from_slice(&req_slice);
+  MemReadContext ctx = {.slice = req_slice};
+  Reader reader = reader_make_from_slice(&ctx);
   Arena arena = arena_make_from_virtual_mem(4096);
   const HttpRequest req = request_read(&reader, &arena);
 
@@ -59,6 +67,30 @@ static void test_read_http_request() {
   ASSERT(slice_eq(req.headers.data[0].value, S("localhost:12345")));
   ASSERT(slice_eq(req.headers.data[1].key, S("Accept")));
   ASSERT(slice_eq(req.headers.data[1].value, S("*/*")));
+}
+
+static void test_read_http_request_with_body() {
+  Slice req_slice = S("POST /foo?bar=2 HTTP/1.1\r\nContent-Length: 13\r\nHost: "
+                      "localhost:12345\r\nAccept: */*\r\n\r\nhello\r\nworld!");
+  MemReadContext ctx = {.slice = req_slice};
+  Reader reader = reader_make_from_slice(&ctx);
+  Arena arena = arena_make_from_virtual_mem(4096);
+  const HttpRequest req = request_read(&reader, &arena);
+
+  ASSERT(reader.buf_idx == req_slice.len); // Read all.
+  ASSERT(0 == req.err);
+  ASSERT(HM_POST == req.method);
+  ASSERT(slice_eq(req.path, S("/foo?bar=2")));
+
+  ASSERT(3 == req.headers.len);
+  ASSERT(slice_eq(req.headers.data[0].key, S("Content-Length")));
+  ASSERT(slice_eq(req.headers.data[0].value, S("13")));
+  ASSERT(slice_eq(req.headers.data[1].key, S("Host")));
+  ASSERT(slice_eq(req.headers.data[1].value, S("localhost:12345")));
+  ASSERT(slice_eq(req.headers.data[2].key, S("Accept")));
+  ASSERT(slice_eq(req.headers.data[2].value, S("*/*")));
+
+  ASSERT(slice_eq(req.body, S("hello\r\nworld!")));
 }
 
 static void test_slice_trim() {
@@ -120,7 +152,8 @@ int main() {
   test_slice_indexof_slice();
   test_slice_trim();
   test_slice_split();
-  test_read_http_request();
+  test_read_http_request_without_body();
+  test_read_http_request_with_body();
   test_log_entry_quote_value();
   test_make_log_line();
 }

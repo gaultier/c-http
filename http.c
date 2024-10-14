@@ -17,7 +17,6 @@ static const uint64_t MAX_REQUEST_LINES = 512;
 static const uint64_t CLIENT_MEM = 8192;
 static const uint16_t PORT = 12345;
 static const int LISTEN_BACKLOG = 1024;
-#define MAX_LINE_LENGTH 1024
 
 typedef enum {
   HS_ERR_INVALID_HTTP_REQUEST,
@@ -78,6 +77,8 @@ typedef struct {
   void *ctx;
   ReadFn read_fn;
 } Reader;
+
+#define MAX_READER_READER 4096
 
 MUST_USE static IoOperationResult reader_read_from_socket(void *ctx, void *buf,
                                                           size_t buf_len) {
@@ -168,40 +169,39 @@ MUST_USE static LineRead reader_consume_line(Reader *reader) {
   return res;
 }
 
-MUST_USE static IoOperationResult reader_read(Reader *reader, Slice out) {
-  return reader->read_fn(reader->ctx, out.data, out.len);
-}
+MUST_USE static IoOperationResult reader_read(Reader *reader, Arena *arena) {
+  ASSERT(reader->buf.len >= reader->buf_idx);
 
-MUST_USE static int reader_read_all(Reader *reader, Slice out) {
-  uint64_t idx = 0;
-  int err = 0;
-
-  Slice remaining_to_read = out;
-  uint64_t already_read_count = reader->buf.len - reader->buf_idx;
-  if (already_read_count > 0) {
-    ASSERT(reader->buf.len > 0);
-    ASSERT(reader->buf.data != NULL);
-    ASSERT(already_read_count == remaining_to_read.len);
-    memcpy(remaining_to_read.data, &reader->buf.data[reader->buf_idx],
-           already_read_count);
-
-    remaining_to_read.len -= already_read_count;
+  uint8_t tmp[MAX_READER_READER] = {0};
+  IoOperationResult res = reader->read_fn(reader->ctx, tmp, sizeof(tmp));
+  if (res.err) {
+    return res;
   }
 
-  for (uint64_t i = 0; i < out.len; i++) {
-    if (slice_is_empty(remaining_to_read)) {
+  Slice slice = {.data = tmp, .len = res.bytes_count};
+  dyn_append_slice(&reader->buf, slice, arena);
+
+  return res;
+}
+
+MUST_USE static int reader_read_all(Reader *reader, uint64_t content_length,
+                                    Arena *arena) {
+  uint64_t remaining_to_read = content_length;
+
+  for (uint64_t i = 0; i < content_length; i++) {
+    if (0 == remaining_to_read) {
       break;
     }
 
-    IoOperationResult res = reader_read(reader, remaining_to_read);
+    IoOperationResult res = reader_read(reader, arena);
     if (res.err) {
       return res.err;
     }
 
-    idx += res.bytes_count;
-    ASSERT(idx <= out.len);
+    ASSERT(res.bytes_count <= remaining_to_read);
+    remaining_to_read -= res.bytes_count;
   }
-  return err;
+  return 0;
 }
 
 MUST_USE static LineRead reader_read_line(Reader *reader, Arena *arena) {
@@ -213,15 +213,10 @@ MUST_USE static LineRead reader_read_line(Reader *reader, Arena *arena) {
       return line;
     }
 
-    uint8_t buf[MAX_LINE_LENGTH] = {0};
-    const IoOperationResult io_result =
-        reader->read_fn(reader->ctx, buf, sizeof(buf));
+    const IoOperationResult io_result = reader_read(reader, arena);
     if (io_result.err) {
       continue; // Retry. Should we just abort?
     }
-
-    const Slice slice = {.data = buf, .len = io_result.bytes_count};
-    dyn_append_slice(&reader->buf, slice, arena);
   }
   return line;
 }
@@ -353,10 +348,7 @@ MUST_USE static HttpRequest request_read_body(HttpRequest req, Reader *reader,
   ASSERT(!req.err);
   HttpRequest res = req;
 
-  res.body.len = content_length;
-  res.body.data = arena_new(arena, uint8_t, content_length);
-
-  res.err = reader_read_all(reader, res.body);
+  res.err = reader_read_all(reader, content_length, arena);
 
   return res;
 }
