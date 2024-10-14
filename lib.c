@@ -16,7 +16,7 @@
 #define ASSERT(x)                                                              \
   do {                                                                         \
     if (!(x)) {                                                                \
-      abort();                                                                 \
+      __builtin_trap();                                                        \
     }                                                                          \
   } while (0)
 

@@ -189,7 +189,12 @@ MUST_USE static IoOperationResult reader_read(Reader *reader, Arena *arena) {
     return res;
   }
 
-  return _reader_read_from_io(reader, arena);
+  res = _reader_read_from_io(reader, arena);
+  if (res.err) {
+    return res;
+  }
+
+  return reader_read_from_buffer(reader);
 }
 
 MUST_USE static IoOperationResult
@@ -211,6 +216,8 @@ reader_read_until_slice(Reader *reader, Slice needle, Arena *arena) {
       continue;
     }
 
+    io.slice.len = idx;
+
     // Found and did not read anything in excess: easy case, return.
     if (idx == (int64_t)(io.slice.len - needle.len)) {
       return io;
@@ -222,6 +229,7 @@ reader_read_until_slice(Reader *reader, Slice needle, Arena *arena) {
     reader->buf_idx -= excess_read;
   }
 
+  io.err = EINTR;
   return io;
 }
 
@@ -254,9 +262,15 @@ MUST_USE static LineRead reader_read_line(Reader *reader, Arena *arena) {
     const IoOperationResult io_result =
         reader_read_until_slice(reader, NEWLINE, arena);
     if (io_result.err) {
-      continue; // Retry. Should we just abort?
+      line.err = io_result.err;
+      return line;
     }
+
+    line.present = true;
+    line.line = io_result.slice;
+    return line;
   }
+
   return line;
 }
 
@@ -394,6 +408,9 @@ MUST_USE static HttpRequest request_read_body(HttpRequest req, Reader *reader,
 
 MUST_USE static HttpRequest request_read(Reader *reader, Arena *arena) {
   const LineRead status_line = reader_read_line(reader, arena);
+  if (status_line.err) {
+    return (HttpRequest){.err = status_line.err};
+  }
 
   HttpRequest req = request_parse_status_line(status_line);
   if (req.err) {
