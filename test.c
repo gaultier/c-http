@@ -107,15 +107,12 @@ static void test_log_entry_quote_value() {
 }
 
 static void test_make_log_line() {
-  DynArrayU8 sb = {0};
-  typeof(sb.data) x = &sb.data[1];
-  //(*((typeof(sb.data[0]))*)NULL;
   Arena arena = arena_make_from_virtual_mem(4096);
 
   Slice log_line = make_log_line(S("foobar"), &arena, 2, LCI("num", 42),
                                  LCS("slice", S("hello \"world\"")));
 
-  Slice expected = S("message=foobar num=42 slice=\"hello \\\"world\\\"\\n");
+  Slice expected = S("message=foobar num=42 slice=\"hello \\\"world\\\"\"\n");
   ASSERT(slice_eq(expected, log_line));
 }
 

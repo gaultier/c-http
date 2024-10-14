@@ -1,4 +1,4 @@
- -std=c99
+ -std=c23
  -Wall
  -Wextra
 -Wno-gnu-alignof-expression
