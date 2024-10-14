@@ -65,7 +65,7 @@ typedef struct {
 } HttpResponse;
 
 typedef struct {
-  uint64_t bytes_count;
+  Slice slice;
   int err;
 } IoOperationResult;
 
@@ -87,7 +87,7 @@ MUST_USE static IoOperationResult reader_read_from_socket(void *ctx, void *buf,
     return (IoOperationResult){.err = errno};
   }
 
-  return (IoOperationResult){.bytes_count = n_read};
+  return (IoOperationResult){.slice.data = buf, .slice.len = n_read};
 }
 
 MUST_USE static Reader reader_make_from_socket(int socket) {
@@ -112,7 +112,8 @@ writer_write_from_socket(void *ctx, const void *buf, size_t buf_len) {
     return (IoOperationResult){.err = errno};
   }
 
-  return (IoOperationResult){.bytes_count = n_written};
+  return (IoOperationResult){.slice.data = (uint8_t *)buf,
+                             .slice.len = n_written};
 }
 
 MUST_USE static Writer writer_make_from_socket(int socket) {
@@ -131,9 +132,9 @@ MUST_USE static int writer_write_all(Writer writer, Slice slice) {
       return write_res.err;
     }
 
-    ASSERT(write_res.bytes_count <= slice.len);
+    ASSERT(write_res.slice.len <= slice.len);
     ASSERT(idx <= slice.len);
-    idx += write_res.bytes_count;
+    idx += write_res.slice.len;
     ASSERT(idx <= slice.len);
   }
   return 0;
@@ -145,31 +146,19 @@ typedef struct {
   bool present;
 } LineRead;
 
-MUST_USE static LineRead reader_consume_line(Reader *reader) {
-  const Slice NEWLINE = S("\r\n");
-
-  LineRead res = {0};
-
-  if (reader->buf_idx >= reader->buf.len) {
-    return res;
-  }
-
-  const Slice to_search = dyn_array_u8_range(reader->buf, reader->buf_idx, 0);
-  const int64_t newline_idx = slice_indexof_slice(to_search, NEWLINE);
-
-  if (newline_idx == -1) {
-    return res;
-  }
-
-  res.line = dyn_array_u8_range(reader->buf, reader->buf_idx,
-                                reader->buf_idx + newline_idx);
-  res.present = true;
-  reader->buf_idx += newline_idx + NEWLINE.len;
+MUST_USE static IoOperationResult reader_read_from_buffer(Reader *reader) {
+  ASSERT(reader->buf.len >= reader->buf_idx);
+  IoOperationResult res = {
+      .slice.data = &reader->buf.data[reader->buf_idx],
+      .slice.len = reader->buf.len - reader->buf_idx,
+  };
+  reader->buf_idx = reader->buf.len;
 
   return res;
 }
 
-MUST_USE static IoOperationResult reader_read(Reader *reader, Arena *arena) {
+MUST_USE static IoOperationResult _reader_read_from_io(Reader *reader,
+                                                       Arena *arena) {
   ASSERT(reader->buf.len >= reader->buf_idx);
 
   uint8_t tmp[MAX_READER_READER] = {0};
@@ -178,9 +167,32 @@ MUST_USE static IoOperationResult reader_read(Reader *reader, Arena *arena) {
     return res;
   }
 
-  Slice slice = {.data = tmp, .len = res.bytes_count};
+  Slice slice = {.data = tmp, .len = res.slice.len};
+
+  uint64_t reader_buf_len_prev = reader->buf.len;
   dyn_append_slice(&reader->buf, slice, arena);
 
+  res.slice.data = &reader->buf.data[reader_buf_len_prev];
+  return res;
+}
+
+MUST_USE static IoOperationResult reader_read(Reader *reader, Arena *arena) {
+  ASSERT(reader->buf.len >= reader->buf_idx);
+
+  IoOperationResult res = reader_read_from_buffer(reader);
+  if (!slice_is_empty(res.slice)) {
+    return res;
+  }
+
+  return _reader_read_from_io(reader, arena);
+}
+
+MUST_USE static IoOperationResult
+reader_read_until_slice(Reader *reader, Slice needle, Arena *arena) {
+  ASSERT(reader->buf.len >= reader->buf_idx);
+
+  IoOperationResult res = {0};
+  // TODO
   return res;
 }
 
@@ -198,22 +210,20 @@ MUST_USE static int reader_read_all(Reader *reader, uint64_t content_length,
       return res.err;
     }
 
-    ASSERT(res.bytes_count <= remaining_to_read);
-    remaining_to_read -= res.bytes_count;
+    ASSERT(res.slice.len <= remaining_to_read);
+    remaining_to_read -= res.slice.len;
   }
   return 0;
 }
 
 MUST_USE static LineRead reader_read_line(Reader *reader, Arena *arena) {
+  const Slice NEWLINE = S("\r\n");
+
   LineRead line = {0};
 
   for (uint64_t _i = 0; _i < 10; _i++) {
-    line = reader_consume_line(reader);
-    if (line.present) {
-      return line;
-    }
-
-    const IoOperationResult io_result = reader_read(reader, arena);
+    const IoOperationResult io_result =
+        reader_read_until_slice(reader, NEWLINE, arena);
     if (io_result.err) {
       continue; // Retry. Should we just abort?
     }

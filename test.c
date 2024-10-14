@@ -1,5 +1,9 @@
 #include "http.c"
 
+#ifndef MIN
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+#endif
+
 static void test_slice_indexof_slice() {
   // Empty haystack.
   { ASSERT(-1 == slice_indexof_slice((Slice){}, S("fox"))); }
@@ -38,8 +42,19 @@ static IoOperationResult reader_read_from_slice(void *ctx, void *buf,
     return (IoOperationResult){.err = EINVAL};
   }
 
-  memcpy(buf, mem_ctx->slice.data, mem_ctx->slice.len);
-  return (IoOperationResult){.bytes_count = mem_ctx->slice.len};
+  const uint64_t remaining = mem_ctx->slice.len - mem_ctx->idx;
+  const uint64_t can_fill = MIN(remaining, buf_len);
+  ASSERT(can_fill <= remaining);
+
+  IoOperationResult res = {
+      .slice.data = mem_ctx->slice.data + mem_ctx->idx,
+      .slice.len = can_fill,
+  };
+  memcpy(buf, res.slice.data, res.slice.len);
+
+  mem_ctx->idx += can_fill;
+  ASSERT(mem_ctx->idx <= mem_ctx->slice.len);
+  return res;
 }
 
 static Reader reader_make_from_slice(MemReadContext *ctx) {
