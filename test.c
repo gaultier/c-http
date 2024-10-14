@@ -1,4 +1,4 @@
-#include "lib.c"
+#include "http.c"
 
 static void test_slice_indexof_slice() {
   // Empty haystack.
