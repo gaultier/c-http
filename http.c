@@ -395,7 +395,7 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
 
   log("htp_request_start", arena, LCS("path", req.path),
       LCI("body_length", req.body.len), LCI("err", req.err),
-      LCS("method", http_method_to_s(req.method)));
+      LCII("request_id", req.id), LCS("method", http_method_to_s(req.method)));
   if (req.err) {
     exit(EINVAL);
   }

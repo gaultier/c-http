@@ -329,6 +329,16 @@ static void dyn_array_u8_append_u64(DynArrayU8 *dyn, uint64_t n, Arena *arena) {
   dyn_append_slice(dyn, slice, arena);
 }
 
+static void dyn_array_u8_append_u128_hex(DynArrayU8 *dyn, __uint128_t n,
+                                         Arena *arena) {
+  uint8_t tmp[32] = {0};
+  snprintf((char *)&tmp[0], 16, "%lx", (uint64_t)(n & UINT64_MAX));
+  snprintf((char *)&tmp[16], 16, "%lx", (uint64_t)(n << 8));
+
+  Slice slice = {.data = tmp, .len = sizeof(tmp)};
+  dyn_append_slice(dyn, slice, arena);
+}
+
 #define arena_new(a, t, n) (t *)arena_alloc(a, sizeof(t), _Alignof(t), n)
 
 MUST_USE static Arena arena_make_from_virtual_mem(uint64_t size) {
@@ -345,13 +355,15 @@ MUST_USE static Arena arena_make_from_virtual_mem(uint64_t size) {
 typedef enum {
   LV_SLICE,
   LV_U64,
+  LV_U128,
 } LogValueKind;
 
 typedef struct {
   LogValueKind kind;
   union {
     Slice s;
-    uint64_t n;
+    uint64_t n64;
+    __uint128_t n128;
   };
 } LogValue;
 
@@ -364,7 +376,15 @@ MUST_USE static LogEntry LCI(char *k, uint64_t v) {
   return ((LogEntry){
       .key = S(k),
       .value.kind = LV_U64,
-      .value.n = v,
+      .value.n64 = v,
+  });
+}
+
+MUST_USE static LogEntry LCII(char *k, __uint128_t v) {
+  return ((LogEntry){
+      .key = S(k),
+      .value.kind = LV_U128,
+      .value.n128 = v,
   });
 }
 
@@ -431,7 +451,10 @@ MUST_USE static Slice make_log_line(Slice msg, Arena *arena, int32_t args_count,
       break;
     }
     case LV_U64:
-      dyn_array_u8_append_u64(&sb, entry.value.n, arena);
+      dyn_array_u8_append_u64(&sb, entry.value.n64, arena);
+      break;
+    case LV_U128:
+      dyn_array_u8_append_u128_hex(&sb, entry.value.n128, arena);
       break;
     default:
       ASSERT(0 && "invalid LogValueKind");
