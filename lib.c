@@ -194,14 +194,6 @@ MUST_USE static int64_t slice_indexof_slice(Slice haystack, Slice needle) {
   return res;
 }
 
-MUST_USE static uint64_t slice_count_u8(Slice s, uint8_t c) {
-  uint64_t res = 0;
-  for (uint64_t i = 0; i < s.len; i++) {
-    res += (s.data[i] == c);
-  }
-  return res;
-}
-
 typedef struct {
   uint64_t n;
   bool err;
@@ -289,12 +281,6 @@ typedef struct {
   uint8_t *data;
   uint64_t len, cap;
 } DynArrayU8;
-
-MUST_USE static Slice dyn_array_u8_range(DynArrayU8 src, uint64_t start,
-                                         uint64_t end) {
-  Slice src_slice = {.data = src.data, .len = src.len};
-  return slice_range(src_slice, start, end);
-}
 
 #define dyn_push(s, arena)                                                     \
   ((s)->len >= (s)->cap                                                        \
