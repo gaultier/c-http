@@ -14,7 +14,7 @@
 static const uint64_t MAX_REQUEST_LINES = 512;
 static const uint64_t CLIENT_MEM = 8192;
 static const uint16_t PORT = 12345;
-static const int LISTEN_BACKLOG = 1024;
+static const int LISTEN_BACKLOG = 16384;
 
 typedef enum {
   HS_ERR_INVALID_HTTP_REQUEST,
@@ -521,8 +521,7 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
 
   log("http_request_start", arena, LCS("path", req.path),
       LCI("body_length", req.body.len), LCI("err", req.err),
-      LCS("body", req.body), LCII("request_id", req.id),
-      LCS("method", http_method_to_s(req.method)));
+      LCII("request_id", req.id), LCS("method", http_method_to_s(req.method)));
   if (req.err) {
     exit(EINVAL);
   }
@@ -536,7 +535,7 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
   clock_gettime(CLOCK_MONOTONIC_COARSE, &ts_end);
 
   const uint64_t mem_use = CLIENT_MEM - (arena.end - arena.start);
-  const uint64_t duration_us = (ts_end.tv_sec - ts_start.tv_sec) * 1000 * 1000 +
+  const uint64_t duration_us = (ts_end.tv_sec - ts_start.tv_sec) * 1000'000 +
                                (ts_end.tv_nsec - ts_start.tv_nsec) / 1000;
   log("http_request_end", arena, LCI("arena_use", mem_use),
       LCI("duration_us", duration_us), LCS("path", req.path),
