@@ -199,6 +199,16 @@ MUST_USE static int64_t slice_indexof_slice(Slice haystack, Slice needle) {
   return res;
 }
 
+MUST_USE static bool slice_starts_with(Slice haystack, Slice needle) {
+  int64_t idx = slice_indexof_slice(haystack, needle);
+  return idx == 0;
+}
+
+MUST_USE static bool slice_ends_with(Slice haystack, Slice needle) {
+  int64_t idx = slice_indexof_slice(haystack, needle);
+  return idx == (int64_t)haystack.len - (int64_t)needle.len;
+}
+
 typedef struct {
   uint64_t n;
   bool err;

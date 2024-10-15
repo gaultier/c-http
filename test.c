@@ -162,7 +162,8 @@ static void test_make_log_line() {
 
   Slice expected =
       S("message=\"foobar\" num=42 slice=\"hello \\\"world\\\"\"\n");
-  ASSERT(slice_eq(expected, log_line));
+  ASSERT(slice_starts_with(log_line, S("timestamp=")));
+  ASSERT(slice_ends_with(log_line, expected));
 }
 
 int main() {
