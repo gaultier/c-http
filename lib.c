@@ -12,6 +12,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#ifdef __linux__
+#include <sys/sendfile.h>
+#endif
 
 #define ASSERT(x)                                                              \
   do {                                                                         \
@@ -460,4 +463,23 @@ MUST_USE static Slice make_log_line(Slice msg, Arena *arena, int32_t args_count,
   dyn_append_slice(&sb, S("\n"), arena);
 
   return dyn_array_u8_to_slice(sb);
+}
+
+int os_sendfile(int fd_in, int fd_out, size_t n_bytes) {
+#if defined(__linux__)
+  ssize_t res = sendfile(fd_out, fd_in, NULL, n_bytes);
+  if (res == -1) {
+    return errno;
+  }
+  if (res != (ssize_t)n_bytes) {
+    return EAGAIN;
+  }
+  return 0;
+#elif defined(__FreeBSD__)
+  int res = sendfile(fd_in, fd_out, n_bytes, NULL, NULL, 0);
+  if (res == -1) {
+    return errno;
+  }
+  return 0;
+#endif
 }
