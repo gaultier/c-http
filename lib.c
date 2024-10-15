@@ -13,7 +13,6 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
-#include <syslog.h>
 #include <time.h>
 #ifdef __linux__
 #include <sys/sendfile.h>
@@ -412,7 +411,7 @@ MUST_USE static LogEntry LCS(char *k, Slice v) {
   do {                                                                         \
     Slice log_line = make_log_line(S(msg), &tmp_arena,                         \
                                    LOG_ARGS_COUNT(__VA_ARGS__), __VA_ARGS__);  \
-    syslog(LOG_INFO, "%.*s", (int)log_line.len, log_line.data);                \
+    write(1, log_line.data, log_line.len);                                     \
   } while (0)
 
 MUST_USE static Slice log_entry_quote_value(Slice entry, Arena *arena) {

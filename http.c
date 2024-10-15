@@ -578,7 +578,6 @@ MUST_USE static int run(HttpRequestHandleFn request_handler) {
     exit(errno);
   }
   Arena arena = arena_make_from_virtual_mem(4096);
-  openlog(NULL, LOG_CONS | LOG_PERROR | LOG_PID, LOG_USER);
   log("listening", arena, LCI("port", PORT), LCI("backlog", LISTEN_BACKLOG));
 
   while (1) {
