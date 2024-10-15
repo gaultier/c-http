@@ -540,6 +540,7 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
                                (ts_end.tv_nsec - ts_start.tv_nsec) / 1000;
   log("http_request_end", arena, LCI("arena_use", mem_use),
       LCI("duration_us", duration_us), LCS("path", req.path),
+      LCI("header_count", req.headers.len),
       LCS("method", http_method_to_s(req.method)));
 }
 
