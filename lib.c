@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/socket.h>
 #ifdef __linux__
 #include <sys/sendfile.h>
 #endif
@@ -465,7 +466,7 @@ MUST_USE static Slice make_log_line(Slice msg, Arena *arena, int32_t args_count,
   return dyn_array_u8_to_slice(sb);
 }
 
-int os_sendfile(int fd_in, int fd_out, size_t n_bytes) {
+static int os_sendfile(int fd_in, int fd_out, size_t n_bytes) {
 #if defined(__linux__)
   ssize_t res = sendfile(fd_out, fd_in, NULL, n_bytes);
   if (res == -1) {
