@@ -577,6 +577,8 @@ MUST_USE static int run(HttpRequestHandleFn request_handler) {
     fprintf(stderr, "Failed to listen(2): %s\n", strerror(errno));
     exit(errno);
   }
+  Arena arena = arena_make_from_virtual_mem(4096);
+  log("listening", arena, LCI("port", PORT), LCI("backlog", LISTEN_BACKLOG));
 
   while (1) {
     // TODO: Should we have a thread dedicated to `accept` and a thread
