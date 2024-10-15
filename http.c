@@ -6,9 +6,6 @@
 #include <netinet/in.h>
 #include <signal.h>
 #include <stdint.h>
-#ifdef __linux__
-#include <sys/sendfile.h>
-#endif
 #include <sys/signal.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -485,8 +482,7 @@ MUST_USE static int response_write(Writer writer, HttpResponse res,
       return errno;
     }
 
-    ssize_t sent =
-        sendfile((int)(uint64_t)writer.ctx, file_fd, NULL, st.st_size);
+    ssize_t sent = os_sendfile(file_fd, (int)(uint64_t)writer.ctx, st.st_size);
     if (-1 == sent) {
       return errno;
     }
