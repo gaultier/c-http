@@ -476,7 +476,7 @@ int os_sendfile(int fd_in, int fd_out, size_t n_bytes) {
   }
   return 0;
 #elif defined(__FreeBSD__)
-  int res = sendfile(fd_in, fd_out, n_bytes, NULL, NULL, 0);
+  int res = sendfile(fd_in, fd_out, 0, n_bytes, NULL, NULL, 0);
   if (res == -1) {
     return errno;
   }
