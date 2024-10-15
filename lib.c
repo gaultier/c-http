@@ -13,6 +13,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
+#include <time.h>
 #ifdef __linux__
 #include <sys/sendfile.h>
 #endif
@@ -424,7 +425,13 @@ MUST_USE static Slice log_entry_quote_value(Slice entry, Arena *arena) {
 
 MUST_USE static Slice make_log_line(Slice msg, Arena *arena, int32_t args_count,
                                     ...) {
+  struct timespec now = {0};
+  clock_gettime(CLOCK_MONOTONIC_COARSE, &now);
+
   DynArrayU8 sb = {0};
+  dyn_append_slice(&sb, S("timestamp="), arena);
+  dyn_array_u8_append_u64(&sb, now.tv_sec * 1000'1000 + now.tv_nsec, arena);
+  dyn_append_slice(&sb, S(" "), arena);
   dyn_append_slice(&sb, S("message="), arena);
   dyn_append_slice(&sb, log_entry_quote_value(msg, arena), arena);
   dyn_append_slice(&sb, S(" "), arena);

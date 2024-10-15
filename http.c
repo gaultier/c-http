@@ -8,7 +8,6 @@
 #include <stdint.h>
 #include <sys/signal.h>
 #include <sys/stat.h>
-#include <time.h>
 #include <unistd.h>
 
 static const uint64_t MAX_REQUEST_LINES = 512;
@@ -512,9 +511,6 @@ static void http_response_register_file_for_sending(HttpResponse *res,
 typedef HttpResponse (*HttpRequestHandleFn)(HttpRequest req, Arena *arena);
 
 static void handle_client(int socket, HttpRequestHandleFn handle) {
-  struct timespec ts_start = {0};
-  clock_gettime(CLOCK_MONOTONIC_COARSE, &ts_start);
-
   Arena arena = arena_make_from_virtual_mem(CLIENT_MEM);
   Reader reader = reader_make_from_socket(socket);
   const HttpRequest req = request_read(&reader, &arena);
@@ -531,15 +527,9 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
   Writer writer = writer_make_from_socket(socket);
   (void)response_write(writer, res, &arena);
 
-  struct timespec ts_end = {0};
-  clock_gettime(CLOCK_MONOTONIC_COARSE, &ts_end);
-
   const uint64_t mem_use = CLIENT_MEM - (arena.end - arena.start);
-  const uint64_t duration_us = (ts_end.tv_sec - ts_start.tv_sec) * 1000'000 +
-                               (ts_end.tv_nsec - ts_start.tv_nsec) / 1000;
   log("http_request_end", arena, LCI("arena_use", mem_use),
-      LCI("duration_us", duration_us), LCS("path", req.path),
-      LCI("header_count", req.headers.len),
+      LCS("path", req.path), LCI("header_count", req.headers.len),
       LCS("method", http_method_to_s(req.method)));
 }
 
