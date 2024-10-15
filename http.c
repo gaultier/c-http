@@ -590,6 +590,10 @@ MUST_USE static int run(HttpRequestHandleFn request_handler) {
   }
 
   while (1) {
+    // TODO: Should we have a thread dedicated to `accept` and a thread
+    // dedicated to `wait()`-ing on children processes, to cap the number of
+    // concurrent requests being served?
+    // Currently it is boundless.
     const int conn_fd = accept(sock_fd, NULL, 0);
     if (conn_fd == -1) {
       fprintf(stderr, "Failed to accept(2): %s\n", strerror(errno));
