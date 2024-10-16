@@ -31,7 +31,7 @@
   (((int64_t)(idx) >= (int64_t)(len)) ? (__builtin_trap(), &(arr)[0])          \
                                       : (&(arr)[idx]))
 
-#define AT(arr, len, idx) *AT_PTR(arr, len, idx)
+#define AT(arr, len, idx) (*AT_PTR(arr, len, idx))
 
 typedef struct {
   uint8_t *data;
@@ -317,6 +317,8 @@ typedef struct {
   } while (0)
 
 #define dyn_last_ptr(s) AT_PTR((s)->data, (s)->len, (s)->len - 1)
+
+#define dyn_at(s, idx) AT((s).data, (s).len, idx)
 
 #define dyn_append_slice(dst, src, arena)                                      \
   do {                                                                         \

@@ -78,10 +78,9 @@ static void test_read_http_request_without_body() {
   ASSERT(slice_eq(req.path, S("/foo?bar=2")));
 
   ASSERT(2 == req.headers.len);
-  ASSERT(slice_eq(req.headers.data[0].key, S("Host")));
-  ASSERT(slice_eq(req.headers.data[0].value, S("localhost:12345")));
-  ASSERT(slice_eq(req.headers.data[1].key, S("Accept")));
-  ASSERT(slice_eq(req.headers.data[1].value, S("*/*")));
+  ASSERT(slice_eq(dyn_at(req.headers, 0).value, S("localhost:12345")));
+  ASSERT(slice_eq(dyn_at(req.headers, 1).key, S("Accept")));
+  ASSERT(slice_eq(dyn_at(req.headers, 1).value, S("*/*")));
 }
 
 static void test_read_http_request_with_body() {
@@ -98,12 +97,12 @@ static void test_read_http_request_with_body() {
   ASSERT(slice_eq(req.path, S("/foo?bar=2")));
 
   ASSERT(3 == req.headers.len);
-  ASSERT(slice_eq(req.headers.data[0].key, S("Content-Length")));
-  ASSERT(slice_eq(req.headers.data[0].value, S("13")));
-  ASSERT(slice_eq(req.headers.data[1].key, S("Host")));
-  ASSERT(slice_eq(req.headers.data[1].value, S("localhost:12345")));
-  ASSERT(slice_eq(req.headers.data[2].key, S("Accept")));
-  ASSERT(slice_eq(req.headers.data[2].value, S("*/*")));
+  ASSERT(slice_eq(dyn_at(req.headers, 0).key, S("Content-Length")));
+  ASSERT(slice_eq(dyn_at(req.headers, 0).value, S("13")));
+  ASSERT(slice_eq(dyn_at(req.headers, 1).key, S("Host")));
+  ASSERT(slice_eq(dyn_at(req.headers, 1).value, S("localhost:12345")));
+  ASSERT(slice_eq(dyn_at(req.headers, 2).key, S("Accept")));
+  ASSERT(slice_eq(dyn_at(req.headers, 2).value, S("*/*")));
 
   ASSERT(slice_eq(req.body, S("hello\r\nworld!")));
 }
