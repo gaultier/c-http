@@ -33,6 +33,8 @@
 
 #define AT(arr, len, idx) (*AT_PTR(arr, len, idx))
 
+typedef uint32_t Error;
+
 typedef struct {
   uint8_t *__counted_by(len) data;
   uint64_t len;

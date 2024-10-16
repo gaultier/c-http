@@ -50,20 +50,20 @@ typedef struct {
   DynArrayHttpHeaders headers;
   // TODO: fill.
   Slice body;
-  int err;
+  Error err;
 } HttpRequest;
 
 typedef struct {
   uint16_t status;
   DynArrayHttpHeaders headers;
-  int err;
+  Error err;
   char *file_path;
   Slice body;
 } HttpResponse;
 
 typedef struct {
   Slice slice;
-  int err;
+  Error err;
 } IoOperationResult;
 
 typedef IoOperationResult (*ReadFn)(void *ctx, void *buf, size_t buf_len);
@@ -81,7 +81,7 @@ MUST_USE static IoOperationResult reader_read_from_socket(void *ctx, void *buf,
                                                           size_t buf_len) {
   const ssize_t n_read = recv((int)(uint64_t)ctx, buf, buf_len, 0);
   if (n_read == -1) {
-    return (IoOperationResult){.err = errno};
+    return (IoOperationResult){.err = (Error)errno};
   }
   ASSERT(n_read >= 0);
 
@@ -106,7 +106,7 @@ MUST_USE static IoOperationResult writer_write_from_socket(void *ctx, void *buf,
                                                            size_t buf_len) {
   const ssize_t n_written = send((int)(uint64_t)ctx, buf, buf_len, 0);
   if (n_written == -1) {
-    return (IoOperationResult){.err = errno};
+    return (IoOperationResult){.err = (Error)errno};
   }
   ASSERT(n_written >= 0);
 
@@ -121,7 +121,7 @@ MUST_USE static Writer writer_make_from_socket(int socket) {
   };
 }
 
-MUST_USE static int writer_write_all(Writer writer, Slice slice) {
+MUST_USE static Error writer_write_all(Writer writer, Slice slice) {
   for (uint64_t idx = 0; idx < slice.len;) {
     const Slice to_write = slice_range(slice, idx, 0);
     const IoOperationResult write_res =
@@ -140,7 +140,7 @@ MUST_USE static int writer_write_all(Writer writer, Slice slice) {
 
 typedef struct {
   Slice line;
-  int err;
+  Error err;
   bool present;
 } LineRead;
 
@@ -436,8 +436,8 @@ MUST_USE static HttpRequest request_read(Reader *reader, Arena *arena) {
   return req;
 }
 
-MUST_USE static int response_write(Writer writer, HttpResponse res,
-                                   Arena *arena) {
+MUST_USE static Error response_write(Writer writer, HttpResponse res,
+                                     Arena *arena) {
   // Invalid to both want to serve a file and a body.
   ASSERT(NULL == res.file_path || slice_is_empty(res.body));
 
@@ -462,7 +462,7 @@ MUST_USE static int response_write(Writer writer, HttpResponse res,
 
   const Slice slice = dyn_array_u8_to_slice(sb);
 
-  int err = writer_write_all(writer, slice);
+  Error err = writer_write_all(writer, slice);
   if (0 != err) {
     return err;
   }
@@ -470,12 +470,12 @@ MUST_USE static int response_write(Writer writer, HttpResponse res,
   if (NULL != res.file_path) {
     int file_fd = open(res.file_path, O_RDONLY);
     if (file_fd == -1) {
-      return errno;
+      return (Error)errno;
     }
 
     struct stat st = {0};
     if (-1 == stat(res.file_path, &st)) {
-      return errno;
+      return (Error)errno;
     }
 
     ASSERT(st.st_size >= 0);
@@ -483,7 +483,7 @@ MUST_USE static int response_write(Writer writer, HttpResponse res,
     ssize_t sent =
         os_sendfile(file_fd, (int)(uint64_t)writer.ctx, (uint64_t)st.st_size);
     if (-1 == sent) {
-      return errno;
+      return (Error)errno;
     }
     if (sent != st.st_size) {
       // TODO: Retry.
@@ -528,13 +528,16 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
   Writer writer = writer_make_from_socket(socket);
   (void)response_write(writer, res, &arena);
 
-  const uint64_t mem_use = CLIENT_MEM - (arena.end - arena.start);
+  ASSERT(arena.end >= arena.start);
+
+  const uint64_t mem_use =
+      CLIENT_MEM - ((uint64_t)arena.end - (uint64_t)arena.start);
   log("http_request_end", arena, LCI("arena_use", mem_use),
       LCS("path", req.path), LCI("header_count", req.headers.len),
       LCS("method", http_method_to_s(req.method)));
 }
 
-MUST_USE static int run(HttpRequestHandleFn request_handler) {
+__attribute__((noreturn)) static void run(HttpRequestHandleFn request_handler) {
   const uint16_t port = PORT;
   struct sigaction sa = {.sa_flags = SA_NOCLDWAIT};
   int err = 0;
@@ -589,7 +592,7 @@ MUST_USE static int run(HttpRequestHandleFn request_handler) {
     const int conn_fd = accept(sock_fd, NULL, 0);
     if (conn_fd == -1) {
       fprintf(stderr, "Failed to accept(2): %s\n", strerror(errno));
-      return errno;
+      exit(errno);
     }
 
     const pid_t pid = fork();
