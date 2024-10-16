@@ -36,7 +36,7 @@
 typedef uint32_t Error;
 
 typedef struct {
-  uint8_t *__counted_by(len) data;
+  uint8_t *data;
   uint64_t len;
 } Slice;
 
@@ -305,7 +305,7 @@ static void dyn_grow(void *slice, uint64_t size, uint64_t align, Arena *a) {
 }
 
 typedef struct {
-  uint8_t *__counted_by(len) data;
+  uint8_t *data;
   uint64_t len, cap;
 } DynArrayU8;
 
