@@ -250,8 +250,8 @@ typedef struct {
   uint8_t *end;
 } Arena;
 
-MUST_USE static void *arena_alloc(Arena *a, uint64_t size, uint64_t align,
-                                  uint64_t count) {
+__attribute((malloc, alloc_size(2, 4), alloc_align(3))) MUST_USE static void *
+arena_alloc(Arena *a, uint64_t size, uint64_t align, uint64_t count) {
   ASSERT(a->start != NULL);
 
   const uint64_t padding = (-(uint64_t)a->start & (align - 1));
@@ -273,7 +273,8 @@ MUST_USE static void *arena_alloc(Arena *a, uint64_t size, uint64_t align,
   return memset(res, 0, count * size);
 }
 
-static void dyn_grow(void *slice, uint64_t size, uint64_t align, Arena *a) {
+static void dyn_grow(void *slice, uint64_t size, uint64_t align, uint64_t count,
+                     Arena *a) {
   ASSERT(NULL != slice);
 
   struct {
@@ -283,25 +284,46 @@ static void dyn_grow(void *slice, uint64_t size, uint64_t align, Arena *a) {
   } replica;
 
   memcpy(&replica, slice, sizeof(replica));
+  ASSERT(replica.cap < count);
 
-  if (NULL == replica.data) { // First allocation
-    replica.cap = 1;
-    replica.data = arena_alloc(a, 2 * size, align, replica.cap);
+  uint64_t new_cap = replica.cap == 0 ? 2 : replica.cap * 2;
+  for (uint64_t i = 0; i < 64; i++) {
+    if (new_cap < count) {
+      new_cap *= 2;
+    } else {
+      break;
+    }
+  }
+  ASSERT(new_cap >= 2);
+  ASSERT(new_cap >= count);
+
+  if (NULL == replica.data) { // First allocation ever for this dynamic array.
+    replica.data = arena_alloc(a, size, align, new_cap);
   } else if (a->start ==
              (uint8_t *)replica.data + size * replica.cap) { // Optimization.
     // This is the case of growing the array which is at the end of the arena.
     // In that case we can simply bump the arena pointer and avoid any copies.
-    (void)arena_alloc(a, size, 1, replica.cap);
+    (void)arena_alloc(a, size, 1 /* Force no padding */, new_cap - replica.cap);
   } else { // General case.
-    void *data = arena_alloc(a, 2 * size, align, replica.cap);
+    void *data = arena_alloc(a, size, align, new_cap);
+
+    // Import check to avoid overlapping memory ranges in memcpy.
+    ASSERT(data != replica.data);
+
     memcpy(data, replica.data, size * replica.len);
     replica.data = data;
   }
-  replica.cap *= 2;
+  replica.cap = new_cap;
 
   ASSERT(NULL != slice);
   memcpy(slice, &replica, sizeof(replica));
 }
+
+#define dyn_ensure_cap(dyn, new_cap, arena)                                    \
+  ((dyn)->cap < (new_cap))                                                     \
+      ? dyn_grow(dyn, sizeof(*(dyn)->data), _Alignof((dyn)->data[0]), new_cap, \
+                 arena),                                                       \
+      0 : 0
 
 typedef struct {
   uint8_t *data;
@@ -309,9 +331,7 @@ typedef struct {
 } DynArrayU8;
 
 #define dyn_push(s, arena)                                                     \
-  ((s)->len >= (s)->cap                                                        \
-   ? dyn_grow(s, sizeof(*(s)->data), _Alignof(*(s)->data), arena),             \
-   (s)->data + (s)->len++ : (s)->data + (s)->len++)
+  (dyn_ensure_cap(s, (s)->len + 1, arena), (s)->data + (s)->len++)
 
 #define dyn_pop(s)                                                             \
   do {                                                                         \
@@ -362,6 +382,8 @@ static void dyn_array_u8_append_u128_hex(DynArrayU8 *dyn, __uint128_t n,
 
 #define arena_new(a, t, n) (t *)arena_alloc(a, sizeof(t), _Alignof(t), n)
 
+// TODO: Should we mmap a page right after that is neither readable nor writable
+// to catch bugs?
 MUST_USE static Arena arena_make_from_virtual_mem(uint64_t size) {
   void *ptr =
       mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);

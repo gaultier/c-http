@@ -231,6 +231,7 @@ MUST_USE static IoOperationResult
 reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
   uint64_t remaining_to_read = content_length;
 
+  dyn_ensure_cap(&reader->buf, content_length, arena);
   IoOperationResult res = {0};
 
   for (uint64_t i = 0; i < content_length; i++) {

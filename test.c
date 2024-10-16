@@ -1,4 +1,5 @@
 #include "http.c"
+#include "lib.c"
 
 #ifndef MIN
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
@@ -165,6 +166,67 @@ static void test_make_log_line() {
   ASSERT(slice_ends_with(log_line, expected));
 }
 
+static void test_dyn_ensure_cap() {
+  uint64_t arena_cap = 4096;
+
+  // Trigger the optimization when the last allocation in the arena gets
+  // extended.
+  {
+    Arena arena = arena_make_from_virtual_mem(arena_cap);
+
+    DynArrayU8 dyn = {0};
+    *dyn_push(&dyn, &arena) = 1;
+    ASSERT(1 == dyn.len);
+    ASSERT(2 == dyn.cap);
+
+    uint64_t arena_size_expected =
+        arena_cap - ((uint64_t)arena.end - (uint64_t)arena.start);
+    ASSERT(2 == arena_size_expected);
+    ASSERT(dyn.cap == arena_size_expected);
+
+    uint64_t desired_cap = 13;
+    dyn_ensure_cap(&dyn, desired_cap, &arena);
+    ASSERT(16 == dyn.cap);
+    arena_size_expected =
+        arena_cap - ((uint64_t)arena.end - (uint64_t)arena.start);
+    ASSERT(16 == arena_size_expected);
+  }
+  // General case.
+  {
+    Arena arena = arena_make_from_virtual_mem(arena_cap);
+
+    DynArrayU8 dyn = {0};
+    *dyn_push(&dyn, &arena) = 1;
+    ASSERT(1 == dyn.len);
+    ASSERT(2 == dyn.cap);
+
+    DynArrayU8 dummy = {0};
+    *dyn_push(&dummy, &arena) = 2;
+    *dyn_push(&dummy, &arena) = 3;
+
+    uint64_t arena_size_expected =
+        arena_cap - ((uint64_t)arena.end - (uint64_t)arena.start);
+    ASSERT(2 + 2 == arena_size_expected);
+
+    // This triggers a new allocation.
+    *dyn_push(&dummy, &arena) = 4;
+    ASSERT(3 == dummy.len);
+    ASSERT(4 == dummy.cap);
+
+    arena_size_expected =
+        arena_cap - ((uint64_t)arena.end - (uint64_t)arena.start);
+    ASSERT(2 + 4 == arena_size_expected);
+
+    uint64_t desired_cap = 13;
+    dyn_ensure_cap(&dyn, desired_cap, &arena);
+    ASSERT(16 == dyn.cap);
+
+    arena_size_expected =
+        arena_cap - ((uint64_t)arena.end - (uint64_t)arena.start);
+    ASSERT(16 + 6 == arena_size_expected);
+  }
+}
+
 int main() {
   test_slice_indexof_slice();
   test_slice_trim();
@@ -173,4 +235,5 @@ int main() {
   test_read_http_request_with_body();
   test_log_entry_quote_value();
   test_make_log_line();
+  test_dyn_ensure_cap();
 }
