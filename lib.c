@@ -26,6 +26,12 @@
   } while (0)
 
 #define MUST_USE __attribute__((warn_unused_result))
+
+#define AT_PTR(arr, len, idx)                                                  \
+  (((idx) >= (len)) ? (__builtin_trap(), &(arr)[0]) : (&(arr)[idx]))
+
+#define AT(arr, len, idx) *AT_PTR(arr, len, idx)
+
 typedef struct {
   uint8_t *data;
   uint64_t len;
@@ -309,9 +315,7 @@ typedef struct {
     (s)->len -= 1;                                                             \
   } while (0)
 
-#define dyn_last(s)                                                            \
-  ((s)->len == 0 ? (((typeof((s)->data[0]) *(*)())0)())                        \
-                 : (&((s)->data[(s)->len - 1])))
+#define dyn_last_ptr(s) AT_PTR((s)->data, (s)->len, (s)->len - 1)
 
 #define dyn_append_slice(dst, src, arena)                                      \
   do {                                                                         \
@@ -476,7 +480,7 @@ MUST_USE static Slice make_log_line(Slice msg, Arena *arena, int32_t args_count,
   }
   va_end(argp);
 
-  ASSERT(' ' == *dyn_last(&sb));
+  ASSERT(' ' == *dyn_last_ptr(&sb));
   dyn_pop(&sb);
   dyn_append_slice(&sb, S("\n"), arena);
 
