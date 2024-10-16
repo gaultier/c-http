@@ -1,7 +1,10 @@
--std=c99
--Wall
--Wextra
--Wno-gnu-alignof-expression
--Wconversion
--Wno-sign-conversion 
--Wuninitialized
+-std=c17
+-Weverything 
+-Wno-gnu-alignof-expression 
+-Wno-strict-prototypes 
+-Wno-declaration-after-statement 
+-Wno-padded 
+-Wno-reserved-macro-identifier 
+-Wno-unsafe-buffer-usage 
+-Wno-reserved-identifier
+-Wno-covered-switch-default

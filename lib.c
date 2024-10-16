@@ -34,7 +34,7 @@
 #define AT(arr, len, idx) (*AT_PTR(arr, len, idx))
 
 typedef struct {
-  uint8_t *data;
+  uint8_t *__counted_by(len) data;
   uint64_t len;
 } Slice;
 
@@ -71,7 +71,7 @@ MUST_USE static Slice slice_trim_left(Slice s, uint8_t c) {
 MUST_USE static Slice slice_trim_right(Slice s, uint8_t c) {
   Slice res = s;
 
-  for (int64_t s_i = s.len - 1; s_i >= 0; s_i--) {
+  for (int64_t s_i = (int64_t)s.len - 1; s_i >= 0; s_i--) {
     ASSERT(s.data != NULL);
     if (AT(s.data, s.len, s_i) != c) {
       return res;
@@ -128,7 +128,7 @@ MUST_USE static Slice slice_range(Slice src, uint64_t start, uint64_t end) {
 
 MUST_USE static SplitResult slice_split_next(SplitIterator *it) {
   if (slice_is_empty(it->slice)) {
-    return (SplitResult){};
+    return (SplitResult){0};
   }
 
   for (uint64_t _i = 0; _i < it->slice.len; _i++) {
@@ -141,16 +141,17 @@ MUST_USE static SplitResult slice_split_next(SplitIterator *it) {
     }
 
     if (idx == 0) { // Multiple continguous separators.
-      it->slice = slice_range(it->slice, idx + 1, 0);
+      it->slice = slice_range(it->slice, (uint64_t)idx + 1, 0);
       continue;
     } else {
-      SplitResult res = {.slice = slice_range(it->slice, 0, idx), .ok = true};
-      it->slice = slice_range(it->slice, idx + 1, 0);
+      SplitResult res = {.slice = slice_range(it->slice, 0, (uint64_t)idx),
+                         .ok = true};
+      it->slice = slice_range(it->slice, (uint64_t)idx + 1, 0);
 
       return res;
     }
   }
-  return (SplitResult){};
+  return (SplitResult){0};
 }
 
 MUST_USE static bool slice_eq(Slice a, Slice b) {
@@ -201,9 +202,9 @@ MUST_USE static int64_t slice_indexof_slice(Slice haystack, Slice needle) {
     return -1;
   }
 
-  uint64_t res = (uint8_t *)ptr - haystack.data;
+  uint64_t res = (uint64_t)((uint8_t *)ptr - haystack.data);
   ASSERT(res < haystack.len);
-  return res;
+  return (int64_t)res;
 }
 
 MUST_USE static bool slice_starts_with(Slice haystack, Slice needle) {
@@ -251,11 +252,12 @@ MUST_USE static void *arena_alloc(Arena *a, uint64_t size, uint64_t align,
                                   uint64_t count) {
   ASSERT(a->start != NULL);
 
-  const uint64_t padding = (int64_t)(-(uint64_t)a->start & (align - 1));
+  const uint64_t padding = (-(uint64_t)a->start & (align - 1));
   ASSERT(padding <= align);
 
-  const int64_t available = (uint64_t)a->end - (uint64_t)a->start - padding;
-  if (available < 0 || count > available / size) {
+  const int64_t available =
+      (int64_t)a->end - (int64_t)a->start - (int64_t)padding;
+  if (available < 0 || count > (uint64_t)available / size) {
     abort();
   }
 
@@ -284,7 +286,8 @@ static void dyn_grow(void *slice, uint64_t size, uint64_t align, Arena *a) {
   if (NULL == replica.data) { // First allocation
     replica.cap = 1;
     replica.data = arena_alloc(a, 2 * size, align, replica.cap);
-  } else if (a->start == replica.data + size * replica.cap) { // Optimization.
+  } else if (a->start ==
+             (uint8_t *)replica.data + size * replica.cap) { // Optimization.
     // This is the case of growing the array which is at the end of the arena.
     // In that case we can simply bump the arena pointer and avoid any copies.
     (void)arena_alloc(a, size, 1, replica.cap);
@@ -300,7 +303,7 @@ static void dyn_grow(void *slice, uint64_t size, uint64_t align, Arena *a) {
 }
 
 typedef struct {
-  uint8_t *data;
+  uint8_t *__counted_by(len) data;
   uint64_t len, cap;
 } DynArrayU8;
 
@@ -322,8 +325,8 @@ typedef struct {
 
 #define dyn_append_slice(dst, src, arena)                                      \
   do {                                                                         \
-    for (uint64_t i = 0; i < src.len; i++) {                                   \
-      *dyn_push(dst, arena) = AT(src.data, src.len, i);                        \
+    for (uint64_t _iii = 0; _iii < src.len; _iii++) {                          \
+      *dyn_push(dst, arena) = AT(src.data, src.len, _iii);                     \
     }                                                                          \
   } while (0)
 
@@ -341,7 +344,7 @@ static void dyn_array_u8_append_u64(DynArrayU8 *dyn, uint64_t n, Arena *arena) {
 
   ASSERT(written_count > 0);
 
-  Slice slice = {.data = tmp, .len = written_count};
+  Slice slice = {.data = tmp, .len = (uint64_t)written_count};
   dyn_append_slice(dyn, slice, arena);
 }
 
@@ -366,7 +369,7 @@ MUST_USE static Arena arena_make_from_virtual_mem(uint64_t size) {
     fprintf(stderr, "failed to mmap: %d %s\n", errno, strerror(errno));
     exit(errno);
   }
-  return (Arena){.start = ptr, .end = ptr + size};
+  return (Arena){.start = ptr, .end = (uint8_t *)ptr + size};
 }
 
 typedef enum {
@@ -448,7 +451,8 @@ MUST_USE static Slice make_log_line(Slice msg, Arena *arena, int32_t args_count,
 
   DynArrayU8 sb = {0};
   dyn_append_slice(&sb, S("timestamp="), arena);
-  dyn_array_u8_append_u64(&sb, now.tv_sec * 1000 * 1000 + now.tv_nsec, arena);
+  dyn_array_u8_append_u64(
+      &sb, (uint64_t)now.tv_sec * 1000 * 1000 + (uint64_t)now.tv_nsec, arena);
   dyn_append_slice(&sb, S(" "), arena);
   dyn_append_slice(&sb, S("message="), arena);
   dyn_append_slice(&sb, log_entry_quote_value(msg, arena), arena);

@@ -6,10 +6,10 @@
 
 static void test_slice_indexof_slice() {
   // Empty haystack.
-  { ASSERT(-1 == slice_indexof_slice((Slice){}, S("fox"))); }
+  { ASSERT(-1 == slice_indexof_slice((Slice){0}, S("fox"))); }
 
   // Empty needle.
-  { ASSERT(-1 == slice_indexof_slice(S("hello"), (Slice){})); }
+  { ASSERT(-1 == slice_indexof_slice(S("hello"), (Slice){0})); }
 
   // Not found.
   { ASSERT(-1 == slice_indexof_slice(S("hello world"), S("foobar"))); }

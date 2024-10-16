@@ -83,8 +83,9 @@ MUST_USE static IoOperationResult reader_read_from_socket(void *ctx, void *buf,
   if (n_read == -1) {
     return (IoOperationResult){.err = errno};
   }
+  ASSERT(n_read >= 0);
 
-  return (IoOperationResult){.slice.data = buf, .slice.len = n_read};
+  return (IoOperationResult){.slice.data = buf, .slice.len = (uint64_t)n_read};
 }
 
 MUST_USE static Reader reader_make_from_socket(int socket) {
@@ -94,23 +95,23 @@ MUST_USE static Reader reader_make_from_socket(int socket) {
   };
 }
 
-typedef IoOperationResult (*WriteFn)(void *ctx, const void *buf,
-                                     size_t buf_len);
+typedef IoOperationResult (*WriteFn)(void *ctx, void *buf, size_t buf_len);
 
 typedef struct {
   WriteFn write;
   void *ctx;
 } Writer;
 
-MUST_USE static IoOperationResult
-writer_write_from_socket(void *ctx, const void *buf, size_t buf_len) {
+MUST_USE static IoOperationResult writer_write_from_socket(void *ctx, void *buf,
+                                                           size_t buf_len) {
   const ssize_t n_written = send((int)(uint64_t)ctx, buf, buf_len, 0);
   if (n_written == -1) {
     return (IoOperationResult){.err = errno};
   }
+  ASSERT(n_written >= 0);
 
   return (IoOperationResult){.slice.data = (uint8_t *)buf,
-                             .slice.len = n_written};
+                             .slice.len = (uint64_t)n_written};
 }
 
 MUST_USE static Writer writer_make_from_socket(int socket) {
@@ -212,12 +213,13 @@ reader_read_until_slice(Reader *reader, Slice needle, Arena *arena) {
     if (idx == -1) {
       continue;
     }
+    ASSERT(idx >= 0);
 
     // Found but maybe read some in excess, need to rewind a bit.
-    uint64_t excess_read = io.slice.len - (idx + needle.len);
+    uint64_t excess_read = io.slice.len - ((uint64_t)idx + needle.len);
     ASSERT(reader->buf_idx >= excess_read);
     reader->buf_idx -= excess_read;
-    io.slice.len = idx;
+    io.slice.len = (uint64_t)idx;
     return io;
   }
 
@@ -255,19 +257,15 @@ MUST_USE static LineRead reader_read_line(Reader *reader, Arena *arena) {
 
   LineRead line = {0};
 
-  for (uint64_t _i = 0; _i < 10; _i++) {
-    const IoOperationResult io_result =
-        reader_read_until_slice(reader, NEWLINE, arena);
-    if (io_result.err) {
-      line.err = io_result.err;
-      return line;
-    }
-
-    line.present = true;
-    line.line = io_result.slice;
+  const IoOperationResult io_result =
+      reader_read_until_slice(reader, NEWLINE, arena);
+  if (io_result.err) {
+    line.err = io_result.err;
     return line;
   }
 
+  line.present = true;
+  line.line = io_result.slice;
   return line;
 }
 
@@ -480,7 +478,10 @@ MUST_USE static int response_write(Writer writer, HttpResponse res,
       return errno;
     }
 
-    ssize_t sent = os_sendfile(file_fd, (int)(uint64_t)writer.ctx, st.st_size);
+    ASSERT(st.st_size >= 0);
+
+    ssize_t sent =
+        os_sendfile(file_fd, (int)(uint64_t)writer.ctx, (uint64_t)st.st_size);
     if (-1 == sent) {
       return errno;
     }
