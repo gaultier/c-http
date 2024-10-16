@@ -1,6 +1,9 @@
 #!/bin/sh
 set -ex
+set -f # disable globbing.
 
 CC="${CC:-clang}"
+WARNINGS="$(tr -s '\n' ' ' < compile_flags.txt)"
 
-"$CC" -O0 -std=c23 -Wall -Wextra -Wno-gnu-alignof-expression -Wconversion -Wno-sign-conversion -g3 -gsplit-dwarf test.c -o test.bin -fsanitize=address,undefined && ./test.bin
+# shellcheck disable=SC2086
+"$CC" -O0 $WARNINGS -g3 -gsplit-dwarf test.c -o test.bin -fsanitize=address,undefined && ./test.bin

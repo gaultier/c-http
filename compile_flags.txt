@@ -1,6 +1,7 @@
- -std=c23
- -Wall
- -Wextra
+-std=c99
+-Wall
+-Wextra
 -Wno-gnu-alignof-expression
 -Wconversion
 -Wno-sign-conversion 
+-Wuninitialized

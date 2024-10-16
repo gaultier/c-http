@@ -448,7 +448,7 @@ MUST_USE static Slice make_log_line(Slice msg, Arena *arena, int32_t args_count,
 
   DynArrayU8 sb = {0};
   dyn_append_slice(&sb, S("timestamp="), arena);
-  dyn_array_u8_append_u64(&sb, now.tv_sec * 1000'1000 + now.tv_nsec, arena);
+  dyn_array_u8_append_u64(&sb, now.tv_sec * 1000 * 1000 + now.tv_nsec, arena);
   dyn_append_slice(&sb, S(" "), arena);
   dyn_append_slice(&sb, S("message="), arena);
   dyn_append_slice(&sb, log_entry_quote_value(msg, arena), arena);

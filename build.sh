@@ -1,8 +1,10 @@
 #!/bin/sh
 set -ex
+set -f # disable globbing.
 
 EXTRA_FLAGS=""
 CC="${CC:-clang}"
+WARNINGS="$(tr -s '\n' ' ' < compile_flags.txt)"
 
 error() {
 	printf "ERROR: %s\n" "$1"
@@ -25,7 +27,8 @@ case $1 in
 		;;
 esac
 
-"$CC" -std=c23 -Wall -Wextra -Wno-gnu-alignof-expression -Wconversion -Wno-sign-conversion -g3 -gsplit-dwarf main.c -o main.bin "$EXTRA_FLAGS"
+# shellcheck disable=SC2086
+"$CC" $WARNINGS -g3 -gsplit-dwarf main.c -o main.bin "$EXTRA_FLAGS"
 }
 
 if [ $# -eq 0 ]; then
