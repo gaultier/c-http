@@ -259,9 +259,8 @@ MUST_USE static void *arena_alloc(Arena *a, uint64_t size, uint64_t align,
 
   const int64_t available =
       (int64_t)a->end - (int64_t)a->start - (int64_t)padding;
-  if (available < 0 || count > (uint64_t)available / size) {
-    abort();
-  }
+  ASSERT(available >= 0);
+  ASSERT(count <= (uint64_t)available / size);
 
   void *res = a->start + padding;
   ASSERT(res != NULL);
