@@ -346,6 +346,7 @@ typedef struct {
 
 #define dyn_append_slice(dst, src, arena)                                      \
   do {                                                                         \
+    dyn_ensure_cap(dst, (dst)->len + (src).len, arena);                        \
     for (uint64_t _iii = 0; _iii < src.len; _iii++) {                          \
       *dyn_push(dst, arena) = AT(src.data, src.len, _iii);                     \
     }                                                                          \

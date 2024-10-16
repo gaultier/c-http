@@ -345,6 +345,8 @@ MUST_USE static HttpRequest request_read_headers(HttpRequest req,
 
   HttpRequest res = req;
 
+  dyn_ensure_cap(&res.headers, 30, arena);
+
   for (uint64_t _i = 0; _i < MAX_REQUEST_LINES; _i++) {
     const LineRead line = reader_read_line(reader, arena);
 
