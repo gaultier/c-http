@@ -28,7 +28,8 @@
 #define MUST_USE __attribute__((warn_unused_result))
 
 #define AT_PTR(arr, len, idx)                                                  \
-  (((idx) >= (len)) ? (__builtin_trap(), &(arr)[0]) : (&(arr)[idx]))
+  (((int64_t)(idx) >= (int64_t)(len)) ? (__builtin_trap(), &(arr)[0])          \
+                                      : (&(arr)[idx]))
 
 #define AT(arr, len, idx) *AT_PTR(arr, len, idx)
 
@@ -57,7 +58,7 @@ MUST_USE static Slice slice_trim_left(Slice s, uint8_t c) {
 
   for (uint64_t s_i = 0; s_i < s.len; s_i++) {
     ASSERT(s.data != NULL);
-    if (s.data[s_i] != c) {
+    if (AT(s.data, s.len, s_i) != c) {
       return res;
     }
 
@@ -72,7 +73,7 @@ MUST_USE static Slice slice_trim_right(Slice s, uint8_t c) {
 
   for (int64_t s_i = s.len - 1; s_i >= 0; s_i--) {
     ASSERT(s.data != NULL);
-    if (s.data[s_i] != c) {
+    if (AT(s.data, s.len, s_i) != c) {
       return res;
     }
 
@@ -227,7 +228,7 @@ MUST_USE static ParseNumberResult slice_parse_u64_decimal(Slice slice) {
   ParseNumberResult res = {0};
 
   for (uint64_t i = 0; i < trimmed.len; i++) {
-    uint8_t c = trimmed.data[i];
+    uint8_t c = AT(trimmed.data, trimmed.len, i);
 
     if (!('0' <= c && c <= '9')) { // Error.
       res.err = true;
@@ -235,7 +236,7 @@ MUST_USE static ParseNumberResult slice_parse_u64_decimal(Slice slice) {
     }
 
     res.n *= 10;
-    res.n += (uint8_t)trimmed.data[i] - '0';
+    res.n += (uint8_t)AT(trimmed.data, trimmed.len, i) - '0';
   }
   res.present = true;
   return res;
@@ -311,7 +312,7 @@ typedef struct {
 #define dyn_pop(s)                                                             \
   do {                                                                         \
     ASSERT((s)->len > 0);                                                      \
-    memset(&(s)->data[(s)->len - 1], 0, sizeof((s)->data[(s)->len - 1]));      \
+    memset(dyn_last_ptr(s), 0, sizeof((s)->data[(s)->len - 1]));               \
     (s)->len -= 1;                                                             \
   } while (0)
 
@@ -320,7 +321,7 @@ typedef struct {
 #define dyn_append_slice(dst, src, arena)                                      \
   do {                                                                         \
     for (uint64_t i = 0; i < src.len; i++) {                                   \
-      *dyn_push(dst, arena) = src.data[i];                                     \
+      *dyn_push(dst, arena) = AT(src.data, src.len, i);                        \
     }                                                                          \
   } while (0)
 
@@ -345,8 +346,9 @@ static void dyn_array_u8_append_u64(DynArrayU8 *dyn, uint64_t n, Arena *arena) {
 static void dyn_array_u8_append_u128_hex(DynArrayU8 *dyn, __uint128_t n,
                                          Arena *arena) {
   uint8_t tmp[32 + 1] = {0};
-  snprintf((char *)&tmp[0], 16, "%lx", (uint64_t)(n << 8));
-  snprintf((char *)&tmp[16], 16, "%lx", (uint64_t)(n & UINT64_MAX));
+  snprintf((char *)AT_PTR(tmp, sizeof(tmp), 0), 16, "%lx", (uint64_t)(n << 8));
+  snprintf((char *)AT_PTR(tmp, sizeof(tmp), 16), 16, "%lx",
+           (uint64_t)(n & UINT64_MAX));
 
   Slice slice = {.data = tmp, .len = sizeof(tmp)};
   dyn_append_slice(dyn, slice, arena);
@@ -423,7 +425,7 @@ MUST_USE static Slice log_entry_quote_value(Slice entry, Arena *arena) {
   *dyn_push(&sb, arena) = '"';
 
   for (uint64_t i = 0; i < entry.len; i++) {
-    uint8_t c = entry.data[i];
+    uint8_t c = AT(entry.data, entry.len, i);
     if ('"' != c) { // Easy case.
       *dyn_push(&sb, arena) = c;
       continue;
