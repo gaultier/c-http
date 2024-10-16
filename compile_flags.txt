@@ -8,3 +8,4 @@
 -Wno-unsafe-buffer-usage 
 -Wno-reserved-identifier
 -Wno-covered-switch-default
+-Wno-class-varargs 
