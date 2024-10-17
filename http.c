@@ -627,7 +627,7 @@ static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
     return (Error)errno;
   }
 
-  log(LOG_LEVEL_INFO, "listening", *arena,
+  log(LOG_LEVEL_INFO, "http server listening", *arena,
       LCI("port", HTTP_SERVER_DEFAULT_PORT),
       LCI("backlog", TCP_LISTEN_BACKLOG));
 

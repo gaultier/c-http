@@ -255,6 +255,8 @@ static void *test_only_http_server_run(void *arg) {
 static void test_http_server_post() {
   Arena arena = arena_make_from_virtual_mem(4096);
 
+  // TODO: Spawn http server in its own OS process.
+  // TO stop it, send SIGKILL to it.
   pthread_t server_thread = {0};
   ASSERT(0 == pthread_create(&server_thread, NULL, test_only_http_server_run,
                              &arena));
