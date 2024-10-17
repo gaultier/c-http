@@ -393,6 +393,7 @@ static void test_http_server_serve_file() {
 
 typedef void (*TestFn)();
 
+// Run test function in a child process for isolation.
 #define TEST(test)                                                             \
   do {                                                                         \
     pid_t pid = fork();                                                        \
