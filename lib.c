@@ -425,11 +425,11 @@ static void dyn_array_u8_append_u128_hex(DynArrayU8 *dyn, __uint128_t n,
   uint64_t page_guard_before = (uint64_t)alloc;
 
   ASSERT(false == ckd_add((uint64_t *)&alloc, (uint64_t)alloc, page_size));
-
-  uint64_t page_guard_after = (uint64_t)alloc;
-  ASSERT(false == ckd_add(&page_guard_after, (uint64_t)alloc, page_size));
-
   ASSERT(page_guard_before + page_size == (uint64_t)alloc);
+
+  uint64_t page_guard_after = (uint64_t)0;
+  ASSERT(false == ckd_add(&page_guard_after, (uint64_t)alloc, alloc_real_size));
+  ASSERT((uint64_t)alloc + alloc_real_size == page_guard_after);
   ASSERT(page_guard_before + page_size + alloc_real_size == page_guard_after);
 
   ASSERT(0 == mprotect((void *)page_guard_before, page_size, PROT_NONE));
