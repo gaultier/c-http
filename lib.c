@@ -5,6 +5,7 @@
 #define _XOPEN_SOURCE 700
 #define _DEFAULT_SOURCE 1
 #include <errno.h>
+#include <execinfo.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdckdint.h>
@@ -21,7 +22,15 @@
 #include <sys/sendfile.h>
 #endif
 
-#define ASSERT(x) (x) ? (0) : (__builtin_trap(), 0)
+static void print_stacktrace(const char *file, int line, const char *function) {
+  fprintf(stderr, "%s:%d:%s\n", file, line, function);
+  // TODO
+}
+
+#define ASSERT(x)                                                              \
+  (x) ? (0)                                                                    \
+      : (print_stacktrace(__FILE__, __LINE__, __FUNCTION__), __builtin_trap(), \
+         0)
 
 #define AT_PTR(arr, len, idx)                                                  \
   (((int64_t)(idx) >= (int64_t)(len)) ? (__builtin_trap(), &(arr)[0])          \

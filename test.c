@@ -248,7 +248,7 @@ static uint16_t random_port() {
   uint16_t max_port = UINT16_MAX;
   uint16_t min_port = 3000;
 
-  uint16_t port = min_port + arc4random_uniform(max_port - min_port);
+  uint16_t port = min_port + (uint16_t)arc4random_uniform(max_port - min_port);
   ASSERT(min_port <= port);
 
   return port;
@@ -403,29 +403,15 @@ static void test_http_server_serve_file() {
 
 typedef void (*TestFn)();
 
-// Run test function in a child process for isolation.
-#define TEST(test)                                                             \
-  do {                                                                         \
-    pid_t pid = fork();                                                        \
-    ASSERT(-1 != pid);                                                         \
-    if (pid == 0) {                                                            \
-      test();                                                                  \
-    } else {                                                                   \
-      int res = wait(nullptr);                                                 \
-      ASSERT(WIFEXITED(res));                                                  \
-      ASSERT(0 == WEXITSTATUS(res));                                           \
-    }                                                                          \
-  } while (0)
-
 int main() {
-  TEST(test_slice_indexof_slice);
-  TEST(test_slice_trim);
-  TEST(test_slice_split);
-  TEST(test_read_http_request_without_body);
-  TEST(test_read_http_request_with_body);
-  TEST(test_log_entry_quote_value);
-  TEST(test_make_log_line);
-  TEST(test_dyn_ensure_cap);
-  TEST(test_http_server_post);
-  TEST(test_http_server_serve_file);
+  test_slice_indexof_slice();
+  test_slice_trim();
+  test_slice_split();
+  test_read_http_request_without_body();
+  test_read_http_request_with_body();
+  test_log_entry_quote_value();
+  test_make_log_line();
+  test_dyn_ensure_cap();
+  test_http_server_post();
+  test_http_server_serve_file();
 }
