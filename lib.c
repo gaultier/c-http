@@ -408,6 +408,13 @@ typedef enum {
   LV_U128,
 } LogValueKind;
 
+typedef enum {
+  LOG_LEVEL_DEBUG,
+  LOG_LEVEL_INFO,
+  LOG_LEVEL_ERROR,
+  LOG_LEVEL_FATAL,
+} LogLevel;
+
 typedef struct {
   LogValueKind kind;
   union {
@@ -448,9 +455,9 @@ MUST_USE static LogEntry LCS(char *k, Slice v) {
 
 #define LOG_ARGS_COUNT(...)                                                    \
   (sizeof((LogEntry[]){__VA_ARGS__}) / sizeof(LogEntry))
-#define log(msg, tmp_arena, ...)                                               \
+#define log(level, msg, tmp_arena, ...)                                        \
   do {                                                                         \
-    Slice log_line = make_log_line(S(msg), &tmp_arena,                         \
+    Slice log_line = make_log_line(level, S(msg), &tmp_arena,                  \
                                    LOG_ARGS_COUNT(__VA_ARGS__), __VA_ARGS__);  \
     write(1, log_line.data, log_line.len);                                     \
   } while (0)
@@ -474,16 +481,37 @@ MUST_USE static Slice log_entry_quote_value(Slice entry, Arena *arena) {
   return dyn_array_u8_to_slice(sb);
 }
 
-MUST_USE static Slice make_log_line(Slice msg, Arena *arena, int32_t args_count,
-                                    ...) {
+MUST_USE static Slice make_log_line(LogLevel level, Slice msg, Arena *arena,
+                                    int32_t args_count, ...) {
   struct timespec now = {0};
   clock_gettime(CLOCK_MONOTONIC_COARSE, &now);
 
   DynArrayU8 sb = {0};
+
+  dyn_append_slice(&sb, S("level="), arena);
+  switch (level) {
+  case LOG_LEVEL_DEBUG:
+    dyn_append_slice(&sb, S("debug"), arena);
+    break;
+  case LOG_LEVEL_INFO:
+    dyn_append_slice(&sb, S("info"), arena);
+    break;
+  case LOG_LEVEL_ERROR:
+    dyn_append_slice(&sb, S("error"), arena);
+    break;
+  case LOG_LEVEL_FATAL:
+    dyn_append_slice(&sb, S("fatal"), arena);
+    break;
+  default:
+    ASSERT(false);
+  }
+  dyn_append_slice(&sb, S(" "), arena);
+
   dyn_append_slice(&sb, S("timestamp="), arena);
   dyn_array_u8_append_u64(
       &sb, (uint64_t)now.tv_sec * 1000 * 1000 + (uint64_t)now.tv_nsec, arena);
   dyn_append_slice(&sb, S(" "), arena);
+
   dyn_append_slice(&sb, S("message="), arena);
   dyn_append_slice(&sb, log_entry_quote_value(msg, arena), arena);
   dyn_append_slice(&sb, S(" "), arena);

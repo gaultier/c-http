@@ -519,25 +519,31 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
   Reader reader = reader_make_from_socket(socket);
   const HttpRequest req = request_read(&reader, &arena);
 
-  log("http_request_start", arena, LCS("path", req.path),
+  log(LOG_LEVEL_INFO, "http request start", arena, LCS("path", req.path),
       LCI("body_length", req.body.len), LCI("err", req.err),
       LCII("request_id", req.id), LCS("method", http_method_to_s(req.method)));
   if (req.err) {
+    log(LOG_LEVEL_ERROR, "http request read", arena, LCI("err", req.err),
+        LCII("request_id", req.id));
     exit(EINVAL);
   }
 
   HttpResponse res = handle(req, &arena);
 
   Writer writer = writer_make_from_socket(socket);
-  (void)response_write(writer, res, &arena);
+  Error err = response_write(writer, res, &arena);
+  if (err) {
+    log(LOG_LEVEL_ERROR, "http request write", arena, LCI("err", err),
+        LCII("request_id", req.id));
+  }
 
   ASSERT(arena.end >= arena.start);
 
   const uint64_t mem_use =
       CLIENT_MEM - ((uint64_t)arena.end - (uint64_t)arena.start);
-  log("http_request_end", arena, LCI("arena_use", mem_use),
+  log(LOG_LEVEL_INFO, "http request end", arena, LCI("arena_use", mem_use),
       LCS("path", req.path), LCI("header_count", req.headers.len),
-      LCS("method", http_method_to_s(req.method)));
+      LCS("method", http_method_to_s(req.method)), LCII("request_id", req.id));
 }
 
 __attribute__((noreturn)) static void run(HttpRequestHandleFn request_handler) {
@@ -585,7 +591,8 @@ __attribute__((noreturn)) static void run(HttpRequestHandleFn request_handler) {
     exit(errno);
   }
   Arena arena = arena_make_from_virtual_mem(4096);
-  log("listening", arena, LCI("port", PORT), LCI("backlog", LISTEN_BACKLOG));
+  log(LOG_LEVEL_INFO, "listening", arena, LCI("port", PORT),
+      LCI("backlog", LISTEN_BACKLOG));
 
   while (1) {
     // TODO: Should we have a thread dedicated to `accept` and a thread
