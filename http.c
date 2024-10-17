@@ -5,15 +5,16 @@
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <signal.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <sys/signal.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
-static const uint64_t MAX_REQUEST_LINES = 512;
-static const uint64_t CLIENT_MEM = 8192;
-static const uint16_t PORT = 12345;
-static const int LISTEN_BACKLOG = 16384;
+static const uint64_t HTTP_REQUEST_LINES_MAX_COUNT = 512;
+static const uint64_t HTTP_SERVER_HANDLER_MEM_LEN = 8192;
+static const uint16_t HTTP_SERVER_DEFAULT_PORT = 12345;
+static const int TCP_LISTEN_BACKLOG = 16384;
 
 typedef enum {
   HS_ERR_INVALID_HTTP_REQUEST,
@@ -351,7 +352,7 @@ request_parse_status_line(LineRead status_line) {
                                                Arena *arena) {
   dyn_ensure_cap(headers, 30, arena);
 
-  for (uint64_t _i = 0; _i < MAX_REQUEST_LINES; _i++) {
+  for (uint64_t _i = 0; _i < HTTP_REQUEST_LINES_MAX_COUNT; _i++) {
     const LineRead line = reader_read_line(reader, arena);
 
     if (line.err) {
@@ -555,7 +556,7 @@ static void http_response_register_file_for_sending(HttpResponse *res,
 typedef HttpResponse (*HttpRequestHandleFn)(HttpRequest req, Arena *arena);
 
 static void handle_client(int socket, HttpRequestHandleFn handle) {
-  Arena arena = arena_make_from_virtual_mem(CLIENT_MEM);
+  Arena arena = arena_make_from_virtual_mem(HTTP_SERVER_HANDLER_MEM_LEN);
   Reader reader = reader_make_from_socket(socket);
   const HttpRequest req = request_read(&reader, &arena);
 
@@ -579,34 +580,38 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
 
   ASSERT(arena.end >= arena.start);
 
-  const uint64_t mem_use =
-      CLIENT_MEM - ((uint64_t)arena.end - (uint64_t)arena.start);
+  const uint64_t mem_use = HTTP_SERVER_HANDLER_MEM_LEN -
+                           ((uint64_t)arena.end - (uint64_t)arena.start);
   log(LOG_LEVEL_INFO, "http request end", arena, LCI("arena_use", mem_use),
       LCS("path", req.path), LCI("header_count", req.headers.len),
       LCS("method", http_method_to_s(req.method)), LCII("request_id", req.id));
 }
 
-__attribute__((noreturn)) static void run(HttpRequestHandleFn request_handler) {
-  const uint16_t port = PORT;
+typedef struct {
+  uint16_t port;
+  _Atomic bool running;
+} HttpServer;
+
+static Error http_server_run(HttpServer *server,
+                             HttpRequestHandleFn request_handler) {
+  atomic_store(&server->running, true);
+
   struct sigaction sa = {.sa_flags = SA_NOCLDWAIT};
-  int err = 0;
-  if (-1 == (err = sigaction(SIGCHLD, &sa, NULL))) {
-    fprintf(stderr, "Failed to sigaction(2): err=%s\n", strerror(errno));
-    exit(errno);
+  if (-1 == sigaction(SIGCHLD, &sa, NULL)) {
+    return (Error)errno;
   }
 
   const int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
-  if (sock_fd == -1) {
-    fprintf(stderr, "Failed to socket(2): %s\n", strerror(errno));
-    exit(errno);
+  if (-1 == sock_fd) {
+    return (Error)errno;
   }
 
   int val = 1;
-  if ((err = setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &val,
-                        sizeof(val))) == -1) {
+  if (-1 == setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val))) {
     fprintf(stderr, "Failed to setsockopt(2): %s\n", strerror(errno));
     exit(errno);
   }
+
 #ifdef __FreeBSD__
   if ((err = setsockopt(sock_fd, SOL_SOCKET, SO_REUSEPORT, &val,
                         sizeof(val))) == -1) {
@@ -617,38 +622,34 @@ __attribute__((noreturn)) static void run(HttpRequestHandleFn request_handler) {
 
   const struct sockaddr_in addr = {
       .sin_family = AF_INET,
-      .sin_port = htons(port),
+      .sin_port = htons(server->port),
   };
 
-  if ((err = bind(sock_fd, (const struct sockaddr *)&addr, sizeof(addr))) ==
-      -1) {
-    fprintf(stderr, "Failed to bind(2): %s\n", strerror(errno));
-    exit(errno);
+  if (-1 == bind(sock_fd, (const struct sockaddr *)&addr, sizeof(addr))) {
+    return (Error)errno;
   }
 
-  if ((err = listen(sock_fd, LISTEN_BACKLOG)) == -1) {
-    fprintf(stderr, "Failed to listen(2): %s\n", strerror(errno));
-    exit(errno);
+  if (-1 == listen(sock_fd, TCP_LISTEN_BACKLOG)) {
+    return (Error)errno;
   }
+
   Arena arena = arena_make_from_virtual_mem(4096);
-  log(LOG_LEVEL_INFO, "listening", arena, LCI("port", PORT),
-      LCI("backlog", LISTEN_BACKLOG));
+  log(LOG_LEVEL_INFO, "listening", arena, LCI("port", HTTP_SERVER_DEFAULT_PORT),
+      LCI("backlog", TCP_LISTEN_BACKLOG));
 
-  while (1) {
+  while (atomic_load(&server->running)) {
     // TODO: Should we have a thread dedicated to `accept` and a thread
     // dedicated to `wait()`-ing on children processes, to cap the number of
     // concurrent requests being served?
     // Currently it is boundless.
     const int conn_fd = accept(sock_fd, NULL, 0);
     if (conn_fd == -1) {
-      fprintf(stderr, "Failed to accept(2): %s\n", strerror(errno));
-      exit(errno);
+      return (Error)errno;
     }
 
     const pid_t pid = fork();
     if (pid == -1) {
-      fprintf(stderr, "Failed to fork(2): err=%s\n", strerror(errno));
-      exit(errno);
+      return (Error)errno;
     } else if (pid == 0) { // Child
       handle_client(conn_fd, request_handler);
       exit(0);
@@ -658,6 +659,8 @@ __attribute__((noreturn)) static void run(HttpRequestHandleFn request_handler) {
       close(conn_fd);
     }
   }
+
+  return 0;
 }
 
 [[nodiscard]] static HttpResponse http_client_request(struct sockaddr *addr,

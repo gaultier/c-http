@@ -244,14 +244,18 @@ static HttpResponse handle_request(HttpRequest req, Arena *arena) {
   return res;
 }
 
-static void *http_server_run(void *) {
-  run(handle_request);
+static void *test_only_http_server_run(void *arg) {
+  ASSERT(nullptr != arg);
+  HttpServer *server = arg;
+  ASSERT(0 == http_server_run(server, handle_request));
   return NULL;
 }
 
-static void test_http_server() {
-  pthread_t server = {0};
-  ASSERT(0 == pthread_create(&server, NULL, http_server_run, NULL));
+static void test_http_server_post() {
+  HttpServer server = {.port = HTTP_SERVER_DEFAULT_PORT};
+  pthread_t server_thread = {0};
+  ASSERT(0 == pthread_create(&server_thread, NULL, test_only_http_server_run,
+                             &server));
 
   Arena arena = arena_make_from_virtual_mem(4096);
 
@@ -303,5 +307,5 @@ int main() {
   test_log_entry_quote_value();
   test_make_log_line();
   test_dyn_ensure_cap();
-  test_http_server();
+  test_http_server_post();
 }

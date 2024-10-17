@@ -23,4 +23,7 @@ static HttpResponse my_http_request_handler(HttpRequest req, Arena *arena) {
   return res;
 }
 
-int main() { run(my_http_request_handler); }
+int main() {
+  HttpServer server = {.port = HTTP_SERVER_DEFAULT_PORT};
+  (void)http_server_run(&server, my_http_request_handler);
+}
