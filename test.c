@@ -41,7 +41,8 @@ static IoOperationResult reader_read_from_slice(void *ctx, void *buf,
   ASSERT(buf != NULL);
   ASSERT(mem_ctx->slice.data != NULL);
   if (mem_ctx->idx >= mem_ctx->slice.len) {
-    return (IoOperationResult){.err = EINVAL};
+    // End.
+    return (IoOperationResult){0};
   }
 
   const uint64_t remaining = mem_ctx->slice.len - mem_ctx->idx;
