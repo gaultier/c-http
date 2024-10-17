@@ -640,7 +640,7 @@ __attribute__((noreturn)) static void run(HttpRequestHandleFn request_handler) {
 
   if (-1 == connect(client, addr, addr_sizeof)) {
     res.err = (Error)errno;
-    return res;
+    goto end;
   }
 
   DynArrayU8 sb = {0};
@@ -668,17 +668,17 @@ __attribute__((noreturn)) static void run(HttpRequestHandleFn request_handler) {
     LineRead status_line = reader_read_line(&reader, arena);
     if (status_line.err) {
       res.err = status_line.err;
-      return res;
+      goto end;
     }
     if (!status_line.present) {
       res.err = HS_ERR_INVALID_HTTP_RESPONSE;
-      return res;
+      goto end;
     }
 
     Slice http_version_needle = S("HTTP/1.1 ");
     if (!slice_starts_with(status_line.line, http_version_needle)) {
       res.err = HS_ERR_INVALID_HTTP_RESPONSE;
-      return res;
+      goto end;
     }
 
     Slice status_str =
@@ -686,15 +686,15 @@ __attribute__((noreturn)) static void run(HttpRequestHandleFn request_handler) {
     ParseNumberResult status_parsed = slice_parse_u64_decimal(status_str);
     if (status_parsed.err) {
       res.err = status_parsed.err;
-      return res;
+      goto end;
     }
     if (!status_parsed.present) {
       res.err = EINVAL;
-      return res;
+      goto end;
     }
     if (!(200 <= status_parsed.n && status_parsed.n <= 599)) {
       res.err = EINVAL;
-      return res;
+      goto end;
     }
 
     res.status = (uint16_t)status_parsed.n;
@@ -702,10 +702,12 @@ __attribute__((noreturn)) static void run(HttpRequestHandleFn request_handler) {
 
   res.err = reader_read_headers(&reader, &res.headers, arena);
   if (res.err) {
-    return res;
+    goto end;
   }
 
   // TODO: body.
 
+end:
+  close(client);
   return res;
 }
