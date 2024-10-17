@@ -180,6 +180,8 @@ typedef struct {
   dyn_append_slice(&reader->buf, slice, arena);
 
   res.slice.data = dyn_at_ptr(&reader->buf, reader_buf_len_prev);
+  ASSERT(false == ckd_add(&reader->buf_idx, reader->buf_idx, res.slice.len));
+
   return res;
 }
 
@@ -376,6 +378,36 @@ request_parse_status_line(LineRead status_line) {
     *dyn_push(headers, arena) = header;
   }
   return 0;
+}
+
+[[nodiscard]] static IoOperationResult reader_read_until_end(Reader *reader,
+                                                             Arena *arena) {
+  IoOperationResult res = {0};
+
+  uint64_t reader_initial_idx = reader->buf_idx;
+
+  for (;;) { // TODO: Bound?
+    IoOperationResult io = _reader_read_from_io(reader, arena);
+    if (io.err) {
+      res.err = io.err;
+      // TODO: Set `res.slice` in this case?
+
+      return res;
+    }
+
+    // End?
+    if (0 == io.slice.len) {
+      res.slice.data = reader->buf.data + reader->buf_idx;
+      ASSERT(reader->buf_idx >= reader_initial_idx);
+      res.slice.len = reader->buf_idx - reader_initial_idx;
+
+      if (0 != res.slice.len) {
+        ASSERT(NULL != res.slice.data);
+      }
+
+      return res;
+    }
+  }
 }
 
 [[nodiscard]] static ParseNumberResult
@@ -705,7 +737,14 @@ __attribute__((noreturn)) static void run(HttpRequestHandleFn request_handler) {
     goto end;
   }
 
-  // TODO: body.
+  // Read body.
+  IoOperationResult body = reader_read_until_end(&reader, arena);
+  if (body.err) {
+    res.err = body.err;
+    goto end;
+  }
+
+  res.body = body.slice;
 
 end:
   close(client);
