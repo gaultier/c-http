@@ -587,14 +587,8 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
       LCS("method", http_method_to_s(req.method)), LCII("request_id", req.id));
 }
 
-typedef struct {
-  uint16_t port;
-  _Atomic bool running;
-} HttpServer;
-
-static Error http_server_run(HttpServer *server,
-                             HttpRequestHandleFn request_handler) {
-  atomic_store(&server->running, true);
+static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
+                             Arena *arena) {
 
   struct sigaction sa = {.sa_flags = SA_NOCLDWAIT};
   if (-1 == sigaction(SIGCHLD, &sa, NULL)) {
@@ -622,7 +616,7 @@ static Error http_server_run(HttpServer *server,
 
   const struct sockaddr_in addr = {
       .sin_family = AF_INET,
-      .sin_port = htons(server->port),
+      .sin_port = htons(port),
   };
 
   if (-1 == bind(sock_fd, (const struct sockaddr *)&addr, sizeof(addr))) {
@@ -633,11 +627,11 @@ static Error http_server_run(HttpServer *server,
     return (Error)errno;
   }
 
-  Arena arena = arena_make_from_virtual_mem(4096);
-  log(LOG_LEVEL_INFO, "listening", arena, LCI("port", HTTP_SERVER_DEFAULT_PORT),
+  log(LOG_LEVEL_INFO, "listening", *arena,
+      LCI("port", HTTP_SERVER_DEFAULT_PORT),
       LCI("backlog", TCP_LISTEN_BACKLOG));
 
-  while (atomic_load(&server->running)) {
+  while (true) {
     // TODO: Should we have a thread dedicated to `accept` and a thread
     // dedicated to `wait()`-ing on children processes, to cap the number of
     // concurrent requests being served?
@@ -659,8 +653,6 @@ static Error http_server_run(HttpServer *server,
       close(conn_fd);
     }
   }
-
-  return 0;
 }
 
 [[nodiscard]] static HttpResponse http_client_request(struct sockaddr *addr,

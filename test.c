@@ -246,18 +246,18 @@ static HttpResponse handle_request(HttpRequest req, Arena *arena) {
 
 static void *test_only_http_server_run(void *arg) {
   ASSERT(nullptr != arg);
-  HttpServer *server = arg;
-  ASSERT(0 == http_server_run(server, handle_request));
+
+  Arena *arena = arg;
+  ASSERT(0 == http_server_run(HTTP_SERVER_DEFAULT_PORT, handle_request, arena));
   return NULL;
 }
 
 static void test_http_server_post() {
-  HttpServer server = {.port = HTTP_SERVER_DEFAULT_PORT};
+  Arena arena = arena_make_from_virtual_mem(4096);
+
   pthread_t server_thread = {0};
   ASSERT(0 == pthread_create(&server_thread, NULL, test_only_http_server_run,
-                             &server));
-
-  Arena arena = arena_make_from_virtual_mem(4096);
+                             &arena));
 
   for (uint64_t i = 0; i < 5; i++) {
     struct sockaddr_in addr = {
