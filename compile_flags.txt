@@ -10,3 +10,4 @@
 -Wno-covered-switch-default
 -Wno-class-varargs 
 -Wno-pre-c23-compat
+-Werror

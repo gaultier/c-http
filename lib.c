@@ -230,7 +230,8 @@ typedef struct {
   return idx == 0;
 }
 
-[[nodiscard]] static bool slice_ends_with(Slice haystack, Slice needle) {
+[[maybe_unused]] [[nodiscard]] static bool slice_ends_with(Slice haystack,
+                                                           Slice needle) {
   int64_t idx = slice_indexof_slice(haystack, needle);
   return idx == (int64_t)haystack.len - (int64_t)needle.len;
 }

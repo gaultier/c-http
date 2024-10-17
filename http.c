@@ -657,10 +657,9 @@ static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
   }
 }
 
-[[nodiscard]] static HttpResponse http_client_request(struct sockaddr *addr,
-                                                      uint32_t addr_sizeof,
-                                                      HttpRequest req,
-                                                      Arena *arena) {
+[[maybe_unused]] [[nodiscard]] static HttpResponse
+http_client_request(struct sockaddr *addr, uint32_t addr_sizeof,
+                    HttpRequest req, Arena *arena) {
   HttpResponse res = {0};
   if (HM_UNKNOWN == req.method) {
     res.err = EINVAL;
