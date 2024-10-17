@@ -1,4 +1,4 @@
--std=c17
+-std=c23
 -Weverything 
 -Wno-gnu-alignof-expression 
 -Wno-strict-prototypes 
@@ -9,3 +9,4 @@
 -Wno-reserved-identifier
 -Wno-covered-switch-default
 -Wno-class-varargs 
+-Wno-pre-c23-compat

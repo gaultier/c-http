@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stdckdint.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,6 +15,7 @@
 #include <sys/mman.h>
 #include <sys/socket.h>
 #include <time.h>
+
 #ifdef __linux__
 #include <sys/sendfile.h>
 #endif
@@ -24,8 +26,6 @@
       __builtin_trap();                                                        \
     }                                                                          \
   } while (0)
-
-#define MUST_USE __attribute__((warn_unused_result))
 
 #define AT_PTR(arr, len, idx)                                                  \
   (((int64_t)(idx) >= (int64_t)(len)) ? (__builtin_trap(), &(arr)[0])          \
@@ -40,7 +40,7 @@ typedef struct {
   uint64_t len;
 } Slice;
 
-MUST_USE static bool slice_is_empty(Slice s) {
+[[nodiscard]] static bool slice_is_empty(Slice s) {
   if (s.len == 0) {
     return true;
   }
@@ -49,13 +49,13 @@ MUST_USE static bool slice_is_empty(Slice s) {
   return false;
 }
 
-MUST_USE static Slice S(char *s) {
+[[nodiscard]] static Slice S(char *s) {
   const uint64_t s_len = strlen(s);
   const Slice slice = {.data = (uint8_t *)s, .len = s_len};
   return slice;
 }
 
-MUST_USE static Slice slice_trim_left(Slice s, uint8_t c) {
+[[nodiscard]] static Slice slice_trim_left(Slice s, uint8_t c) {
   Slice res = s;
 
   for (uint64_t s_i = 0; s_i < s.len; s_i++) {
@@ -70,7 +70,7 @@ MUST_USE static Slice slice_trim_left(Slice s, uint8_t c) {
   return res;
 }
 
-MUST_USE static Slice slice_trim_right(Slice s, uint8_t c) {
+[[nodiscard]] static Slice slice_trim_right(Slice s, uint8_t c) {
   Slice res = s;
 
   for (int64_t s_i = (int64_t)s.len - 1; s_i >= 0; s_i--) {
@@ -84,7 +84,7 @@ MUST_USE static Slice slice_trim_right(Slice s, uint8_t c) {
   return res;
 }
 
-MUST_USE static Slice slice_trim(Slice s, uint8_t c) {
+[[nodiscard]] static Slice slice_trim(Slice s, uint8_t c) {
   Slice res = slice_trim_left(s, c);
   res = slice_trim_right(res, c);
 
@@ -101,11 +101,12 @@ typedef struct {
   bool ok;
 } SplitResult;
 
-MUST_USE static SplitIterator slice_split_it(Slice slice, uint8_t sep) {
+[[nodiscard]] static SplitIterator slice_split_it(Slice slice, uint8_t sep) {
   return (SplitIterator){.slice = slice, .sep = sep};
 }
 
-MUST_USE static int64_t slice_indexof_byte(Slice haystack, uint8_t needle) {
+[[nodiscard]] static int64_t slice_indexof_byte(Slice haystack,
+                                                uint8_t needle) {
   if (slice_is_empty(haystack)) {
     return -1;
   }
@@ -118,7 +119,8 @@ MUST_USE static int64_t slice_indexof_byte(Slice haystack, uint8_t needle) {
   return res - haystack.data;
 }
 
-MUST_USE static Slice slice_range(Slice src, uint64_t start, uint64_t end) {
+[[nodiscard]] static Slice slice_range(Slice src, uint64_t start,
+                                       uint64_t end) {
   const uint64_t real_end = end == 0 ? src.len : end;
   ASSERT(start <= real_end);
   ASSERT(start <= src.len);
@@ -128,7 +130,7 @@ MUST_USE static Slice slice_range(Slice src, uint64_t start, uint64_t end) {
   return res;
 }
 
-MUST_USE static SplitResult slice_split_next(SplitIterator *it) {
+[[nodiscard]] static SplitResult slice_split_next(SplitIterator *it) {
   if (slice_is_empty(it->slice)) {
     return (SplitResult){0};
   }
@@ -156,7 +158,7 @@ MUST_USE static SplitResult slice_split_next(SplitIterator *it) {
   return (SplitResult){0};
 }
 
-MUST_USE static bool slice_eq(Slice a, Slice b) {
+[[nodiscard]] static bool slice_eq(Slice a, Slice b) {
   if (a.data == NULL && b.data == NULL && a.len == b.len) {
     return true;
   }
@@ -178,7 +180,7 @@ MUST_USE static bool slice_eq(Slice a, Slice b) {
   return memcmp(a.data, b.data, a.len) == 0;
 }
 
-MUST_USE static int64_t slice_indexof_slice(Slice haystack, Slice needle) {
+[[nodiscard]] static int64_t slice_indexof_slice(Slice haystack, Slice needle) {
   if (haystack.data == NULL) {
     return -1;
   }
@@ -209,12 +211,12 @@ MUST_USE static int64_t slice_indexof_slice(Slice haystack, Slice needle) {
   return (int64_t)res;
 }
 
-MUST_USE static bool slice_starts_with(Slice haystack, Slice needle) {
+[[nodiscard]] static bool slice_starts_with(Slice haystack, Slice needle) {
   int64_t idx = slice_indexof_slice(haystack, needle);
   return idx == 0;
 }
 
-MUST_USE static bool slice_ends_with(Slice haystack, Slice needle) {
+[[nodiscard]] static bool slice_ends_with(Slice haystack, Slice needle) {
   int64_t idx = slice_indexof_slice(haystack, needle);
   return idx == (int64_t)haystack.len - (int64_t)needle.len;
 }
@@ -225,7 +227,7 @@ typedef struct {
   bool present;
 } ParseNumberResult;
 
-MUST_USE static ParseNumberResult slice_parse_u64_decimal(Slice slice) {
+[[nodiscard]] static ParseNumberResult slice_parse_u64_decimal(Slice slice) {
   Slice trimmed = slice_trim(slice, ' ');
 
   ParseNumberResult res = {0};
@@ -250,7 +252,8 @@ typedef struct {
   uint8_t *end;
 } Arena;
 
-__attribute((malloc, alloc_size(2, 4), alloc_align(3))) MUST_USE static void *
+__attribute((malloc, alloc_size(2, 4), alloc_align(3)))
+[[nodiscard]] static void *
 arena_alloc(Arena *a, uint64_t size, uint64_t align, uint64_t count) {
   ASSERT(a->start != NULL);
 
@@ -286,12 +289,11 @@ static void dyn_grow(void *slice, uint64_t size, uint64_t align, uint64_t count,
   memcpy(&replica, slice, sizeof(replica));
   ASSERT(replica.cap < count);
 
-  ASSERT(replica.cap < UINT64_MAX / 2);
-  uint64_t new_cap = replica.cap == 0 ? 2 : replica.cap * 2;
+  uint64_t new_cap = replica.cap == 0 ? 2 : replica.cap;
   for (uint64_t i = 0; i < 64; i++) {
     if (new_cap < count) {
       ASSERT(new_cap < UINT64_MAX / 2);
-      new_cap *= 2;
+      ASSERT(false == ckd_mul(&new_cap, new_cap, 2));
     } else {
       break;
     }
@@ -300,13 +302,17 @@ static void dyn_grow(void *slice, uint64_t size, uint64_t align, uint64_t count,
   ASSERT(new_cap >= count);
   ASSERT(new_cap > replica.cap);
 
-  ASSERT(replica.cap < UINT64_MAX / size);
-  ASSERT(replica.len < UINT64_MAX / size);
+  uint64_t array_end = 0;
+  uint64_t array_bytes_count = 0;
+  ASSERT(false == ckd_mul(&array_bytes_count, size, replica.cap));
+  ASSERT(false ==
+         ckd_add(&array_end, (uint64_t)replica.data, array_bytes_count));
+  ASSERT((uint64_t)replica.data <= array_end);
+  ASSERT(array_end < (uint64_t)a->end);
 
   if (NULL == replica.data) { // First allocation ever for this dynamic array.
     replica.data = arena_alloc(a, size, align, new_cap);
-  } else if (a->start ==
-             (uint8_t *)replica.data + size * replica.cap) { // Optimization.
+  } else if ((uint64_t)a->start == array_end) { // Optimization.
     // This is the case of growing the array which is at the end of the arena.
     // In that case we can simply bump the arena pointer and avoid any copies.
     (void)arena_alloc(a, size, 1 /* Force no padding */, new_cap - replica.cap);
@@ -316,7 +322,7 @@ static void dyn_grow(void *slice, uint64_t size, uint64_t align, uint64_t count,
     // Import check to avoid overlapping memory ranges in memcpy.
     ASSERT(data != replica.data);
 
-    memcpy(data, replica.data, size * replica.len);
+    memcpy(data, replica.data, array_bytes_count);
     replica.data = data;
   }
   replica.cap = new_cap;
@@ -358,7 +364,7 @@ typedef struct {
     }                                                                          \
   } while (0)
 
-MUST_USE static Slice dyn_array_u8_to_slice(DynArrayU8 dyn) {
+[[nodiscard]] static Slice dyn_array_u8_to_slice(DynArrayU8 dyn) {
   return (Slice){.data = dyn.data, .len = dyn.len};
 }
 
@@ -391,7 +397,7 @@ static void dyn_array_u8_append_u128_hex(DynArrayU8 *dyn, __uint128_t n,
 
 // TODO: Should we mmap a page right after that is neither readable nor writable
 // to catch bugs?
-MUST_USE static Arena arena_make_from_virtual_mem(uint64_t size) {
+[[nodiscard]] static Arena arena_make_from_virtual_mem(uint64_t size) {
   void *ptr =
       mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
 
@@ -429,7 +435,7 @@ typedef struct {
   LogValue value;
 } LogEntry;
 
-MUST_USE static LogEntry LCI(char *k, uint64_t v) {
+[[nodiscard]] static LogEntry LCI(char *k, uint64_t v) {
   return ((LogEntry){
       .key = S(k),
       .value.kind = LV_U64,
@@ -437,7 +443,7 @@ MUST_USE static LogEntry LCI(char *k, uint64_t v) {
   });
 }
 
-MUST_USE static LogEntry LCII(char *k, __uint128_t v) {
+[[nodiscard]] static LogEntry LCII(char *k, __uint128_t v) {
   return ((LogEntry){
       .key = S(k),
       .value.kind = LV_U128,
@@ -445,7 +451,7 @@ MUST_USE static LogEntry LCII(char *k, __uint128_t v) {
   });
 }
 
-MUST_USE static LogEntry LCS(char *k, Slice v) {
+[[nodiscard]] static LogEntry LCS(char *k, Slice v) {
   return ((LogEntry){
       .key = S(k),
       .value.kind = LV_SLICE,
@@ -462,7 +468,7 @@ MUST_USE static LogEntry LCS(char *k, Slice v) {
     write(1, log_line.data, log_line.len);                                     \
   } while (0)
 
-MUST_USE static Slice log_entry_quote_value(Slice entry, Arena *arena) {
+[[nodiscard]] static Slice log_entry_quote_value(Slice entry, Arena *arena) {
   DynArrayU8 sb = {0};
   *dyn_push(&sb, arena) = '"';
 
@@ -481,8 +487,9 @@ MUST_USE static Slice log_entry_quote_value(Slice entry, Arena *arena) {
   return dyn_array_u8_to_slice(sb);
 }
 
-MUST_USE static Slice make_log_line(LogLevel level, Slice msg, Arena *arena,
-                                    int32_t args_count, ...) {
+[[nodiscard]] static Slice make_log_line(LogLevel level, Slice msg,
+                                         Arena *arena, int32_t args_count,
+                                         ...) {
   struct timespec now = {0};
   clock_gettime(CLOCK_MONOTONIC_COARSE, &now);
 

@@ -77,8 +77,8 @@ typedef struct {
 
 #define MAX_READER_READER 4096
 
-MUST_USE static IoOperationResult reader_read_from_socket(void *ctx, void *buf,
-                                                          size_t buf_len) {
+[[nodiscard]] static IoOperationResult
+reader_read_from_socket(void *ctx, void *buf, size_t buf_len) {
   const ssize_t n_read = recv((int)(uint64_t)ctx, buf, buf_len, 0);
   if (n_read == -1) {
     return (IoOperationResult){.err = (Error)errno};
@@ -88,7 +88,7 @@ MUST_USE static IoOperationResult reader_read_from_socket(void *ctx, void *buf,
   return (IoOperationResult){.slice.data = buf, .slice.len = (uint64_t)n_read};
 }
 
-MUST_USE static Reader reader_make_from_socket(int socket) {
+[[nodiscard]] static Reader reader_make_from_socket(int socket) {
   return (Reader){
       .ctx = (void *)(uint64_t)socket,
       .read_fn = reader_read_from_socket,
@@ -102,8 +102,8 @@ typedef struct {
   void *ctx;
 } Writer;
 
-MUST_USE static IoOperationResult writer_write_from_socket(void *ctx, void *buf,
-                                                           size_t buf_len) {
+[[nodiscard]] static IoOperationResult
+writer_write_from_socket(void *ctx, void *buf, size_t buf_len) {
   const ssize_t n_written = send((int)(uint64_t)ctx, buf, buf_len, 0);
   if (n_written == -1) {
     return (IoOperationResult){.err = (Error)errno};
@@ -114,14 +114,14 @@ MUST_USE static IoOperationResult writer_write_from_socket(void *ctx, void *buf,
                              .slice.len = (uint64_t)n_written};
 }
 
-MUST_USE static Writer writer_make_from_socket(int socket) {
+[[nodiscard]] static Writer writer_make_from_socket(int socket) {
   return (Writer){
       .ctx = (void *)(uint64_t)socket,
       .write = writer_write_from_socket,
   };
 }
 
-MUST_USE static Error writer_write_all(Writer writer, Slice slice) {
+[[nodiscard]] static Error writer_write_all(Writer writer, Slice slice) {
   for (uint64_t idx = 0; idx < slice.len;) {
     const Slice to_write = slice_range(slice, idx, 0);
     const IoOperationResult write_res =
@@ -144,7 +144,7 @@ typedef struct {
   bool present;
 } LineRead;
 
-MUST_USE static IoOperationResult reader_read_from_buffer(Reader *reader) {
+[[nodiscard]] static IoOperationResult reader_read_from_buffer(Reader *reader) {
   ASSERT(reader->buf.len >= reader->buf_idx);
 
   if (reader->buf_idx == reader->buf.len) {
@@ -160,8 +160,8 @@ MUST_USE static IoOperationResult reader_read_from_buffer(Reader *reader) {
   return res;
 }
 
-MUST_USE static IoOperationResult _reader_read_from_io(Reader *reader,
-                                                       Arena *arena) {
+[[nodiscard]] static IoOperationResult _reader_read_from_io(Reader *reader,
+                                                            Arena *arena) {
   ASSERT(reader->buf.len >= reader->buf_idx);
 
   uint8_t tmp[MAX_READER_READER] = {0};
@@ -179,7 +179,8 @@ MUST_USE static IoOperationResult _reader_read_from_io(Reader *reader,
   return res;
 }
 
-MUST_USE static IoOperationResult reader_read(Reader *reader, Arena *arena) {
+[[nodiscard]] static IoOperationResult reader_read(Reader *reader,
+                                                   Arena *arena) {
   ASSERT(reader->buf.len >= reader->buf_idx);
 
   IoOperationResult res = reader_read_from_buffer(reader);
@@ -195,7 +196,7 @@ MUST_USE static IoOperationResult reader_read(Reader *reader, Arena *arena) {
   return reader_read_from_buffer(reader);
 }
 
-MUST_USE static IoOperationResult
+[[nodiscard]] static IoOperationResult
 reader_read_until_slice(Reader *reader, Slice needle, Arena *arena) {
   ASSERT(reader->buf.len >= reader->buf_idx);
 
@@ -227,7 +228,7 @@ reader_read_until_slice(Reader *reader, Slice needle, Arena *arena) {
   return io;
 }
 
-MUST_USE static IoOperationResult
+[[nodiscard]] static IoOperationResult
 reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
   uint64_t remaining_to_read = content_length;
 
@@ -253,7 +254,7 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
   return res;
 }
 
-MUST_USE static LineRead reader_read_line(Reader *reader, Arena *arena) {
+[[nodiscard]] static LineRead reader_read_line(Reader *reader, Arena *arena) {
   const Slice NEWLINE = S("\r\n");
 
   LineRead line = {0};
@@ -270,7 +271,8 @@ MUST_USE static LineRead reader_read_line(Reader *reader, Arena *arena) {
   return line;
 }
 
-MUST_USE static HttpRequest request_parse_status_line(LineRead status_line) {
+[[nodiscard]] static HttpRequest
+request_parse_status_line(LineRead status_line) {
   HttpRequest req = {0};
   arc4random_buf(&req.id, sizeof(req.id));
 
@@ -339,8 +341,8 @@ MUST_USE static HttpRequest request_parse_status_line(LineRead status_line) {
   return req;
 }
 
-MUST_USE static HttpRequest request_read_headers(HttpRequest req,
-                                                 Reader *reader, Arena *arena) {
+[[nodiscard]] static HttpRequest
+request_read_headers(HttpRequest req, Reader *reader, Arena *arena) {
   ASSERT(!req.err);
 
   HttpRequest res = req;
@@ -377,7 +379,7 @@ MUST_USE static HttpRequest request_read_headers(HttpRequest req,
   return res;
 }
 
-MUST_USE static ParseNumberResult
+[[nodiscard]] static ParseNumberResult
 request_parse_content_length_maybe(HttpRequest req) {
   ASSERT(!req.err);
 
@@ -393,9 +395,10 @@ request_parse_content_length_maybe(HttpRequest req) {
   return (ParseNumberResult){0};
 }
 
-MUST_USE static HttpRequest request_read_body(HttpRequest req, Reader *reader,
-                                              uint64_t content_length,
-                                              Arena *arena) {
+[[nodiscard]] static HttpRequest request_read_body(HttpRequest req,
+                                                   Reader *reader,
+                                                   uint64_t content_length,
+                                                   Arena *arena) {
   ASSERT(!req.err);
   HttpRequest res = req;
 
@@ -410,7 +413,7 @@ MUST_USE static HttpRequest request_read_body(HttpRequest req, Reader *reader,
   return res;
 }
 
-MUST_USE static HttpRequest request_read(Reader *reader, Arena *arena) {
+[[nodiscard]] static HttpRequest request_read(Reader *reader, Arena *arena) {
   const LineRead status_line = reader_read_line(reader, arena);
   if (status_line.err) {
     return (HttpRequest){.err = status_line.err};
@@ -439,8 +442,8 @@ MUST_USE static HttpRequest request_read(Reader *reader, Arena *arena) {
   return req;
 }
 
-MUST_USE static Error response_write(Writer writer, HttpResponse res,
-                                     Arena *arena) {
+[[nodiscard]] static Error response_write(Writer writer, HttpResponse res,
+                                          Arena *arena) {
   // Invalid to both want to serve a file and a body.
   ASSERT(NULL == res.file_path || slice_is_empty(res.body));
 
