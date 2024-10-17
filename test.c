@@ -244,23 +244,34 @@ static HttpResponse handle_request_post(HttpRequest req, Arena *arena) {
   return res;
 }
 
+static uint16_t random_port() {
+  uint16_t max_port = UINT16_MAX;
+  uint16_t min_port = 3000;
+
+  uint16_t port = min_port + arc4random_uniform(max_port - min_port);
+  ASSERT(min_port <= port);
+
+  return port;
+}
+
 static void test_http_server_post() {
   Arena arena = arena_make_from_virtual_mem(4096);
 
   // The http server runs in its own child process.
   // The parent process acts as a HTTP client contacting the server.
+  uint16_t port = random_port();
+
   pid_t pid = fork();
   ASSERT(-1 != pid);
   if (pid == 0) { // Child
-    ASSERT(0 == http_server_run(HTTP_SERVER_DEFAULT_PORT, handle_request_post,
-                                &arena));
+    ASSERT(0 == http_server_run(port, handle_request_post, &arena));
 
   } else { // Parent
 
     for (uint64_t i = 0; i < 5; i++) {
       struct sockaddr_in addr = {
           .sin_family = AF_INET,
-          .sin_port = htons(12345),
+          .sin_port = htons(port),
       };
       HttpRequest req = {
           .method = HM_POST,
@@ -322,18 +333,19 @@ static void test_http_server_serve_file() {
 
   // The http server runs in its own child process.
   // The parent process acts as a HTTP client contacting the server.
+  uint16_t port = random_port();
+
   pid_t pid = fork();
   ASSERT(-1 != pid);
   if (pid == 0) { // Child
-    ASSERT(0 == http_server_run(HTTP_SERVER_DEFAULT_PORT, handle_request_file,
-                                &arena));
+    ASSERT(0 == http_server_run(port, handle_request_file, &arena));
 
   } else { // Parent
 
     for (uint64_t i = 0; i < 5; i++) {
       struct sockaddr_in addr = {
           .sin_family = AF_INET,
-          .sin_port = htons(12345),
+          .sin_port = htons(port),
       };
       HttpRequest req = {
           .method = HM_GET,
