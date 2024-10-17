@@ -1,6 +1,7 @@
 #include "http.c"
 #include "lib.c"
 #include <pthread.h>
+#include <sys/wait.h>
 
 #ifndef MIN
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
@@ -244,60 +245,66 @@ static HttpResponse handle_request(HttpRequest req, Arena *arena) {
   return res;
 }
 
-static void *test_only_http_server_run(void *arg) {
-  ASSERT(nullptr != arg);
-
-  Arena *arena = arg;
-  ASSERT(0 == http_server_run(HTTP_SERVER_DEFAULT_PORT, handle_request, arena));
-  return NULL;
-}
-
 static void test_http_server_post() {
   Arena arena = arena_make_from_virtual_mem(4096);
 
-  // TODO: Spawn http server in its own OS process.
-  // TO stop it, send SIGKILL to it.
-  pthread_t server_thread = {0};
-  ASSERT(0 == pthread_create(&server_thread, NULL, test_only_http_server_run,
-                             &arena));
+  // The http server runs in its own child process.
+  // The parent process acts as a HTTP client contacting the server.
+  // TODO: Should each test run in its own process?
+  pid_t pid = fork();
+  ASSERT(-1 != pid);
+  if (pid == 0) { // Child
+    ASSERT(0 ==
+           http_server_run(HTTP_SERVER_DEFAULT_PORT, handle_request, &arena));
 
-  for (uint64_t i = 0; i < 5; i++) {
-    struct sockaddr_in addr = {
-        .sin_family = AF_INET,
-        .sin_port = htons(12345),
-    };
-    HttpRequest req = {
-        .method = HM_POST,
-        .path = S("/comment"),
-        .body = S("foo\nbar"),
-    };
-    http_push_header_cstr(&req.headers, "Content-Type", "text/plain", &arena);
-    http_push_header_cstr(&req.headers, "Content-Length", "7", &arena);
-    HttpResponse resp = http_client_request((struct sockaddr *)&addr,
-                                            sizeof(addr), req, &arena);
+  } else { // Parent
 
-    if (!resp.err) {
-      ASSERT(201 == resp.status);
-      ASSERT(slice_eq(S("hello world!"), resp.body));
-      ASSERT(2 == resp.headers.len);
+    for (uint64_t i = 0; i < 5; i++) {
+      struct sockaddr_in addr = {
+          .sin_family = AF_INET,
+          .sin_port = htons(12345),
+      };
+      HttpRequest req = {
+          .method = HM_POST,
+          .path = S("/comment"),
+          .body = S("foo\nbar"),
+      };
+      http_push_header_cstr(&req.headers, "Content-Type", "text/plain", &arena);
+      http_push_header_cstr(&req.headers, "Content-Length", "7", &arena);
+      HttpResponse resp = http_client_request((struct sockaddr *)&addr,
+                                              sizeof(addr), req, &arena);
 
-      HttpHeader h1 = dyn_at(resp.headers, 0);
-      ASSERT(slice_eq(S("Connection"), h1.key));
-      ASSERT(slice_eq(S("close"), h1.value));
+      if (!resp.err) {
+        ASSERT(201 == resp.status);
+        ASSERT(slice_eq(S("hello world!"), resp.body));
+        ASSERT(2 == resp.headers.len);
 
-      HttpHeader h2 = dyn_at(resp.headers, 1);
-      ASSERT(slice_eq(S("Content-Type"), h2.key));
-      ASSERT(slice_eq(S("text/plain"), h2.value));
+        HttpHeader h1 = dyn_at(resp.headers, 0);
+        ASSERT(slice_eq(S("Connection"), h1.key));
+        ASSERT(slice_eq(S("close"), h1.value));
 
-      ASSERT(slice_eq(S("hello world!"), resp.body));
+        HttpHeader h2 = dyn_at(resp.headers, 1);
+        ASSERT(slice_eq(S("Content-Type"), h2.key));
+        ASSERT(slice_eq(S("text/plain"), h2.value));
 
-      return;
+        ASSERT(slice_eq(S("hello world!"), resp.body));
+
+        // Stop the http server.
+        {
+          ASSERT(-1 != kill(pid, SIGKILL));
+          int child_status = 0;
+          ASSERT(-1 != waitpid(pid, &child_status, 0));
+          ASSERT(true == WIFSIGNALED(child_status));
+          ASSERT(0 == WEXITSTATUS(child_status));
+        }
+        return;
+      }
+
+      // Retry.
+      usleep(10'000);
     }
-
-    // Retry.
-    usleep(10'000);
+    ASSERT(false);
   }
-  ASSERT(false);
 }
 
 int main() {
