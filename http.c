@@ -579,7 +579,8 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
                            ((uint64_t)arena.end - (uint64_t)arena.start);
   log(LOG_LEVEL_INFO, "http request end", arena, LCI("arena_use", mem_use),
       LCS("path", req.path), LCI("header_count", req.headers.len),
-      LCS("method", http_method_to_s(req.method)), LCII("request_id", req.id));
+      LCI("status", res.status), LCS("method", http_method_to_s(req.method)),
+      LCII("request_id", req.id));
 }
 
 static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,

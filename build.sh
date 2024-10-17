@@ -20,7 +20,7 @@ case $1 in
     EXTRA_FLAGS="-fsanitize=address,undefined"
     ;;
   release)
-    EXTRA_FLAGS="-O3"
+    EXTRA_FLAGS="-O3 -march=native"
     ;;
 	*)
 		error "Build mode \"$1\" unsupported!"
@@ -28,7 +28,7 @@ case $1 in
 esac
 
 # shellcheck disable=SC2086
-"$CC" $WARNINGS -g3 main.c -o main.bin "$EXTRA_FLAGS"
+"$CC" $WARNINGS -g3 main.c -o main.bin $EXTRA_FLAGS
 }
 
 if [ $# -eq 0 ]; then
