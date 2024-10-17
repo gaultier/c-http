@@ -249,7 +249,6 @@ static void test_http_server_post() {
 
   // The http server runs in its own child process.
   // The parent process acts as a HTTP client contacting the server.
-  // TODO: Should each test run in its own process?
   pid_t pid = fork();
   ASSERT(-1 != pid);
   if (pid == 0) { // Child
@@ -286,7 +285,7 @@ static void test_http_server_post() {
         ASSERT(slice_eq(S("Content-Type"), h2.key));
         ASSERT(slice_eq(S("text/plain"), h2.value));
 
-        // Stop the http server.
+        // Stop the http server and check it had no issue.
         {
           ASSERT(-1 != kill(pid, SIGKILL));
           int child_status = 0;
@@ -323,7 +322,6 @@ static void test_http_server_serve_file() {
 
   // The http server runs in its own child process.
   // The parent process acts as a HTTP client contacting the server.
-  // TODO: Should each test run in its own process?
   pid_t pid = fork();
   ASSERT(-1 != pid);
   if (pid == 0) { // Child
@@ -373,7 +371,7 @@ static void test_http_server_serve_file() {
                                     .len = (uint64_t)st.st_size};
         ASSERT(slice_eq(file_content_slice, resp.body));
 
-        // Stop the http server.
+        // Stop the http server and check it had no issue.
         {
           ASSERT(-1 != kill(pid, SIGKILL));
           int child_status = 0;
