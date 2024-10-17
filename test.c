@@ -231,7 +231,7 @@ static void test_dyn_ensure_cap() {
 
 static HttpResponse handle_request(HttpRequest req, Arena *arena) {
   ASSERT(HM_POST == req.method);
-  ASSERT(slice_eq(S("comment=foo bar"), req.body));
+  ASSERT(slice_eq(S("foo\nbar"), req.body));
   ASSERT(slice_eq(S("/comment"), req.path));
 
   HttpResponse res = {0};

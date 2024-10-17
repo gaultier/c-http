@@ -170,6 +170,9 @@ typedef struct {
   if (res.err) {
     return res;
   }
+  if (0 == res.slice.len) {
+    return res;
+  }
 
   Slice slice = {.data = tmp, .len = res.slice.len};
 
