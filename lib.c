@@ -5,7 +5,6 @@
 #define _XOPEN_SOURCE 700
 #define _DEFAULT_SOURCE 1
 #include <errno.h>
-#include <execinfo.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdckdint.h>
