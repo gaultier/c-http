@@ -603,8 +603,7 @@ static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
   }
 
 #ifdef __FreeBSD__
-  if ((err = setsockopt(sock_fd, SOL_SOCKET, SO_REUSEPORT, &val,
-                        sizeof(val))) == -1) {
+  if (-1 = = setsockopt(sock_fd, SOL_SOCKET, SO_REUSEPORT, &val, sizeof(val))) {
     fprintf(stderr, "Failed to setsockopt(2): %s\n", strerror(errno));
     exit(errno);
   }
