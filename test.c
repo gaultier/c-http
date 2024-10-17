@@ -1,5 +1,6 @@
 #include "http.c"
 #include "lib.c"
+#include <pthread.h>
 
 #ifndef MIN
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
@@ -228,6 +229,69 @@ static void test_dyn_ensure_cap() {
   }
 }
 
+static HttpResponse handle_request(HttpRequest req, Arena *arena) {
+  ASSERT(HM_POST == req.method);
+  ASSERT(slice_eq(S("comment=foo bar"), req.body));
+  ASSERT(slice_eq(S("/comment"), req.path));
+
+  HttpResponse res = {0};
+  res.status = 201;
+  res.body = S("hello world!");
+  http_push_header_cstr(&res, "Connection", "close", arena);
+  http_push_header_cstr(&res, "Content-Type", "text/plain", arena);
+
+  return res;
+}
+
+static void *http_server_run(void *) {
+  run(handle_request);
+  return NULL;
+}
+
+static void test_http_server() {
+  pthread_t server = {0};
+  ASSERT(0 == pthread_create(&server, NULL, http_server_run, NULL));
+
+  Arena arena = arena_make_from_virtual_mem(4096);
+
+  for (uint64_t i = 0; i < 5; i++) {
+    struct sockaddr_in addr = {
+        .sin_family = AF_INET,
+        .sin_port = htons(12345),
+    };
+    HttpRequest req = {
+        .method = HM_POST,
+        .path = S("/comment"),
+        .body = S("foo\nbar"),
+    };
+    http_push_header_cstr(&req.headers, "Content-Type", "text/plain", &arena);
+    http_push_header_cstr(&req.headers, "Content-Length", "6", &arena);
+    HttpResponse resp = http_client_request((struct sockaddr *)&addr,
+                                            sizeof(addr), req, &arena);
+
+    if (!resp.err) {
+      ASSERT(201 == resp.status);
+      ASSERT(slice_eq(S("hello world!"), resp.body));
+      ASSERT(2 == resp.headers.len);
+
+      HttpHeader h1 = dyn_at(resp.headers, 0);
+      ASSERT(slice_eq(S("Connection"), h1.key));
+      ASSERT(slice_eq(S("close"), h1.value));
+
+      HttpHeader h2 = dyn_at(resp.headers, 0);
+      ASSERT(slice_eq(S("Content-Type"), h2.key));
+      ASSERT(slice_eq(S("text/plain"), h2.value));
+
+      // TODO: body.
+
+      return;
+    }
+
+    usleep(10'000);
+  }
+  ASSERT(false);
+}
+
 int main() {
   test_slice_indexof_slice();
   test_slice_trim();
@@ -237,4 +301,5 @@ int main() {
   test_log_entry_quote_value();
   test_make_log_line();
   test_dyn_ensure_cap();
+  test_http_server();
 }

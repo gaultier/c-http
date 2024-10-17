@@ -17,6 +17,7 @@ static const int LISTEN_BACKLOG = 16384;
 
 typedef enum {
   HS_ERR_INVALID_HTTP_REQUEST,
+  HS_ERR_INVALID_HTTP_RESPONSE,
 } HS_ERROR;
 
 typedef enum { HM_UNKNOWN, HM_GET, HM_POST } HttpMethod;
@@ -175,7 +176,7 @@ typedef struct {
   uint64_t reader_buf_len_prev = reader->buf.len;
   dyn_append_slice(&reader->buf, slice, arena);
 
-  res.slice.data = &reader->buf.data[reader_buf_len_prev];
+  res.slice.data = dyn_at_ptr(&reader->buf, reader_buf_len_prev);
   return res;
 }
 
@@ -341,20 +342,16 @@ request_parse_status_line(LineRead status_line) {
   return req;
 }
 
-[[nodiscard]] static HttpRequest
-request_read_headers(HttpRequest req, Reader *reader, Arena *arena) {
-  ASSERT(!req.err);
-
-  HttpRequest res = req;
-
-  dyn_ensure_cap(&res.headers, 30, arena);
+[[nodiscard]] static Error reader_read_headers(Reader *reader,
+                                               DynArrayHttpHeaders *headers,
+                                               Arena *arena) {
+  dyn_ensure_cap(headers, 30, arena);
 
   for (uint64_t _i = 0; _i < MAX_REQUEST_LINES; _i++) {
     const LineRead line = reader_read_line(reader, arena);
 
     if (line.err) {
-      res.err = line.err;
-      return res;
+      return line.err;
     }
 
     if (!line.present || slice_is_empty(line.line)) {
@@ -364,8 +361,7 @@ request_read_headers(HttpRequest req, Reader *reader, Arena *arena) {
     SplitIterator it = slice_split_it(line.line, ':');
     SplitResult key = slice_split_next(&it);
     if (!key.ok) {
-      res.err = HS_ERR_INVALID_HTTP_REQUEST;
-      return res;
+      return HS_ERR_INVALID_HTTP_REQUEST;
     }
 
     Slice key_trimmed = slice_trim(key.slice, ' ');
@@ -374,9 +370,9 @@ request_read_headers(HttpRequest req, Reader *reader, Arena *arena) {
     Slice value_trimmed = slice_trim(value, ' ');
 
     HttpHeader header = {.key = key_trimmed, .value = value_trimmed};
-    *dyn_push(&res.headers, arena) = header;
+    *dyn_push(headers, arena) = header;
   }
-  return res;
+  return 0;
 }
 
 [[nodiscard]] static ParseNumberResult
@@ -424,7 +420,7 @@ request_parse_content_length_maybe(HttpRequest req) {
     return req;
   }
 
-  req = request_read_headers(req, reader, arena);
+  req.err = reader_read_headers(reader, &req.headers, arena);
   if (req.err) {
     return req;
   }
@@ -500,14 +496,14 @@ request_parse_content_length_maybe(HttpRequest req) {
   return 0;
 }
 
-static void http_response_push_header(HttpResponse *res, Slice key, Slice value,
-                                      Arena *arena) {
-  *dyn_push(&res->headers, arena) = (HttpHeader){.key = key, .value = value};
+static void http_push_header(DynArrayHttpHeaders *headers, Slice key,
+                             Slice value, Arena *arena) {
+  *dyn_push(headers, arena) = (HttpHeader){.key = key, .value = value};
 }
 
-static void http_response_push_header_cstr(HttpResponse *res, char *key,
-                                           char *value, Arena *arena) {
-  http_response_push_header(res, S(key), S(value), arena);
+static void http_push_header_cstr(DynArrayHttpHeaders *headers, char *key,
+                                  char *value, Arena *arena) {
+  http_push_header(headers, S(key), S(value), arena);
 }
 
 static void http_response_register_file_for_sending(HttpResponse *res,
@@ -621,4 +617,67 @@ __attribute__((noreturn)) static void run(HttpRequestHandleFn request_handler) {
       close(conn_fd);
     }
   }
+}
+
+[[nodiscard]] static HttpResponse http_client_request(struct sockaddr *addr,
+                                                      uint32_t addr_sizeof,
+                                                      HttpRequest req,
+                                                      Arena *arena) {
+  HttpResponse res = {0};
+
+  int client = socket(AF_INET, SOCK_STREAM, 0);
+  if (-1 == client) {
+    res.err = errno;
+    return res;
+  }
+
+  if (-1 == connect(client, addr, addr_sizeof)) {
+    res.err = errno;
+    return res;
+  }
+
+  DynArrayU8 sb = {0};
+  dyn_append_slice(&sb, http_method_to_s(req.method), arena);
+  dyn_append_slice(&sb, req.path, arena);
+  dyn_append_slice(&sb, S(" HTTP/1.1"), arena);
+  dyn_append_slice(&sb, S("\r\n"), arena);
+
+  for (uint64_t i = 0; i < req.headers.len; i++) {
+    HttpHeader header = dyn_at(req.headers, i);
+    dyn_append_slice(&sb, header.key, arena);
+    dyn_append_slice(&sb, S(": "), arena);
+    dyn_append_slice(&sb, header.value, arena);
+    dyn_append_slice(&sb, S("\r\n"), arena);
+  }
+  dyn_append_slice(&sb, S("\r\n"), arena);
+  dyn_append_slice(&sb, req.body, arena);
+
+  ASSERT(send(client, sb.data, sb.len, 0) == (int64_t)sb.len);
+
+  Reader reader = reader_make_from_socket(client);
+
+  {
+    LineRead status_line = reader_read_line(&reader, arena);
+    if (status_line.err) {
+      res.err = status_line.err;
+      return res;
+    }
+    if (!status_line.present) {
+      res.err = HS_ERR_INVALID_HTTP_RESPONSE;
+      return res;
+    }
+    if (!slice_eq(S("HTTP/1.1 201"), status_line.line)) {
+      res.err = HS_ERR_INVALID_HTTP_RESPONSE;
+      return res;
+    }
+  }
+
+  res.err = reader_read_headers(&reader, &res.headers, arena);
+  if (res.err) {
+    return res;
+  }
+
+  // TODO: body.
+
+  return res;
 }

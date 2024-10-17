@@ -354,6 +354,8 @@ typedef struct {
 
 #define dyn_last_ptr(s) AT_PTR((s)->data, (s)->len, (s)->len - 1)
 
+#define dyn_at_ptr(s, idx) AT_PTR((s)->data, (s)->len, idx)
+
 #define dyn_at(s, idx) AT((s).data, (s).len, idx)
 
 #define dyn_append_slice(dst, src, arena)                                      \
