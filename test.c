@@ -279,7 +279,7 @@ static void test_http_server() {
       ASSERT(slice_eq(S("Connection"), h1.key));
       ASSERT(slice_eq(S("close"), h1.value));
 
-      HttpHeader h2 = dyn_at(resp.headers, 0);
+      HttpHeader h2 = dyn_at(resp.headers, 1);
       ASSERT(slice_eq(S("Content-Type"), h2.key));
       ASSERT(slice_eq(S("text/plain"), h2.value));
 
