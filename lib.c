@@ -418,8 +418,8 @@ static void dyn_array_u8_append_u128_hex(DynArrayU8 *dyn, __uint128_t n,
   // Page guard after.
   ASSERT(false == ckd_add(&mmap_size, mmap_size, page_size));
 
-  uint8_t *alloc = mmap(NULL, size, PROT_READ | PROT_WRITE,
-                        MAP_ANON | MAP_PRIVATE, -1, (int64_t)mmap_size);
+  uint8_t *alloc = mmap(NULL, mmap_size, PROT_READ | PROT_WRITE,
+                        MAP_ANON | MAP_PRIVATE, -1, 0);
   ASSERT(NULL != alloc);
 
   uint64_t page_guard_before = (uint64_t)alloc;
