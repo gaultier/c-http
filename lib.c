@@ -548,7 +548,7 @@ typedef struct {
   }
   dyn_append_slice(&sb, S(" "), arena);
 
-  dyn_append_slice(&sb, S("timestamp="), arena);
+  dyn_append_slice(&sb, S("timestamp_us="), arena);
   dyn_array_u8_append_u64(
       &sb, (uint64_t)now.tv_sec * 1000 * 1000 + (uint64_t)now.tv_nsec, arena);
   dyn_append_slice(&sb, S(" "), arena);
