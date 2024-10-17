@@ -165,7 +165,7 @@ static void test_make_log_line() {
 
   Slice expected =
       S("message=\"foobar\" num=42 slice=\"hello \\\"world\\\"\"\n");
-  ASSERT(slice_starts_with(log_line, S("level=debug timestamp=")));
+  ASSERT(slice_starts_with(log_line, S("level=debug timestamp_us=")));
   ASSERT(slice_ends_with(log_line, expected));
 }
 
@@ -391,15 +391,30 @@ static void test_http_server_serve_file() {
   }
 }
 
+typedef void (*TestFn)();
+
+#define TEST(test)                                                             \
+  do {                                                                         \
+    pid_t pid = fork();                                                        \
+    ASSERT(-1 != pid);                                                         \
+    if (pid == 0) {                                                            \
+      test();                                                                  \
+    } else {                                                                   \
+      int res = wait(nullptr);                                                 \
+      ASSERT(WIFEXITED(res));                                                  \
+      ASSERT(0 == WEXITSTATUS(res));                                           \
+    }                                                                          \
+  } while (0)
+
 int main() {
-  test_slice_indexof_slice();
-  test_slice_trim();
-  test_slice_split();
-  test_read_http_request_without_body();
-  test_read_http_request_with_body();
-  test_log_entry_quote_value();
-  test_make_log_line();
-  test_dyn_ensure_cap();
-  test_http_server_post();
-  test_http_server_serve_file();
+  TEST(test_slice_indexof_slice);
+  TEST(test_slice_trim);
+  TEST(test_slice_split);
+  TEST(test_read_http_request_without_body);
+  TEST(test_read_http_request_with_body);
+  TEST(test_log_entry_quote_value);
+  TEST(test_make_log_line);
+  TEST(test_dyn_ensure_cap);
+  TEST(test_http_server_post);
+  TEST(test_http_server_serve_file);
 }
