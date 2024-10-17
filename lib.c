@@ -43,7 +43,7 @@ static void print_stacktrace(const char *file, int line, const char *function) {
 
 #define AT_PTR(arr, len, idx)                                                  \
   (((int64_t)(idx) >= (int64_t)(len)) ? (__builtin_trap(), &(arr)[0])          \
-                                      : (ASSERT(NULL != arr), (&(arr)[idx])))
+                                      : (ASSERT(nullptr != arr), (&(arr)[idx])))
 
 #define AT(arr, len, idx) (*AT_PTR(arr, len, idx))
 
@@ -59,7 +59,7 @@ typedef struct {
     return true;
   }
 
-  ASSERT(s.data != NULL);
+  ASSERT(s.data != nullptr);
   return false;
 }
 
@@ -73,7 +73,7 @@ typedef struct {
   Slice res = s;
 
   for (uint64_t s_i = 0; s_i < s.len; s_i++) {
-    ASSERT(s.data != NULL);
+    ASSERT(s.data != nullptr);
     if (AT(s.data, s.len, s_i) != c) {
       return res;
     }
@@ -88,7 +88,7 @@ typedef struct {
   Slice res = s;
 
   for (int64_t s_i = (int64_t)s.len - 1; s_i >= 0; s_i--) {
-    ASSERT(s.data != NULL);
+    ASSERT(s.data != nullptr);
     if (AT(s.data, s.len, s_i) != c) {
       return res;
     }
@@ -126,7 +126,7 @@ typedef struct {
   }
 
   const uint8_t *res = memchr(haystack.data, needle, haystack.len);
-  if (res == NULL) {
+  if (res == nullptr) {
     return -1;
   }
 
@@ -173,13 +173,13 @@ typedef struct {
 }
 
 [[nodiscard]] static bool slice_eq(Slice a, Slice b) {
-  if (a.data == NULL && b.data == NULL && a.len == b.len) {
+  if (a.data == nullptr && b.data == nullptr && a.len == b.len) {
     return true;
   }
-  if (a.data == NULL) {
+  if (a.data == nullptr) {
     return false;
   }
-  if (b.data == NULL) {
+  if (b.data == nullptr) {
     return false;
   }
 
@@ -187,15 +187,15 @@ typedef struct {
     return false;
   }
 
-  ASSERT(a.data != NULL);
-  ASSERT(b.data != NULL);
+  ASSERT(a.data != nullptr);
+  ASSERT(b.data != nullptr);
   ASSERT(a.len == b.len);
 
   return memcmp(a.data, b.data, a.len) == 0;
 }
 
 [[nodiscard]] static int64_t slice_indexof_slice(Slice haystack, Slice needle) {
-  if (haystack.data == NULL) {
+  if (haystack.data == nullptr) {
     return -1;
   }
 
@@ -203,7 +203,7 @@ typedef struct {
     return -1;
   }
 
-  if (needle.data == NULL) {
+  if (needle.data == nullptr) {
     return -1;
   }
 
@@ -216,7 +216,7 @@ typedef struct {
   }
 
   void *ptr = memmem(haystack.data, haystack.len, needle.data, needle.len);
-  if (NULL == ptr) {
+  if (nullptr == ptr) {
     return -1;
   }
 
@@ -270,7 +270,7 @@ typedef struct {
 __attribute((malloc, alloc_size(2, 4), alloc_align(3)))
 [[nodiscard]] static void *
 arena_alloc(Arena *a, uint64_t size, uint64_t align, uint64_t count) {
-  ASSERT(a->start != NULL);
+  ASSERT(a->start != nullptr);
 
   const uint64_t padding = (-(uint64_t)a->start & (align - 1));
   ASSERT(padding <= align);
@@ -281,7 +281,7 @@ arena_alloc(Arena *a, uint64_t size, uint64_t align, uint64_t count) {
   ASSERT(count <= (uint64_t)available / size);
 
   void *res = a->start + padding;
-  ASSERT(res != NULL);
+  ASSERT(res != nullptr);
   ASSERT(res <= (void *)a->end);
 
   a->start += padding + count * size;
@@ -293,7 +293,7 @@ arena_alloc(Arena *a, uint64_t size, uint64_t align, uint64_t count) {
 
 static void dyn_grow(void *slice, uint64_t size, uint64_t align, uint64_t count,
                      Arena *a) {
-  ASSERT(NULL != slice);
+  ASSERT(nullptr != slice);
 
   struct {
     void *data;
@@ -325,7 +325,7 @@ static void dyn_grow(void *slice, uint64_t size, uint64_t align, uint64_t count,
   ASSERT((uint64_t)replica.data <= array_end);
   ASSERT(array_end < (uint64_t)a->end);
 
-  if (NULL == replica.data) { // First allocation ever for this dynamic array.
+  if (nullptr == replica.data) { // First allocation ever for this dynamic array.
     replica.data = arena_alloc(a, size, align, new_cap);
   } else if ((uint64_t)a->start == array_end) { // Optimization.
     // This is the case of growing the array which is at the end of the arena.
@@ -342,7 +342,7 @@ static void dyn_grow(void *slice, uint64_t size, uint64_t align, uint64_t count,
   }
   replica.cap = new_cap;
 
-  ASSERT(NULL != slice);
+  ASSERT(nullptr != slice);
   memcpy(slice, &replica, sizeof(replica));
 }
 
@@ -437,9 +437,9 @@ static void dyn_array_u8_append_u128_hex(DynArrayU8 *dyn, __uint128_t n,
   // Page guard after.
   ASSERT(false == ckd_add(&mmap_size, mmap_size, page_size));
 
-  uint8_t *alloc = mmap(NULL, mmap_size, PROT_READ | PROT_WRITE,
+  uint8_t *alloc = mmap(nullptr, mmap_size, PROT_READ | PROT_WRITE,
                         MAP_ANON | MAP_PRIVATE, -1, 0);
-  ASSERT(NULL != alloc);
+  ASSERT(nullptr != alloc);
 
   uint64_t page_guard_before = (uint64_t)alloc;
 
@@ -615,7 +615,7 @@ typedef struct {
 
 static Error os_sendfile(int fd_in, int fd_out, uint64_t n_bytes) {
 #if defined(__linux__)
-  ssize_t res = sendfile(fd_out, fd_in, NULL, n_bytes);
+  ssize_t res = sendfile(fd_out, fd_in, nullptr, n_bytes);
   if (res == -1) {
     return (Error)errno;
   }
@@ -624,7 +624,7 @@ static Error os_sendfile(int fd_in, int fd_out, uint64_t n_bytes) {
   }
   return 0;
 #elif defined(__FreeBSD__)
-  int res = sendfile(fd_in, fd_out, 0, n_bytes, NULL, NULL, 0);
+  int res = sendfile(fd_in, fd_out, 0, n_bytes, nullptr, nullptr, 0);
   if (res == -1) {
     return (Error)errno;
   }

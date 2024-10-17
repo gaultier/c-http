@@ -38,8 +38,8 @@ static IoOperationResult reader_read_from_slice(void *ctx, void *buf,
                                                 size_t buf_len) {
   MemReadContext *mem_ctx = ctx;
 
-  ASSERT(buf != NULL);
-  ASSERT(mem_ctx->slice.data != NULL);
+  ASSERT(buf != nullptr);
+  ASSERT(mem_ctx->slice.data != nullptr);
   if (mem_ctx->idx >= mem_ctx->slice.len) {
     // End.
     return (IoOperationResult){0};
@@ -376,7 +376,7 @@ static void test_http_server_serve_file() {
         ASSERT((uint64_t)st.st_size == resp.body.len);
 
         void *file_content =
-            mmap(NULL, (uint64_t)st.st_size, PROT_READ, MAP_PRIVATE, file, 0);
+            mmap(nullptr, (uint64_t)st.st_size, PROT_READ, MAP_PRIVATE, file, 0);
         ASSERT(nullptr != file_content);
 
         Slice file_content_slice = {.data = file_content,

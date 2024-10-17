@@ -396,7 +396,7 @@ request_parse_status_line(LineRead status_line) {
     }
 
     // First read?
-    if (NULL == res.slice.data) {
+    if (nullptr == res.slice.data) {
       res.slice.data = io.slice.data;
     }
 
@@ -409,7 +409,7 @@ request_parse_status_line(LineRead status_line) {
       ASSERT(res.slice.len == reader->buf_idx - reader_initial_idx);
 
       if (0 != res.slice.len) {
-        ASSERT(NULL != res.slice.data);
+        ASSERT(nullptr != res.slice.data);
       }
 
       return res;
@@ -483,7 +483,7 @@ request_parse_content_length_maybe(HttpRequest req) {
 [[nodiscard]] static Error response_write(Writer writer, HttpResponse res,
                                           Arena *arena) {
   // Invalid to both want to serve a file and a body.
-  ASSERT(NULL == res.file_path || slice_is_empty(res.body));
+  ASSERT(nullptr == res.file_path || slice_is_empty(res.body));
 
   DynArrayU8 sb = {0};
 
@@ -511,7 +511,7 @@ request_parse_content_length_maybe(HttpRequest req) {
     return err;
   }
 
-  if (NULL != res.file_path) {
+  if (nullptr != res.file_path) {
     int file_fd = open(res.file_path, O_RDONLY);
     if (file_fd == -1) {
       return (Error)errno;
@@ -587,7 +587,7 @@ static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
                              Arena *arena) {
 
   struct sigaction sa = {.sa_flags = SA_NOCLDWAIT};
-  if (-1 == sigaction(SIGCHLD, &sa, NULL)) {
+  if (-1 == sigaction(SIGCHLD, &sa, nullptr)) {
     log(LOG_LEVEL_ERROR, "sigaction(2)", *arena, LCI("err", (uint64_t)errno));
     return (Error)errno;
   }
@@ -636,7 +636,7 @@ static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
     // dedicated to `wait()`-ing on children processes, to cap the number of
     // concurrent requests being served?
     // Currently it is boundless.
-    const int conn_fd = accept(sock_fd, NULL, 0);
+    const int conn_fd = accept(sock_fd, nullptr, 0);
     if (conn_fd == -1) {
       log(LOG_LEVEL_ERROR, "accept(2)", *arena, LCI("err", (uint64_t)errno));
       return (Error)errno;
