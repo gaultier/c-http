@@ -21,6 +21,16 @@
 #include <sys/sendfile.h>
 #endif
 
+#define CLAMP(n, min, max)                                                     \
+  do {                                                                         \
+    if (*(n) < (min)) {                                                        \
+      *(n) = (min);                                                            \
+    }                                                                          \
+    if (*(n) > (max)) {                                                        \
+      *(n) = (max);                                                            \
+    }                                                                          \
+  } while (0)
+
 static void print_stacktrace(const char *file, int line, const char *function) {
   fprintf(stderr, "%s:%d:%s\n", file, line, function);
   // TODO

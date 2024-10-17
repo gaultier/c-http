@@ -248,8 +248,8 @@ static uint16_t random_port() {
   uint16_t max_port = UINT16_MAX;
   uint16_t min_port = 3000;
 
-  uint16_t port = min_port + (uint16_t)arc4random_uniform(max_port - min_port);
-  ASSERT(min_port <= port);
+  uint16_t port = (uint16_t)arc4random_uniform(max_port);
+  CLAMP(&port, min_port, max_port);
 
   return port;
 }
