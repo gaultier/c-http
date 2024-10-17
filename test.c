@@ -283,11 +283,12 @@ static void test_http_server() {
       ASSERT(slice_eq(S("Content-Type"), h2.key));
       ASSERT(slice_eq(S("text/plain"), h2.value));
 
-      // TODO: body.
+      ASSERT(slice_eq(S("hello world!"), resp.body));
 
       return;
     }
 
+    // Retry.
     usleep(10'000);
   }
   ASSERT(false);
