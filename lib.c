@@ -286,9 +286,11 @@ static void dyn_grow(void *slice, uint64_t size, uint64_t align, uint64_t count,
   memcpy(&replica, slice, sizeof(replica));
   ASSERT(replica.cap < count);
 
+  ASSERT(replica.cap < UINT64_MAX / 2);
   uint64_t new_cap = replica.cap == 0 ? 2 : replica.cap * 2;
   for (uint64_t i = 0; i < 64; i++) {
     if (new_cap < count) {
+      ASSERT(new_cap < UINT64_MAX / 2);
       new_cap *= 2;
     } else {
       break;
@@ -296,6 +298,10 @@ static void dyn_grow(void *slice, uint64_t size, uint64_t align, uint64_t count,
   }
   ASSERT(new_cap >= 2);
   ASSERT(new_cap >= count);
+  ASSERT(new_cap > replica.cap);
+
+  ASSERT(replica.cap < UINT64_MAX / size);
+  ASSERT(replica.len < UINT64_MAX / size);
 
   if (NULL == replica.data) { // First allocation ever for this dynamic array.
     replica.data = arena_alloc(a, size, align, new_cap);
