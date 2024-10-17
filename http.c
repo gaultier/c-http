@@ -180,7 +180,6 @@ typedef struct {
   dyn_append_slice(&reader->buf, slice, arena);
 
   res.slice.data = dyn_at_ptr(&reader->buf, reader_buf_len_prev);
-  ASSERT(false == ckd_add(&reader->buf_idx, reader->buf_idx, res.slice.len));
 
   return res;
 }
@@ -387,7 +386,7 @@ request_parse_status_line(LineRead status_line) {
   uint64_t reader_initial_idx = reader->buf_idx;
 
   for (;;) { // TODO: Bound?
-    IoOperationResult io = _reader_read_from_io(reader, arena);
+    IoOperationResult io = reader_read(reader, arena);
     if (io.err) {
       res.err = io.err;
       // TODO: Set `res.slice` in this case?
@@ -395,11 +394,18 @@ request_parse_status_line(LineRead status_line) {
       return res;
     }
 
+    // First read?
+    if (NULL == res.slice.data) {
+      res.slice.data = io.slice.data;
+    }
+
+    ASSERT(false == ckd_add(&res.slice.len, res.slice.len, io.slice.len));
+
     // End?
     if (0 == io.slice.len) {
-      res.slice.data = reader->buf.data + reader->buf_idx;
       ASSERT(reader->buf_idx >= reader_initial_idx);
-      res.slice.len = reader->buf_idx - reader_initial_idx;
+      ASSERT(reader->buf_idx == reader->buf.len);
+      ASSERT(res.slice.len == reader->buf_idx - reader_initial_idx);
 
       if (0 != res.slice.len) {
         ASSERT(NULL != res.slice.data);
