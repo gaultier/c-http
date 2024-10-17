@@ -237,8 +237,8 @@ static HttpResponse handle_request(HttpRequest req, Arena *arena) {
   HttpResponse res = {0};
   res.status = 201;
   res.body = S("hello world!");
-  http_push_header_cstr(&res, "Connection", "close", arena);
-  http_push_header_cstr(&res, "Content-Type", "text/plain", arena);
+  http_push_header_cstr(&res.headers, "Connection", "close", arena);
+  http_push_header_cstr(&res.headers, "Content-Type", "text/plain", arena);
 
   return res;
 }

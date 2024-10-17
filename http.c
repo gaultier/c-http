@@ -674,10 +674,30 @@ __attribute__((noreturn)) static void run(HttpRequestHandleFn request_handler) {
       res.err = HS_ERR_INVALID_HTTP_RESPONSE;
       return res;
     }
-    if (!slice_eq(S("HTTP/1.1 201"), status_line.line)) {
+
+    Slice http_version_needle = S("HTTP/1.1 ");
+    if (!slice_starts_with(status_line.line, http_version_needle)) {
       res.err = HS_ERR_INVALID_HTTP_RESPONSE;
       return res;
     }
+
+    Slice status_str =
+        slice_range(status_line.line, http_version_needle.len, 0);
+    ParseNumberResult status_parsed = slice_parse_u64_decimal(status_str);
+    if (status_parsed.err) {
+      res.err = status_parsed.err;
+      return res;
+    }
+    if (!status_parsed.present) {
+      res.err = EINVAL;
+      return res;
+    }
+    if (!(200 <= status_parsed.n && status_parsed.n <= 599)) {
+      res.err = EINVAL;
+      return res;
+    }
+
+    res.status = (uint16_t)status_parsed.n;
   }
 
   res.err = reader_read_headers(&reader, &res.headers, arena);
