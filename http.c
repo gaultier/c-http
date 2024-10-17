@@ -76,7 +76,7 @@ typedef struct {
   ReadFn read_fn;
 } Reader;
 
-#define MAX_READER_READER 4096
+#define READER_IO_BUF_LEN 4096
 
 [[nodiscard]] static IoOperationResult
 reader_read_from_socket(void *ctx, void *buf, size_t buf_len) {
@@ -165,7 +165,7 @@ typedef struct {
                                                             Arena *arena) {
   ASSERT(reader->buf.len >= reader->buf_idx);
 
-  uint8_t tmp[MAX_READER_READER] = {0};
+  uint8_t tmp[READER_IO_BUF_LEN] = {0};
   IoOperationResult res = reader->read_fn(reader->ctx, tmp, sizeof(tmp));
   if (res.err) {
     return res;
