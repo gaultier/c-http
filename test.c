@@ -1,6 +1,5 @@
 #include "http.c"
 #include "lib.c"
-#include <pthread.h>
 #include <sys/wait.h>
 
 #ifndef MIN

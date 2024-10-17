@@ -15,6 +15,7 @@
 #include <sys/mman.h>
 #include <sys/socket.h>
 #include <time.h>
+#include <unistd.h>
 
 #ifdef __linux__
 #include <sys/sendfile.h>
@@ -392,17 +393,53 @@ static void dyn_array_u8_append_u128_hex(DynArrayU8 *dyn, __uint128_t n,
 
 #define arena_new(a, t, n) (t *)arena_alloc(a, sizeof(t), _Alignof(t), n)
 
+[[nodiscard]] static uint64_t round_up_multiple_of(uint64_t n,
+                                                   uint64_t multiple) {
+  ASSERT(0 != multiple);
+
+  if (0 == n % multiple) {
+    return n; // No-op.
+  }
+
+  uint64_t factor = n / multiple;
+  return (factor + 1) * n;
+}
+
 // TODO: Should we mmap a page right after that is neither readable nor writable
 // to catch bugs?
 [[nodiscard]] static Arena arena_make_from_virtual_mem(uint64_t size) {
-  void *ptr =
-      mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+  uint64_t page_size = (uint64_t)sysconf(_SC_PAGE_SIZE); // FIXME
+  uint64_t alloc_real_size = round_up_multiple_of(size, page_size);
+  ASSERT(0 == alloc_real_size % page_size);
 
-  if (ptr == NULL) {
-    fprintf(stderr, "failed to mmap: %d %s\n", errno, strerror(errno));
-    exit(errno);
-  }
-  return (Arena){.start = ptr, .end = (uint8_t *)ptr + size};
+  uint64_t mmap_size = alloc_real_size;
+  // Page guard before.
+  ASSERT(false == ckd_add(&mmap_size, mmap_size, page_size));
+  // Page guard after.
+  ASSERT(false == ckd_add(&mmap_size, mmap_size, page_size));
+
+  uint8_t *alloc = mmap(NULL, size, PROT_READ | PROT_WRITE,
+                        MAP_ANON | MAP_PRIVATE, -1, (int64_t)mmap_size);
+  ASSERT(NULL != alloc);
+
+  uint64_t page_guard_before = (uint64_t)alloc;
+
+  ASSERT(false == ckd_add((uint64_t *)&alloc, (uint64_t)alloc, page_size));
+
+  uint64_t page_guard_after = (uint64_t)alloc;
+  ASSERT(false == ckd_add(&page_guard_after, (uint64_t)alloc, page_size));
+
+  ASSERT(page_guard_before + page_size == (uint64_t)alloc);
+  ASSERT(page_guard_before + page_size + alloc_real_size == page_guard_after);
+
+  ASSERT(0 == mprotect((void *)page_guard_before, page_size, PROT_NONE));
+  ASSERT(0 == mprotect((void *)page_guard_after, page_size, PROT_NONE));
+
+  // Trigger a page fault preemptively to detect invalid virtual memory
+  // mappings.
+  *(uint8_t *)alloc = 0;
+
+  return (Arena){.start = alloc, .end = (uint8_t *)alloc + size};
 }
 
 typedef enum {
