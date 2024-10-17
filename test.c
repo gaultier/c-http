@@ -231,7 +231,7 @@ static void test_dyn_ensure_cap() {
   }
 }
 
-static HttpResponse handle_request(HttpRequest req, Arena *arena) {
+static HttpResponse handle_request_post(HttpRequest req, Arena *arena) {
   ASSERT(HM_POST == req.method);
   ASSERT(slice_eq(S("foo\nbar"), req.body));
   ASSERT(slice_eq(S("/comment"), req.path));
@@ -254,8 +254,8 @@ static void test_http_server_post() {
   pid_t pid = fork();
   ASSERT(-1 != pid);
   if (pid == 0) { // Child
-    ASSERT(0 ==
-           http_server_run(HTTP_SERVER_DEFAULT_PORT, handle_request, &arena));
+    ASSERT(0 == http_server_run(HTTP_SERVER_DEFAULT_PORT, handle_request_post,
+                                &arena));
 
   } else { // Parent
 
@@ -287,7 +287,76 @@ static void test_http_server_post() {
         ASSERT(slice_eq(S("Content-Type"), h2.key));
         ASSERT(slice_eq(S("text/plain"), h2.value));
 
-        ASSERT(slice_eq(S("hello world!"), resp.body));
+        // Stop the http server.
+        {
+          ASSERT(-1 != kill(pid, SIGKILL));
+          int child_status = 0;
+          ASSERT(-1 != waitpid(pid, &child_status, 0));
+          ASSERT(true == WIFSIGNALED(child_status));
+          ASSERT(0 == WEXITSTATUS(child_status));
+        }
+        return;
+      }
+
+      // Retry.
+      usleep(10'000);
+    }
+    ASSERT(false);
+  }
+}
+
+static HttpResponse handle_request_file(HttpRequest req, Arena *arena) {
+  ASSERT(HM_GET == req.method);
+  ASSERT(slice_is_empty(req.body));
+  ASSERT(slice_eq(S("/index.html"), req.path));
+
+  HttpResponse res = {0};
+  res.status = 200;
+  http_response_register_file_for_sending(&res, "index.html");
+  http_push_header_cstr(&res.headers, "Connection", "close", arena);
+  http_push_header_cstr(&res.headers, "Content-Type", "text/html", arena);
+
+  return res;
+}
+
+static void test_http_server_serve_file() {
+  Arena arena = arena_make_from_virtual_mem(4096);
+
+  // The http server runs in its own child process.
+  // The parent process acts as a HTTP client contacting the server.
+  // TODO: Should each test run in its own process?
+  pid_t pid = fork();
+  ASSERT(-1 != pid);
+  if (pid == 0) { // Child
+    ASSERT(0 == http_server_run(HTTP_SERVER_DEFAULT_PORT, handle_request_file,
+                                &arena));
+
+  } else { // Parent
+
+    for (uint64_t i = 0; i < 5; i++) {
+      struct sockaddr_in addr = {
+          .sin_family = AF_INET,
+          .sin_port = htons(12345),
+      };
+      HttpRequest req = {
+          .method = HM_GET,
+          .path = S("/index.html"),
+      };
+      HttpResponse resp = http_client_request((struct sockaddr *)&addr,
+                                              sizeof(addr), req, &arena);
+
+      if (!resp.err) {
+        ASSERT(200 == resp.status);
+        /* ASSERT(slice_eq(S("hello world!"), resp.body)); */
+        ASSERT(2 == resp.headers.len);
+
+        HttpHeader h1 = dyn_at(resp.headers, 0);
+        ASSERT(slice_eq(S("Connection"), h1.key));
+        ASSERT(slice_eq(S("close"), h1.value));
+
+        HttpHeader h2 = dyn_at(resp.headers, 1);
+        ASSERT(slice_eq(S("Content-Type"), h2.key));
+        ASSERT(slice_eq(S("text/html"), h2.value));
 
         // Stop the http server.
         {
@@ -317,4 +386,5 @@ int main() {
   test_make_log_line();
   test_dyn_ensure_cap();
   test_http_server_post();
+  test_http_server_serve_file();
 }

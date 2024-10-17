@@ -557,20 +557,20 @@ typedef struct {
   return dyn_array_u8_to_slice(sb);
 }
 
-static int os_sendfile(int fd_in, int fd_out, size_t n_bytes) {
+static Error os_sendfile(int fd_in, int fd_out, uint64_t n_bytes) {
 #if defined(__linux__)
   ssize_t res = sendfile(fd_out, fd_in, NULL, n_bytes);
   if (res == -1) {
-    return errno;
+    return (Error)errno;
   }
   if (res != (ssize_t)n_bytes) {
-    return EAGAIN;
+    return (Error)EAGAIN;
   }
   return 0;
 #elif defined(__FreeBSD__)
   int res = sendfile(fd_in, fd_out, 0, n_bytes, NULL, NULL, 0);
   if (res == -1) {
-    return errno;
+    return (Error)errno;
   }
   return 0;
 #endif

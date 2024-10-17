@@ -524,14 +524,9 @@ request_parse_content_length_maybe(HttpRequest req) {
 
     ASSERT(st.st_size >= 0);
 
-    ssize_t sent =
-        os_sendfile(file_fd, (int)(uint64_t)writer.ctx, (uint64_t)st.st_size);
-    if (-1 == sent) {
-      return (Error)errno;
-    }
-    if (sent != st.st_size) {
-      // TODO: Retry.
-      return ERANGE;
+    err = os_sendfile(file_fd, (int)(uint64_t)writer.ctx, (uint64_t)st.st_size);
+    if (err) {
+      return err;
     }
   }
 
