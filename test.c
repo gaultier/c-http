@@ -347,7 +347,7 @@ static void test_http_server_serve_file() {
 
       if (!resp.err) {
         ASSERT(200 == resp.status);
-        /* ASSERT(slice_eq(S("hello world!"), resp.body)); */
+
         ASSERT(2 == resp.headers.len);
 
         HttpHeader h1 = dyn_at(resp.headers, 0);
@@ -357,6 +357,22 @@ static void test_http_server_serve_file() {
         HttpHeader h2 = dyn_at(resp.headers, 1);
         ASSERT(slice_eq(S("Content-Type"), h2.key));
         ASSERT(slice_eq(S("text/html"), h2.value));
+
+        int file = open("index.html", O_RDONLY);
+        ASSERT(-1 != file);
+        struct stat st = {0};
+        ASSERT(-1 != stat("index.html", &st));
+
+        ASSERT(st.st_size >= 0);
+        ASSERT((uint64_t)st.st_size == resp.body.len);
+
+        void *file_content =
+            mmap(NULL, (uint64_t)st.st_size, PROT_READ, MAP_PRIVATE, file, 0);
+        ASSERT(nullptr != file_content);
+
+        Slice file_content_slice = {.data = file_content,
+                                    .len = (uint64_t)st.st_size};
+        ASSERT(slice_eq(file_content_slice, resp.body));
 
         // Stop the http server.
         {
