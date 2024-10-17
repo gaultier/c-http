@@ -20,16 +20,11 @@
 #include <sys/sendfile.h>
 #endif
 
-#define ASSERT(x)                                                              \
-  do {                                                                         \
-    if (!(x)) {                                                                \
-      __builtin_trap();                                                        \
-    }                                                                          \
-  } while (0)
+#define ASSERT(x) (x) ? (0) : (__builtin_trap(), 0)
 
 #define AT_PTR(arr, len, idx)                                                  \
   (((int64_t)(idx) >= (int64_t)(len)) ? (__builtin_trap(), &(arr)[0])          \
-                                      : (&(arr)[idx]))
+                                      : (ASSERT(NULL != arr), (&(arr)[idx])))
 
 #define AT(arr, len, idx) (*AT_PTR(arr, len, idx))
 

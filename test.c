@@ -265,7 +265,7 @@ static void test_http_server() {
         .body = S("foo\nbar"),
     };
     http_push_header_cstr(&req.headers, "Content-Type", "text/plain", &arena);
-    http_push_header_cstr(&req.headers, "Content-Length", "6", &arena);
+    http_push_header_cstr(&req.headers, "Content-Length", "7", &arena);
     HttpResponse resp = http_client_request((struct sockaddr *)&addr,
                                             sizeof(addr), req, &arena);
 

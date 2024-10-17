@@ -453,7 +453,7 @@ request_parse_content_length_maybe(HttpRequest req) {
   dyn_array_u8_append_cstr(&sb, "\r\n", arena);
 
   for (uint64_t i = 0; i < res.headers.len; i++) {
-    HttpHeader header = res.headers.data[i];
+    HttpHeader header = dyn_at(res.headers, i);
     dyn_append_slice(&sb, header.key, arena);
     dyn_array_u8_append_cstr(&sb, ": ", arena);
     dyn_append_slice(&sb, header.value, arena);
@@ -627,20 +627,25 @@ __attribute__((noreturn)) static void run(HttpRequestHandleFn request_handler) {
                                                       HttpRequest req,
                                                       Arena *arena) {
   HttpResponse res = {0};
+  if (HM_UNKNOWN == req.method) {
+    res.err = EINVAL;
+    return res;
+  }
 
   int client = socket(AF_INET, SOCK_STREAM, 0);
   if (-1 == client) {
-    res.err = errno;
+    res.err = (Error)errno;
     return res;
   }
 
   if (-1 == connect(client, addr, addr_sizeof)) {
-    res.err = errno;
+    res.err = (Error)errno;
     return res;
   }
 
   DynArrayU8 sb = {0};
   dyn_append_slice(&sb, http_method_to_s(req.method), arena);
+  dyn_append_slice(&sb, S(" "), arena);
   dyn_append_slice(&sb, req.path, arena);
   dyn_append_slice(&sb, S(" HTTP/1.1"), arena);
   dyn_append_slice(&sb, S("\r\n"), arena);
