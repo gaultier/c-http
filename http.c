@@ -59,6 +59,7 @@ typedef struct {
   uint16_t status;
   DynArrayHttpHeaders headers;
   Error err;
+  // TODO: Slice?
   char *file_path;
   Slice body;
 } HttpResponse;
@@ -580,6 +581,7 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
   log(LOG_LEVEL_INFO, "http request end", arena, LCI("arena_use", mem_use),
       LCS("path", req.path), LCI("header_count", req.headers.len),
       LCI("status", res.status), LCS("method", http_method_to_s(req.method)),
+      LCS("res.file_path", S(res.file_path)), LCI("res.body.len", res.body.len),
       LCII("request_id", req.id));
 }
 
