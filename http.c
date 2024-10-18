@@ -641,6 +641,9 @@ static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
     const int conn_fd = accept(sock_fd, nullptr, 0);
     if (conn_fd == -1) {
       log(LOG_LEVEL_ERROR, "accept(2)", *arena, LCI("err", (uint64_t)errno));
+      if (EINTR == errno) {
+        continue;
+      }
       return (Error)errno;
     }
 
