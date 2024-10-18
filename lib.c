@@ -42,8 +42,9 @@ static void print_stacktrace(const char *file, int line, const char *function) {
          0)
 
 #define AT_PTR(arr, len, idx)                                                  \
-  (((int64_t)(idx) >= (int64_t)(len)) ? (__builtin_trap(), &(arr)[0])          \
-                                      : (ASSERT(nullptr != arr), (&(arr)[idx])))
+  (((int64_t)(idx) >= (int64_t)(len))                                          \
+       ? (__builtin_trap(), &(arr)[0])                                         \
+       : (ASSERT(nullptr != arr), (&(arr)[idx])))
 
 #define AT(arr, len, idx) (*AT_PTR(arr, len, idx))
 
@@ -325,7 +326,8 @@ static void dyn_grow(void *slice, uint64_t size, uint64_t align, uint64_t count,
   ASSERT((uint64_t)replica.data <= array_end);
   ASSERT(array_end < (uint64_t)a->end);
 
-  if (nullptr == replica.data) { // First allocation ever for this dynamic array.
+  if (nullptr ==
+      replica.data) { // First allocation ever for this dynamic array.
     replica.data = arena_alloc(a, size, align, new_cap);
   } else if ((uint64_t)a->start == array_end) { // Optimization.
     // This is the case of growing the array which is at the end of the arena.
@@ -514,8 +516,9 @@ typedef struct {
 
 #define LOG_ARGS_COUNT(...)                                                    \
   (sizeof((LogEntry[]){__VA_ARGS__}) / sizeof(LogEntry))
-#define log(level, msg, tmp_arena, ...)                                        \
+#define log(level, msg, arena, ...)                                            \
   do {                                                                         \
+    Arena tmp_arena = *arena;                                                  \
     Slice log_line = make_log_line(level, S(msg), &tmp_arena,                  \
                                    LOG_ARGS_COUNT(__VA_ARGS__), __VA_ARGS__);  \
     write(1, log_line.data, log_line.len);                                     \

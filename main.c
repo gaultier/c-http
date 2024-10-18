@@ -27,5 +27,5 @@ int main() {
   Arena arena = arena_make_from_virtual_mem(4096);
   Error err = http_server_run(HTTP_SERVER_DEFAULT_PORT, my_http_request_handler,
                               &arena);
-  log(LOG_LEVEL_INFO, "http server stopped", arena, LCI("error", err));
+  log(LOG_LEVEL_INFO, "http server stopped", &arena, LCI("error", err));
 }

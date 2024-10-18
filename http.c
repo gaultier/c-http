@@ -556,11 +556,11 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
   Reader reader = reader_make_from_socket(socket);
   const HttpRequest req = request_read(&reader, &arena);
 
-  log(LOG_LEVEL_INFO, "http request start", arena, LCS("path", req.path),
+  log(LOG_LEVEL_INFO, "http request start", &arena, LCS("path", req.path),
       LCI("body_length", req.body.len), LCI("err", req.err),
       LCII("request_id", req.id), LCS("method", http_method_to_s(req.method)));
   if (req.err) {
-    log(LOG_LEVEL_ERROR, "http request read", arena, LCI("err", req.err),
+    log(LOG_LEVEL_ERROR, "http request read", &arena, LCI("err", req.err),
         LCII("request_id", req.id));
     exit(EINVAL);
   }
@@ -570,7 +570,7 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
   Writer writer = writer_make_from_socket(socket);
   Error err = response_write(writer, res, &arena);
   if (err) {
-    log(LOG_LEVEL_ERROR, "http request write", arena, LCI("err", err),
+    log(LOG_LEVEL_ERROR, "http request write", &arena, LCI("err", err),
         LCII("request_id", req.id));
   }
 
@@ -578,7 +578,7 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
 
   const uint64_t mem_use = HTTP_SERVER_HANDLER_MEM_LEN -
                            ((uint64_t)arena.end - (uint64_t)arena.start);
-  log(LOG_LEVEL_INFO, "http request end", arena, LCI("arena_use", mem_use),
+  log(LOG_LEVEL_INFO, "http request end", &arena, LCI("arena_use", mem_use),
       LCS("path", req.path), LCI("header_count", req.headers.len),
       LCI("status", res.status), LCS("method", http_method_to_s(req.method)),
       LCS("res.file_path", S(res.file_path)), LCI("res.body.len", res.body.len),
@@ -590,26 +590,26 @@ static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
 
   struct sigaction sa = {.sa_flags = SA_NOCLDWAIT};
   if (-1 == sigaction(SIGCHLD, &sa, nullptr)) {
-    log(LOG_LEVEL_ERROR, "sigaction(2)", *arena, LCI("err", (uint64_t)errno));
+    log(LOG_LEVEL_ERROR, "sigaction(2)", arena, LCI("err", (uint64_t)errno));
     return (Error)errno;
   }
 
   const int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (-1 == sock_fd) {
-    log(LOG_LEVEL_ERROR, "socket(2)", *arena, LCI("err", (uint64_t)errno));
+    log(LOG_LEVEL_ERROR, "socket(2)", arena, LCI("err", (uint64_t)errno));
     return (Error)errno;
   }
 
   int val = 1;
   if (-1 == setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val))) {
-    log(LOG_LEVEL_ERROR, "setsockopt(2)", *arena, LCI("err", (uint64_t)errno),
+    log(LOG_LEVEL_ERROR, "setsockopt(2)", arena, LCI("err", (uint64_t)errno),
         LCS("option", S("SO_REUSEADDR")));
     return (Error)errno;
   }
 
 #ifdef __FreeBSD__
   if (-1 == setsockopt(sock_fd, SOL_SOCKET, SO_REUSEPORT, &val, sizeof(val))) {
-    log(LOG_LEVEL_ERROR, "setsockopt(2)", *arena, LCI("err", (uint64_t)errno),
+    log(LOG_LEVEL_ERROR, "setsockopt(2)", arena, LCI("err", (uint64_t)errno),
         LCS("option", S("SO_REUSEPORT")));
     return (Error)errno;
   }
@@ -621,17 +621,21 @@ static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
   };
 
   if (-1 == bind(sock_fd, (const struct sockaddr *)&addr, sizeof(addr))) {
-    log(LOG_LEVEL_ERROR, "bind(2)", *arena, LCI("err", (uint64_t)errno));
+    log(LOG_LEVEL_ERROR, "bind(2)", arena, LCI("err", (uint64_t)errno));
     return (Error)errno;
   }
 
   if (-1 == listen(sock_fd, TCP_LISTEN_BACKLOG)) {
-    log(LOG_LEVEL_ERROR, "listen(2)", *arena, LCI("err", (uint64_t)errno));
+    log(LOG_LEVEL_ERROR, "listen(2)", arena, LCI("err", (uint64_t)errno));
     return (Error)errno;
   }
 
-  log(LOG_LEVEL_INFO, "http server listening", *arena, LCI("port", port),
+  fprintf(stderr, "[D000] %ld\n",
+          (uint64_t)arena->end - (uint64_t)arena->start);
+  log(LOG_LEVEL_INFO, "http server listening", arena, LCI("port", port),
       LCI("backlog", TCP_LISTEN_BACKLOG));
+  fprintf(stderr, "[D001] %ld\n",
+          (uint64_t)arena->end - (uint64_t)arena->start);
 
   while (true) {
     // TODO: Should we have a thread dedicated to `accept` and a thread
@@ -639,8 +643,12 @@ static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
     // concurrent requests being served?
     // Currently it is boundless.
     const int conn_fd = accept(sock_fd, nullptr, 0);
+    fprintf(stderr, "[D002] %ld\n",
+            (uint64_t)arena->end - (uint64_t)arena->start);
+    log(LOG_LEVEL_DEBUG, "accept(2)-ed", arena, LCI("err", (uint64_t)errno),
+        LCI("arena.available", (uint64_t)arena->end - (uint64_t)arena->start));
     if (conn_fd == -1) {
-      log(LOG_LEVEL_ERROR, "accept(2)", *arena, LCI("err", (uint64_t)errno),
+      log(LOG_LEVEL_ERROR, "accept(2)", arena, LCI("err", (uint64_t)errno),
           LCI("arena.available",
               (uint64_t)arena->end - (uint64_t)arena->start));
       if (EINTR == errno) {
@@ -651,7 +659,7 @@ static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
 
     const pid_t pid = fork();
     if (pid == -1) {
-      log(LOG_LEVEL_ERROR, "fork(2)", *arena, LCI("err", (uint64_t)errno));
+      log(LOG_LEVEL_ERROR, "fork(2)", arena, LCI("err", (uint64_t)errno));
       return (Error)errno;
     } else if (pid == 0) { // Child
       handle_client(conn_fd, request_handler);
