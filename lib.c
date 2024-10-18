@@ -547,7 +547,7 @@ typedef struct {
                                          Arena *arena, int32_t args_count,
                                          ...) {
   struct timespec now = {0};
-  clock_gettime(CLOCK_MONOTONIC_COARSE, &now);
+  clock_gettime(CLOCK_MONOTONIC, &now);
 
   DynArrayU8 sb = {0};
 
@@ -570,9 +570,9 @@ typedef struct {
   }
   dyn_append_slice(&sb, S(" "), arena);
 
-  dyn_append_slice(&sb, S("timestamp_us="), arena);
+  dyn_append_slice(&sb, S("timestamp_ns="), arena);
   dyn_array_u8_append_u64(
-      &sb, (uint64_t)now.tv_sec * 1000 * 1000 + (uint64_t)now.tv_nsec, arena);
+      &sb, (uint64_t)now.tv_sec * 1000'000'000 + (uint64_t)now.tv_nsec, arena);
   dyn_append_slice(&sb, S(" "), arena);
 
   dyn_append_slice(&sb, S("message="), arena);
