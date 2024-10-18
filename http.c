@@ -630,12 +630,8 @@ static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
     return (Error)errno;
   }
 
-  fprintf(stderr, "[D000] %ld\n",
-          (uint64_t)arena->end - (uint64_t)arena->start);
   log(LOG_LEVEL_INFO, "http server listening", arena, LCI("port", port),
       LCI("backlog", TCP_LISTEN_BACKLOG));
-  fprintf(stderr, "[D001] %ld\n",
-          (uint64_t)arena->end - (uint64_t)arena->start);
 
   while (true) {
     // TODO: Should we have a thread dedicated to `accept` and a thread
@@ -643,8 +639,6 @@ static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
     // concurrent requests being served?
     // Currently it is boundless.
     const int conn_fd = accept(sock_fd, nullptr, 0);
-    fprintf(stderr, "[D002] %ld\n",
-            (uint64_t)arena->end - (uint64_t)arena->start);
     log(LOG_LEVEL_DEBUG, "accept(2)-ed", arena, LCI("err", (uint64_t)errno),
         LCI("arena.available", (uint64_t)arena->end - (uint64_t)arena->start));
     if (conn_fd == -1) {
