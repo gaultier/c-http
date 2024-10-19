@@ -22,6 +22,11 @@ static HttpResponse my_http_request_handler(HttpRequest req, Arena *arena) {
 
     http_push_header(&res.headers, S("Location"),
                      dyn_array_u8_to_slice(redirect), arena);
+  } else if (HM_GET == req.method && slice_starts_with(req.path, S("/poll/")) &&
+             req.path.len > S("/poll/").len) {
+    res.status = 200;
+    res.body = S("<html>vote!</html>");
+    http_push_header(&res.headers, S("Content-Type"), S("text/html"), arena);
   } else {
     res.status = 404;
   }
