@@ -541,11 +541,6 @@ static void http_push_header(DynArrayHttpHeaders *headers, Slice key,
   *dyn_push(headers, arena) = (HttpHeader){.key = key, .value = value};
 }
 
-static void http_push_header_cstr(DynArrayHttpHeaders *headers, char *key,
-                                  char *value, Arena *arena) {
-  http_push_header(headers, S(key), S(value), arena);
-}
-
 static void http_response_register_file_for_sending(HttpResponse *res,
                                                     char *path) {
   ASSERT(NULL != path);

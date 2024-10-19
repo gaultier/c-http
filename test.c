@@ -165,7 +165,7 @@ static void test_make_log_line() {
 
   Slice expected =
       S("message=\"foobar\" num=42 slice=\"hello \\\"world\\\"\"\n");
-  ASSERT(slice_starts_with(log_line, S("level=debug timestamp_us=")));
+  ASSERT(slice_starts_with(log_line, S("level=debug timestamp_ns=")));
   ASSERT(slice_ends_with(log_line, expected));
 }
 
@@ -238,8 +238,8 @@ static HttpResponse handle_request_post(HttpRequest req, Arena *arena) {
   HttpResponse res = {0};
   res.status = 201;
   res.body = S("hello world!");
-  http_push_header_cstr(&res.headers, "Connection", "close", arena);
-  http_push_header_cstr(&res.headers, "Content-Type", "text/plain", arena);
+  http_push_header(&res.headers, S("Connection"), S("close"), arena);
+  http_push_header(&res.headers, S("Content-Type"), S("text/plain"), arena);
 
   return res;
 }
@@ -278,8 +278,9 @@ static void test_http_server_post() {
           .path = S("/comment"),
           .body = S("foo\nbar"),
       };
-      http_push_header_cstr(&req.headers, "Content-Type", "text/plain", &arena);
-      http_push_header_cstr(&req.headers, "Content-Length", "7", &arena);
+      http_push_header(&req.headers, S("Content-Type"), S("text/plain"),
+                       &arena);
+      http_push_header(&req.headers, S("Content-Length"), S("7"), &arena);
       HttpResponse resp = http_client_request((struct sockaddr *)&addr,
                                               sizeof(addr), req, &arena);
 
@@ -322,8 +323,8 @@ static HttpResponse handle_request_file(HttpRequest req, Arena *arena) {
   HttpResponse res = {0};
   res.status = 200;
   http_response_register_file_for_sending(&res, "index.html");
-  http_push_header_cstr(&res.headers, "Connection", "close", arena);
-  http_push_header_cstr(&res.headers, "Content-Type", "text/html", arena);
+  http_push_header(&res.headers, S("Connection"), S("close"), arena);
+  http_push_header(&res.headers, S("Content-Type"), S("text/html"), arena);
 
   return res;
 }
@@ -375,8 +376,8 @@ static void test_http_server_serve_file() {
         ASSERT(st.st_size >= 0);
         ASSERT((uint64_t)st.st_size == resp.body.len);
 
-        void *file_content =
-            mmap(nullptr, (uint64_t)st.st_size, PROT_READ, MAP_PRIVATE, file, 0);
+        void *file_content = mmap(nullptr, (uint64_t)st.st_size, PROT_READ,
+                                  MAP_PRIVATE, file, 0);
         ASSERT(nullptr != file_content);
 
         Slice file_content_slice = {.data = file_content,

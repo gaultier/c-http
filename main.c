@@ -4,13 +4,13 @@ static HttpResponse my_http_request_handler(HttpRequest req, Arena *arena) {
   ASSERT(0 == req.err);
 
   HttpResponse res = {0};
-  http_push_header_cstr(&res.headers, "Connection", "close", arena);
+  http_push_header(&res.headers, S("Connection"), S("close"), arena);
 
   // Home page.
   if (HM_GET == req.method &&
       (slice_eq(req.path, S("/")) || slice_eq(req.path, S("/index.html")))) {
     res.status = 200;
-    http_push_header_cstr(&res.headers, "Content-Type", "text/html", arena);
+    http_push_header(&res.headers, S("Content-Type"), S("text/html"), arena);
     http_response_register_file_for_sending(&res, "index.html");
   } else if (HM_POST == req.method && slice_eq(req.path, S("/poll"))) {
     // Create poll.
