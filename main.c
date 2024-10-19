@@ -17,7 +17,7 @@ static HttpResponse my_http_request_handler(HttpRequest req, Arena *arena) {
     __uint128_t poll_id = 0;
     arc4random_buf(&poll_id, sizeof(poll_id));
     DynArrayU8 redirect = {0};
-    dyn_append_slice(&redirect, S("/"), arena);
+    dyn_append_slice(&redirect, S("/poll/"), arena);
     dyn_array_u8_append_u128_hex(&redirect, poll_id, arena);
 
     http_push_header(&res.headers, S("Location"),
