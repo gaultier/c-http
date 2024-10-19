@@ -6,12 +6,14 @@ static HttpResponse my_http_request_handler(HttpRequest req, Arena *arena) {
   HttpResponse res = {0};
   http_push_header_cstr(&res.headers, "Connection", "close", arena);
 
+  // Home page.
   if (HM_GET == req.method &&
       (slice_eq(req.path, S("/")) || slice_eq(req.path, S("/index.html")))) {
     res.status = 200;
     http_push_header_cstr(&res.headers, "Content-Type", "text/html", arena);
     http_response_register_file_for_sending(&res, "index.html");
   } else if (HM_POST == req.method && slice_eq(req.path, S("/poll"))) {
+    // Create poll.
     res.status = 301;
 
     __uint128_t poll_id = 0;
@@ -24,9 +26,16 @@ static HttpResponse my_http_request_handler(HttpRequest req, Arena *arena) {
                      dyn_array_u8_to_slice(redirect), arena);
   } else if (HM_GET == req.method && slice_starts_with(req.path, S("/poll/")) &&
              req.path.len > S("/poll/").len) {
+    // Get poll.
     res.status = 200;
     res.body = S("<html>vote!</html>");
     http_push_header(&res.headers, S("Content-Type"), S("text/html"), arena);
+  } else if (HM_POST == req.method &&
+             slice_starts_with(req.path, S("/poll/")) &&
+             req.path.len > S("/poll/").len) {
+    // Vote for poll.
+    res.status = 500; // TODO
+
   } else {
     res.status = 404;
   }
