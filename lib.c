@@ -407,19 +407,43 @@ static void dyn_array_u8_append_u64(DynArrayU8 *dyn, uint64_t n, Arena *arena) {
   dyn_append_slice(dyn, slice, arena);
 }
 
+static uint8_t u8_to_ch_hex(uint8_t n) {
+  ASSERT(n < 16);
+
+  if (n <= 9) {
+    return '0';
+  } else if (10 == n) {
+    return 'a';
+  } else if (11 == n) {
+    return 'b';
+  } else if (12 == n) {
+    return 'c';
+  } else if (13 == n) {
+    return 'd';
+  } else if (14 == n) {
+    return 'e';
+  } else if (15 == n) {
+    return 'f';
+  }
+  ASSERT(0);
+}
+
 static void dyn_array_u8_append_u128_hex(DynArrayU8 *dyn, __uint128_t n,
                                          Arena *arena) {
-  uint8_t tmp[32 + 1] = {0};
-  uint64_t len = 0;
-  len += (uint64_t)snprintf((char *)AT_PTR(tmp, sizeof(tmp), 0), 16, "%lx",
-                            (uint64_t)(n << 8));
-  ASSERT(16 == len);
-  len += (uint64_t)snprintf((char *)AT_PTR(tmp, sizeof(tmp), len - 1), 16,
-                            "%lx", (uint64_t)(n & UINT64_MAX));
-  ASSERT(32 == len);
+  dyn_ensure_cap(dyn, dyn->len + 32, arena);
+  uint64_t dyn_original_len = dyn->len;
 
-  Slice slice = {.data = tmp, .len = len};
-  dyn_append_slice(dyn, slice, arena);
+  uint8_t it[16] = {0};
+  ASSERT(sizeof(it) == sizeof(n));
+  memcpy(it, (uint8_t *)&n, sizeof(n));
+
+  for (uint64_t i = 0; i < sizeof(it); i++) {
+    uint8_t c1 = it[i] % 16;
+    uint8_t c2 = it[i] / 16;
+    *dyn_push(dyn, arena) = u8_to_ch_hex(c2);
+    *dyn_push(dyn, arena) = u8_to_ch_hex(c1);
+  }
+  ASSERT(32 == (dyn->len - dyn_original_len));
 }
 
 #define arena_new(a, t, n) (t *)arena_alloc(a, sizeof(t), _Alignof(t), n)
