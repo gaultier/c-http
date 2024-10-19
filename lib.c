@@ -411,7 +411,7 @@ static uint8_t u8_to_ch_hex(uint8_t n) {
   ASSERT(n < 16);
 
   if (n <= 9) {
-    return '0';
+    return n + '0';
   } else if (10 == n) {
     return 'a';
   } else if (11 == n) {
