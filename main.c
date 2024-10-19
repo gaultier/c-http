@@ -11,11 +11,17 @@ static HttpResponse my_http_request_handler(HttpRequest req, Arena *arena) {
     res.status = 200;
     http_push_header_cstr(&res.headers, "Content-Type", "text/html", arena);
     http_response_register_file_for_sending(&res, "index.html");
-  } else if (HM_POST == req.method && slice_eq(req.path, S("/comment"))) {
-    res.status = 201;
-    http_push_header_cstr(&res.headers, "Content-Type", "application/json",
-                          arena);
-    res.body = S("{\"id\": 1}");
+  } else if (HM_POST == req.method && slice_eq(req.path, S("/poll"))) {
+    res.status = 301;
+
+    __uint128_t poll_id = 0;
+    arc4random_buf(&poll_id, sizeof(poll_id));
+    DynArrayU8 redirect = {0};
+    dyn_append_slice(&redirect, S("/"), arena);
+    dyn_array_u8_append_u128_hex(&redirect, poll_id, arena);
+
+    http_push_header(&res.headers, S("Location"),
+                     dyn_array_u8_to_slice(redirect), arena);
   } else {
     res.status = 404;
   }

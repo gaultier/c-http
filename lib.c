@@ -65,6 +65,8 @@ typedef struct {
 }
 
 [[nodiscard]] static Slice S(char *s) {
+  ASSERT(NULL != s);
+
   const uint64_t s_len = strlen(s);
   const Slice slice = {.data = (uint8_t *)s, .len = s_len};
   return slice;
@@ -292,6 +294,14 @@ arena_alloc(Arena *a, uint64_t size, uint64_t align, uint64_t count) {
   return memset(res, 0, count * size);
 }
 
+[[nodiscard]] static char *slice_to_cstr(Slice s, Arena *arena) {
+  char *res = arena_alloc(arena, 1, 1, s.len + 1);
+  if (NULL != s.data) {
+    memcpy(res, s.data, s.len);
+  }
+  return res;
+}
+
 static void dyn_grow(void *slice, uint64_t size, uint64_t align, uint64_t count,
                      Arena *a) {
   ASSERT(nullptr != slice);
@@ -387,10 +397,6 @@ typedef struct {
   return (Slice){.data = dyn.data, .len = dyn.len};
 }
 
-static void dyn_array_u8_append_cstr(DynArrayU8 *dyn, char *s, Arena *arena) {
-  dyn_append_slice(dyn, S(s), arena);
-}
-
 static void dyn_array_u8_append_u64(DynArrayU8 *dyn, uint64_t n, Arena *arena) {
   uint8_t tmp[30] = {0};
   const int written_count = snprintf((char *)tmp, sizeof(tmp), "%lu", n);
@@ -404,11 +410,15 @@ static void dyn_array_u8_append_u64(DynArrayU8 *dyn, uint64_t n, Arena *arena) {
 static void dyn_array_u8_append_u128_hex(DynArrayU8 *dyn, __uint128_t n,
                                          Arena *arena) {
   uint8_t tmp[32 + 1] = {0};
-  snprintf((char *)AT_PTR(tmp, sizeof(tmp), 0), 16, "%lx", (uint64_t)(n << 8));
-  snprintf((char *)AT_PTR(tmp, sizeof(tmp), 16), 16, "%lx",
-           (uint64_t)(n & UINT64_MAX));
+  uint64_t len = 0;
+  len += (uint64_t)snprintf((char *)AT_PTR(tmp, sizeof(tmp), 0), 16, "%lx",
+                            (uint64_t)(n << 8));
+  ASSERT(16 == len);
+  len += (uint64_t)snprintf((char *)AT_PTR(tmp, sizeof(tmp), len - 1), 16,
+                            "%lx", (uint64_t)(n & UINT64_MAX));
+  ASSERT(32 == len);
 
-  Slice slice = {.data = tmp, .len = sizeof(tmp)};
+  Slice slice = {.data = tmp, .len = len};
   dyn_append_slice(dyn, slice, arena);
 }
 

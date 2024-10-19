@@ -59,8 +59,9 @@ typedef struct {
   uint16_t status;
   DynArrayHttpHeaders headers;
   Error err;
-  // TODO: Slice?
-  char *file_path;
+
+  // TODO: union{file_path,body}?
+  Slice file_path;
   Slice body;
 } HttpResponse;
 
@@ -484,23 +485,23 @@ request_parse_content_length_maybe(HttpRequest req) {
 [[nodiscard]] static Error response_write(Writer writer, HttpResponse res,
                                           Arena *arena) {
   // Invalid to both want to serve a file and a body.
-  ASSERT(nullptr == res.file_path || slice_is_empty(res.body));
+  ASSERT(slice_is_empty(res.file_path) || slice_is_empty(res.body));
 
   DynArrayU8 sb = {0};
 
-  dyn_array_u8_append_cstr(&sb, "HTTP/1.1 ", arena);
+  dyn_append_slice(&sb, S("HTTP/1.1 "), arena);
   dyn_array_u8_append_u64(&sb, res.status, arena);
-  dyn_array_u8_append_cstr(&sb, "\r\n", arena);
+  dyn_append_slice(&sb, S("\r\n"), arena);
 
   for (uint64_t i = 0; i < res.headers.len; i++) {
     HttpHeader header = dyn_at(res.headers, i);
     dyn_append_slice(&sb, header.key, arena);
-    dyn_array_u8_append_cstr(&sb, ": ", arena);
+    dyn_append_slice(&sb, S(": "), arena);
     dyn_append_slice(&sb, header.value, arena);
-    dyn_array_u8_append_cstr(&sb, "\r\n", arena);
+    dyn_append_slice(&sb, S("\r\n"), arena);
   }
 
-  dyn_array_u8_append_cstr(&sb, "\r\n", arena);
+  dyn_append_slice(&sb, S("\r\n"), arena);
   if (!slice_is_empty(res.body)) {
     dyn_append_slice(&sb, res.body, arena);
   }
@@ -512,14 +513,15 @@ request_parse_content_length_maybe(HttpRequest req) {
     return err;
   }
 
-  if (nullptr != res.file_path) {
-    int file_fd = open(res.file_path, O_RDONLY);
+  if (!slice_is_empty(res.file_path)) {
+    char *file_path_c = slice_to_cstr(res.file_path, arena);
+    int file_fd = open(file_path_c, O_RDONLY);
     if (file_fd == -1) {
       return (Error)errno;
     }
 
     struct stat st = {0};
-    if (-1 == stat(res.file_path, &st)) {
+    if (-1 == stat(file_path_c, &st)) {
       return (Error)errno;
     }
 
@@ -546,7 +548,9 @@ static void http_push_header_cstr(DynArrayHttpHeaders *headers, char *key,
 
 static void http_response_register_file_for_sending(HttpResponse *res,
                                                     char *path) {
-  res->file_path = path;
+  ASSERT(NULL != path);
+
+  res->file_path = S(path);
 }
 
 typedef HttpResponse (*HttpRequestHandleFn)(HttpRequest req, Arena *arena);
@@ -556,12 +560,13 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
   Reader reader = reader_make_from_socket(socket);
   const HttpRequest req = request_read(&reader, &arena);
 
-  log(LOG_LEVEL_INFO, "http request start", &arena, LCS("path", req.path),
-      LCI("body_length", req.body.len), LCI("err", req.err),
-      LCII("request_id", req.id), LCS("method", http_method_to_s(req.method)));
+  log(LOG_LEVEL_INFO, "http request start", &arena, LCS("req.path", req.path),
+      LCI("req.body.len", req.body.len), LCI("err", req.err),
+      LCI("req.headers.len", req.headers.len), LCII("req.id", req.id),
+      LCS("req.method", http_method_to_s(req.method)));
   if (req.err) {
     log(LOG_LEVEL_ERROR, "http request read", &arena, LCI("err", req.err),
-        LCII("request_id", req.id));
+        LCII("req.id", req.id));
     exit(EINVAL);
   }
 
@@ -571,7 +576,7 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
   Error err = response_write(writer, res, &arena);
   if (err) {
     log(LOG_LEVEL_ERROR, "http request write", &arena, LCI("err", err),
-        LCII("request_id", req.id));
+        LCII("req.id", req.id));
   }
 
   ASSERT(arena.end >= arena.start);
@@ -579,10 +584,11 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
   const uint64_t mem_use = HTTP_SERVER_HANDLER_MEM_LEN -
                            ((uint64_t)arena.end - (uint64_t)arena.start);
   log(LOG_LEVEL_INFO, "http request end", &arena, LCI("arena_use", mem_use),
-      LCS("path", req.path), LCI("header_count", req.headers.len),
-      LCI("status", res.status), LCS("method", http_method_to_s(req.method)),
-      LCS("res.file_path", S(res.file_path)), LCI("res.body.len", res.body.len),
-      LCII("request_id", req.id));
+      LCS("req.path", req.path), LCI("req.headers.len", req.headers.len),
+      LCI("res.headers.len", res.headers.len), LCI("status", res.status),
+      LCS("req.method", http_method_to_s(req.method)),
+      LCS("res.file_path", res.file_path), LCI("res.body.len", res.body.len),
+      LCII("req.id", req.id));
 }
 
 static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
