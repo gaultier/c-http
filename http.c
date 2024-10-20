@@ -542,15 +542,15 @@ static void http_push_header(DynArrayHttpHeaders *headers, Slice key,
 }
 
 static void http_response_register_file_for_sending(HttpResponse *res,
-                                                    char *path) {
-  ASSERT(NULL != path);
-
-  res->file_path = S(path);
+                                                    Slice path) {
+  ASSERT(!slice_is_empty(path));
+  res->file_path = path;
 }
 
-typedef HttpResponse (*HttpRequestHandleFn)(HttpRequest req, Arena *arena);
+typedef HttpResponse (*HttpRequestHandleFn)(HttpRequest req, void *ctx,
+                                            Arena *arena);
 
-static void handle_client(int socket, HttpRequestHandleFn handle) {
+static void handle_client(int socket, HttpRequestHandleFn handle, void *ctx) {
   Arena arena = arena_make_from_virtual_mem(HTTP_SERVER_HANDLER_MEM_LEN);
   Reader reader = reader_make_from_socket(socket);
   const HttpRequest req = request_read(&reader, &arena);
@@ -565,7 +565,7 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
     return;
   }
 
-  HttpResponse res = handle(req, &arena);
+  HttpResponse res = handle(req, ctx, &arena);
 
   Writer writer = writer_make_from_socket(socket);
   Error err = response_write(writer, res, &arena);
@@ -589,19 +589,20 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
 typedef struct {
   int socket;
   HttpRequestHandleFn request_handler;
+  void *ctx;
 } HandlerData;
 
 static void *thrd_handle_client(void *arg) {
   ASSERT(nullptr != arg);
 
   HandlerData *data = arg;
-  handle_client(data->socket, data->request_handler);
+  handle_client(data->socket, data->request_handler, data->ctx);
   close(data->socket);
   return nullptr;
 }
 
 static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
-                             Arena *arena) {
+                             void *ctx, Arena *arena) {
 
   struct sigaction sa = {.sa_flags = SA_NOCLDWAIT};
   if (-1 == sigaction(SIGCHLD, &sa, nullptr)) {
@@ -667,7 +668,11 @@ static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
     }
 
     pthread_t handler = {0};
-    HandlerData data = {.socket = conn_fd, .request_handler = request_handler};
+    HandlerData data = {
+        .socket = conn_fd,
+        .request_handler = request_handler,
+        .ctx = ctx,
+    };
     ASSERT(0 == pthread_create(&handler, nullptr, thrd_handle_client, &data));
     ASSERT(0 == pthread_detach(handler));
   }

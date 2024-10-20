@@ -64,13 +64,7 @@ typedef struct {
   return false;
 }
 
-[[nodiscard]] static Slice S(char *s) {
-  ASSERT(NULL != s);
-
-  const uint64_t s_len = strlen(s);
-  const Slice slice = {.data = (uint8_t *)s, .len = s_len};
-  return slice;
-}
+#define S(s) ((Slice){.data = (uint8_t *)s, .len = sizeof(s) - 1})
 
 [[nodiscard]] static Slice slice_trim_left(Slice s, uint8_t c) {
   Slice res = s;
@@ -524,29 +518,26 @@ typedef struct {
   LogValue value;
 } LogEntry;
 
-[[nodiscard]] static LogEntry LCI(char *k, uint64_t v) {
-  return ((LogEntry){
-      .key = S(k),
-      .value.kind = LV_U64,
-      .value.n64 = v,
-  });
-}
+#define LCI(k, v)                                                              \
+  ((LogEntry){                                                                 \
+      .key = S(k),                                                             \
+      .value.kind = LV_U64,                                                    \
+      .value.n64 = v,                                                          \
+  })
 
-[[nodiscard]] static LogEntry LCII(char *k, __uint128_t v) {
-  return ((LogEntry){
-      .key = S(k),
-      .value.kind = LV_U128,
-      .value.n128 = v,
-  });
-}
+#define LCII(k, v)                                                             \
+  ((LogEntry){                                                                 \
+      .key = S(k),                                                             \
+      .value.kind = LV_U128,                                                   \
+      .value.n128 = v,                                                         \
+  })
 
-[[nodiscard]] static LogEntry LCS(char *k, Slice v) {
-  return ((LogEntry){
-      .key = S(k),
-      .value.kind = LV_SLICE,
-      .value.s = v,
-  });
-}
+#define LCS(k, v)                                                              \
+  ((LogEntry){                                                                 \
+      .key = S(k),                                                             \
+      .value.kind = LV_SLICE,                                                  \
+      .value.s = v,                                                            \
+  })
 
 #define LOG_ARGS_COUNT(...)                                                    \
   (sizeof((LogEntry[]){__VA_ARGS__}) / sizeof(LogEntry))
