@@ -1,9 +1,9 @@
 #pragma once
 
 #include "lib.c"
-
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <pthread.h>
 #include <signal.h>
 #include <stdatomic.h>
 #include <stdint.h>
@@ -562,7 +562,7 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
   if (req.err) {
     log(LOG_LEVEL_ERROR, "http request read", &arena, LCI("err", req.err),
         LCII("req.id", req.id));
-    exit(EINVAL);
+    return;
   }
 
   HttpResponse res = handle(req, &arena);
@@ -584,6 +584,20 @@ static void handle_client(int socket, HttpRequestHandleFn handle) {
       LCS("req.method", http_method_to_s(req.method)),
       LCS("res.file_path", res.file_path), LCI("res.body.len", res.body.len),
       LCII("req.id", req.id));
+}
+
+typedef struct {
+  int socket;
+  HttpRequestHandleFn request_handler;
+} HandlerData;
+
+static void *thrd_handle_client(void *arg) {
+  ASSERT(nullptr != arg);
+
+  HandlerData *data = arg;
+  handle_client(data->socket, data->request_handler);
+  close(data->socket);
+  return nullptr;
 }
 
 static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
@@ -652,18 +666,10 @@ static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
       return (Error)errno;
     }
 
-    const pid_t pid = fork();
-    if (pid == -1) {
-      log(LOG_LEVEL_ERROR, "fork(2)", arena, LCI("err", (uint64_t)errno));
-      return (Error)errno;
-    } else if (pid == 0) { // Child
-      handle_client(conn_fd, request_handler);
-      exit(0);
-    } else { // Parent
-      // Fds are duplicated by fork(2) and need to be
-      // closed by both parent & child
-      close(conn_fd);
-    }
+    pthread_t handler = {0};
+    HandlerData data = {.socket = conn_fd, .request_handler = request_handler};
+    ASSERT(0 == pthread_create(&handler, nullptr, thrd_handle_client, &data));
+    ASSERT(0 == pthread_detach(handler));
   }
 }
 

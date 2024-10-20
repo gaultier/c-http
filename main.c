@@ -1,6 +1,4 @@
 #include "http.c"
-#define FDB_API_VERSION 710
-#include <foundationdb/fdb_c.h>
 #include <pthread.h>
 
 typedef enum : uint8_t {
@@ -13,11 +11,6 @@ typedef struct {
   PollState state;
   // TODO: creation date, etc.
 } Poll;
-
-static void *run_fdb_network(void *) {
-  ASSERT(0 == fdb_run_network());
-  return nullptr;
-}
 
 static HttpResponse my_http_request_handler(HttpRequest req, Arena *arena) {
   ASSERT(0 == req.err);
@@ -34,52 +27,10 @@ static HttpResponse my_http_request_handler(HttpRequest req, Arena *arena) {
   } else if (HM_POST == req.method && slice_eq(req.path, S("/poll"))) {
     // Create poll.
 
-    // TODO: Move this to the parent process?
-    fdb_error_t fdb_err = {0};
-    {
-      ASSERT(0 == fdb_select_api_version(FDB_API_VERSION));
-      ASSERT(0 == fdb_setup_network());
-    }
-    pthread_t fdb_network_thread = {0};
-    pthread_create(&fdb_network_thread, nullptr, run_fdb_network, nullptr);
-
-    FDBDatabase *db = nullptr;
-    fdb_err = fdb_create_database("fdb.cluster", &db);
-    if (0 != fdb_err) {
-      log(LOG_LEVEL_ERROR, "failed to connect to db", arena,
-          LCII("req.id", req.id), LCI("err", (uint64_t)fdb_err));
-      res.status = 500;
-      return res;
-    }
-    ASSERT(nullptr != db);
-
     __uint128_t poll_id = 0;
     // FIXME: Should be `req.form.id` for idempotency.
     arc4random_buf(&poll_id, sizeof(poll_id));
 
-    FDBTransaction *tx = nullptr;
-    if (0 != (fdb_err = fdb_database_create_transaction(db, &tx))) {
-      log(LOG_LEVEL_ERROR, "failed to create db transaction", arena,
-          LCII("req.id", req.id), LCI("err", (uint64_t)fdb_err));
-      res.status = 500;
-      return res;
-    }
-    ASSERT(nullptr != tx);
-
-    Poll poll = {.state = POLL_STATE_CREATED};
-    fdb_transaction_set(tx, (uint8_t *)&poll_id, sizeof(poll_id),
-                        (uint8_t *)&poll, sizeof(poll));
-
-    // TODO: For each poll.candidates: insert `<poll.id>/<candidate>`.
-
-    FDBFuture *fut = fdb_transaction_commit(tx);
-    ASSERT(nullptr != fut);
-    if (0 != (fdb_err = fdb_future_block_until_ready(fut))) {
-      log(LOG_LEVEL_ERROR, "failed to commit db transaction", arena,
-          LCII("req.id", req.id), LCI("err", (uint64_t)fdb_err));
-      res.status = 500;
-      return res;
-    }
     log(LOG_LEVEL_ERROR, "created poll", arena, LCII("req.id", req.id),
         LCII("poll.id", poll_id));
 
@@ -102,7 +53,6 @@ static HttpResponse my_http_request_handler(HttpRequest req, Arena *arena) {
              req.path.len > S("/poll/").len) {
     // Vote for poll.
     res.status = 500; // TODO
-
   } else {
     res.status = 404;
   }
