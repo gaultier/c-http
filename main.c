@@ -69,7 +69,7 @@ static HttpResponse my_http_request_handler(HttpRequest req, void *ctx,
       return res;
     }
 
-    if (SQLITE_OK != (db_err = sqlite3_step(db_insert_kv_query))) {
+    if (SQLITE_DONE != (db_err = sqlite3_step(db_insert_kv_query))) {
       log(LOG_LEVEL_ERROR, "failed to insert poll", arena,
           LCII("req.id", req.id), LCI("err", (uint64_t)db_err));
       res.status = 500;
