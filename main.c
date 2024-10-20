@@ -48,8 +48,36 @@ static HttpResponse my_http_request_handler(HttpRequest req, void *ctx,
       res.status = 500;
       return res;
     }
+    ASSERT(nullptr != db_insert_kv_query);
+
+    if (SQLITE_OK !=
+        (db_err = sqlite3_bind_blob(db_insert_kv_query, 1, &poll_id,
+                                    sizeof(poll_id), SQLITE_STATIC))) {
+      log(LOG_LEVEL_ERROR, "failed to bind 1", arena, LCII("req.id", req.id),
+          LCI("err", (uint64_t)db_err));
+      res.status = 500;
+      return res;
+    }
+
+    Poll poll = {.state = POLL_STATE_CREATED};
+    if (SQLITE_OK !=
+        (db_err = sqlite3_bind_blob(db_insert_kv_query, 2, &poll, sizeof(poll),
+                                    SQLITE_STATIC))) {
+      log(LOG_LEVEL_ERROR, "failed to bind 2", arena, LCII("req.id", req.id),
+          LCI("err", (uint64_t)db_err));
+      res.status = 500;
+      return res;
+    }
+
     if (SQLITE_OK != (db_err = sqlite3_step(db_insert_kv_query))) {
       log(LOG_LEVEL_ERROR, "failed to insert poll", arena,
+          LCII("req.id", req.id), LCI("err", (uint64_t)db_err));
+      res.status = 500;
+      return res;
+    }
+
+    if (SQLITE_OK != (db_err = sqlite3_finalize(db_insert_kv_query))) {
+      log(LOG_LEVEL_ERROR, "failed to finalize prepared statement", arena,
           LCII("req.id", req.id), LCI("err", (uint64_t)db_err));
       res.status = 500;
       return res;
