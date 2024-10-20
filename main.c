@@ -37,7 +37,7 @@ static HttpResponse my_http_request_handler(HttpRequest req, void *ctx,
     // TODO: Move this to `main`?
     int db_err = 0;
     const Slice db_insert_kv_query_str =
-        S("INSERT INTO votes (key, value) VALUES (?, ?)");
+        S("INSERT INTO vote (key, value) VALUES (?, ?)");
     sqlite3_stmt *db_insert_kv_query = nullptr;
     if (SQLITE_OK !=
         (db_err = sqlite3_prepare_v2(db, (char *)db_insert_kv_query_str.data,
