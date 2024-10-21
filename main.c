@@ -214,7 +214,7 @@ static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
   }
   if (!present) {
     res.status = 404;
-    res.body = S("<html><body>Poll not found.</body></html>");
+    res.body = S("<!DOCTYPE html><html><body>Poll not found.</body></html>");
     return res;
   }
 
@@ -244,7 +244,8 @@ static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
 
   DynArrayU8 resp_body = {0};
   // TODO: Use html builder.
-  dyn_append_slice(&resp_body, S("<html><body><div id=\"poll\">"), arena);
+  dyn_append_slice(&resp_body,
+                   S("<!DOCTYPE html><html><body><div id=\"poll\">"), arena);
   dyn_append_slice(&resp_body, S("The poll \""), arena);
   dyn_append_slice(&resp_body, poll.name, arena);
   dyn_append_slice(&resp_body, S("\" "), arena);
