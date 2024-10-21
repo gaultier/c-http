@@ -797,16 +797,16 @@ typedef struct {
 } FormDataParseResult;
 
 typedef struct {
-  FormDataKV form_data;
+  FormDataKV kv;
   Error err;
-  bool present;
   Slice remaining;
 } FormDataKVParseResult;
 
-[[nodiscard]] static bool ch_is_reserved_in_percent_encoding(uint8_t c) {
-  Slice reserved = S("!#$&'()*+,/:;=?@[]");
-  return nullptr != memchr(reserved.data, c, reserved.len);
-}
+typedef struct {
+  Slice data;
+  Error err;
+  Slice remaining;
+} FormDataKVElementParseResult;
 
 [[nodiscard]] static bool ch_is_unreserved_in_percent_encoding(uint8_t c) {
   Slice unreserved =
@@ -814,31 +814,119 @@ typedef struct {
   return nullptr != memchr(unreserved.data, c, unreserved.len);
 }
 
-[[nodiscard]] static FormDataKVParseResult form_data_kv_parse(Slice in,
-                                                              Arena *arena) {
-  FormDataKVParseResult res = {0};
+[[nodiscard]] static FormDataKVElementParseResult
+form_data_kv_parse_element(Slice in, uint8_t ch_terminator, Arena *arena) {
+  FormDataKVElementParseResult res = {0};
+  DynArrayU8 data = {0};
 
-  DynArrayU8 key = {0}, value = {0};
-
-  for (uint64_t i = 0; i < in.len; i++) {
+  uint64_t i = 0;
+  for (; i < in.len; i++) {
     uint8_t c = in.data[i];
 
     if (ch_is_unreserved_in_percent_encoding(c)) {
-      *dyn_push(&key, arena) = c;
+      *dyn_push(&data, arena) = c;
     } else if ('%' == c) {
       if ((in.len - i) < 2) {
         res.err = HS_ERR_INVALID_FORM_DATA;
         return res;
       }
-      Slice remaining = slice_range(in, i + 1, 2);
+      uint8_t c1 = in.data[i + 1];
+      uint8_t c2 = in.data[i + 2];
+
+      if (!(ch_is_hex_digit(c1) && ch_is_hex_digit(c2))) {
+        res.err = HS_ERR_INVALID_FORM_DATA;
+        return res;
+      }
+
+      uint8_t utf8_character = ch_from_hex(c1) * 16 + ch_from_hex(c2);
+      *dyn_push(&data, arena) = utf8_character;
+    } else if (ch_terminator == c) {
+      i += 1; // Consume.
+      break;
+    } else {
+      res.err = HS_ERR_INVALID_FORM_DATA;
+      return res;
     }
   }
+
+  res.data = dyn_array_u8_to_slice(data);
+  res.remaining = slice_range(in, i, 0);
+  return res;
+}
+
+[[nodiscard]] static FormDataKVParseResult form_data_kv_parse(Slice in,
+                                                              Arena *arena) {
+  FormDataKVParseResult res = {0};
+
+  Slice remaining = in;
+
+  FormDataKVElementParseResult key_parsed =
+      form_data_kv_parse_element(remaining, '=', arena);
+  if (key_parsed.err) {
+    res.err = key_parsed.err;
+    return res;
+  }
+  res.kv.key = key_parsed.data;
+
+  remaining = key_parsed.remaining;
+  if (slice_is_empty(remaining)) {
+    res.err = HS_ERR_INVALID_FORM_DATA;
+    return res;
+  }
+
+  if ('=' != remaining.data[0]) {
+    res.err = HS_ERR_INVALID_FORM_DATA;
+    return res;
+  }
+
+  remaining = slice_range(remaining, 1, 0);
+
+  FormDataKVElementParseResult value_parsed =
+      form_data_kv_parse_element(remaining, '&', arena);
+  if (value_parsed.err) {
+    res.err = value_parsed.err;
+    return res;
+  }
+  res.kv.value = value_parsed.data;
+  res.remaining = value_parsed.remaining;
 
   return res;
 }
 
-[[nodiscard]] static FormDataParseResult form_data_parse(Slice in) {
+[[nodiscard]] static FormDataParseResult form_data_parse(Slice in,
+                                                         Arena *arena) {
   FormDataParseResult res = {0};
 
+  Slice remaining = in;
+
+  for (uint64_t i = 0; i < in.len; i++) { // Bound.
+    if (slice_is_empty(remaining)) {
+      break;
+    }
+
+    FormDataKVParseResult kv = form_data_kv_parse(remaining, arena);
+    if (kv.err) {
+      res.err = kv.err;
+      return res;
+    }
+
+    *dyn_push(&res.form, arena) = kv.kv;
+
+    remaining = kv.remaining;
+
+    if (slice_is_empty(remaining)) {
+      break;
+    }
+
+    SliceConsume consumed = slice_consume_first(remaining, '&');
+    if (!consumed.consumed) {
+      res.err = HS_ERR_INVALID_FORM_DATA;
+      return res;
+    }
+
+    remaining = consumed.data;
+  }
+
+  // TODO: Check unicity of keys or use a hashmap from the start.
   return res;
 }

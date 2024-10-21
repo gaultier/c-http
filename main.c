@@ -10,6 +10,7 @@ typedef enum : uint8_t {
 
 typedef struct {
   PollState state;
+  Slice name;
   // TODO: creation date, etc.
 } Poll;
 
@@ -34,6 +35,23 @@ static HttpResponse handle_create_poll(HttpRequest req, FDBDatabase *db,
                                        Arena *arena) {
   HttpResponse res = {0};
 
+  FormDataParseResult form = form_data_parse(req.body, arena);
+  if (form.err) {
+    res.err = form.err;
+    return res;
+  }
+
+  Slice poll_name = {0};
+  {
+    for (uint64_t i = 0; i < form.form.len; i++) {
+      FormDataKV kv = dyn_at(form.form, i);
+      if (slice_eq(kv.key, S("name"))) {
+        poll_name = kv.value;
+        break;
+      }
+    }
+  }
+
   __uint128_t poll_id = 0;
   // FIXME: Should be `req.form.id` for idempotency.
   arc4random_buf(&poll_id, sizeof(poll_id));
@@ -48,12 +66,20 @@ static HttpResponse handle_create_poll(HttpRequest req, FDBDatabase *db,
   }
   ASSERT(nullptr != tx);
 
-  Poll poll = {.state = POLL_STATE_CREATED};
+  Poll poll = {.state = POLL_STATE_CREATED, .name = poll_name};
 
-  DynArrayU8 key = {0};
-  dyn_array_u8_append_u128_hex(&key, poll_id, arena);
-  fdb_transaction_set(tx, (uint8_t *)key.data, (int)key.len, (uint8_t *)&poll,
-                      sizeof(poll));
+  {
+    DynArrayU8 key = {0};
+    dyn_array_u8_append_u128_hex(&key, poll_id, arena);
+
+    DynArrayU8 value = {0};
+    *dyn_push(&value, arena) = poll.state;
+    dyn_array_u8_append_u64(&value, poll.name.len, arena);
+    dyn_append_slice(&value, poll.name, arena);
+
+    fdb_transaction_set(tx, (uint8_t *)key.data, (int)key.len, value.data,
+                        (int)value.len);
+  }
 
   // TODO: For each poll.candidates: insert `<poll.id>/<candidate>`.
 
@@ -125,27 +151,38 @@ static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
     res.body = S("<html><body>Poll not found.</body></html>");
     return res;
   }
-  if (sizeof(Poll) != value_len) {
+  if ((uint64_t)value_len <
+      (uint64_t)sizeof(PollState) + (uint64_t)sizeof(uint64_t)) {
     log(LOG_LEVEL_ERROR, "invalid size of value for poll", arena,
         LCII("req.id", req.id), LCI("value.len", (uint64_t)value_len));
     res.status = 500;
     return res;
   }
 
-  Poll poll = *(const Poll *)value;
+  Poll poll = {0};
+  poll.state = AT(value, value_len, 0); // TODO: check enum range.
+  memcpy(&poll.name.len, value + 1, sizeof(poll.name.len));
+  // FIXME: need to unnecessarily copy because of const.
+  poll.name.data = arena_new(arena, uint8_t, poll.name.len);
+  memcpy(poll.name.data, AT_PTR(value, value_len, 1 + sizeof(poll.name.len)),
+         (uint64_t)value_len - (1 + sizeof(poll.name.len)));
 
   DynArrayU8 resp_body = {0};
   // TODO: Use html builder.
   dyn_append_slice(&resp_body, S("<html><body><div id=\"poll\">"), arena);
+  dyn_append_slice(&resp_body, S("The poll \""), arena);
+  dyn_append_slice(&resp_body, poll.name, arena);
+  dyn_append_slice(&resp_body, S("\" "), arena);
+
   switch (poll.state) {
   case POLL_STATE_CREATED:
-    dyn_append_slice(&resp_body, S("The poll was created."), arena);
+    dyn_append_slice(&resp_body, S(" was successfully created."), arena);
     break;
   case POLL_STATE_OPEN:
-    dyn_append_slice(&resp_body, S("The poll is open."), arena);
+    dyn_append_slice(&resp_body, S(" is open."), arena);
     break;
   case POLL_STATE_CLOSED:
-    dyn_append_slice(&resp_body, S("The poll is closed."), arena);
+    dyn_append_slice(&resp_body, S(" is closed."), arena);
     break;
   default:
     ASSERT(0);

@@ -50,6 +50,29 @@ static void print_stacktrace(const char *file, int line, const char *function) {
 
 typedef uint32_t Error;
 
+[[nodiscard]] static bool ch_is_hex_digit(uint8_t c) {
+  return ('0' <= c && c <= '9') || ('A' <= c && c <= 'F') ||
+         ('a' <= c && c <= 'f');
+}
+
+[[nodiscard]] static uint8_t ch_from_hex(uint8_t c) {
+  ASSERT(ch_is_hex_digit(c));
+
+  if ('0' <= c && c <= '9') {
+    return c - '0';
+  }
+
+  if ('A' <= c && c <= 'F') {
+    return c - 'A';
+  }
+
+  if ('a' <= c && c <= 'f') {
+    return c - 'a';
+  }
+
+  ASSERT(false);
+}
+
 typedef struct {
   uint8_t *data;
   uint64_t len;
@@ -138,6 +161,30 @@ typedef struct {
   ASSERT(real_end <= src.len);
 
   Slice res = {.data = src.data + start, .len = real_end - start};
+  return res;
+}
+
+typedef struct {
+  Slice data;
+  bool consumed;
+} SliceConsume;
+
+[[nodiscard]] static SliceConsume slice_consume_first(Slice s, uint8_t c) {
+  SliceConsume res = {0};
+
+  if (slice_is_empty(s)) {
+    res.data = s;
+    return res;
+  }
+
+  if (c != s.data[0]) {
+    res.data = s;
+    return res;
+  }
+
+  res.data = slice_range(s, 1, 0);
+  res.consumed = true;
+
   return res;
 }
 
