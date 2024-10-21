@@ -31,3 +31,4 @@ QoL:
 - [ ] Use db tenants
 - [ ] Embed static files (if any)
 - [ ] Retake a poll
+- [ ] Poll options (e.g. ???)
