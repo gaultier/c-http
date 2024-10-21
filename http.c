@@ -853,6 +853,7 @@ form_data_kv_parse_element(Slice in, uint8_t ch_terminator, Arena *arena) {
 
       uint8_t utf8_character = ch_from_hex(c1) * 16 + ch_from_hex(c2);
       *dyn_push(&data, arena) = utf8_character;
+      i += 2; // Consume 2 characters.
     } else if (ch_terminator == c) {
       i += 1; // Consume.
       break;

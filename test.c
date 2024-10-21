@@ -421,6 +421,24 @@ static void test_form_data_parse() {
   Slice form_data_raw = S("foo=bar&name=hello+world&option=%E6%97%A5&option=!");
   FormDataParseResult parsed = form_data_parse(form_data_raw, &arena);
   ASSERT(!parsed.err);
+  ASSERT(4 == parsed.form.len);
+
+  FormDataKV kv0 = dyn_at(parsed.form, 0);
+  FormDataKV kv1 = dyn_at(parsed.form, 1);
+  FormDataKV kv2 = dyn_at(parsed.form, 2);
+  FormDataKV kv3 = dyn_at(parsed.form, 3);
+
+  ASSERT(slice_eq(kv0.key, S("foo")));
+  ASSERT(slice_eq(kv0.value, S("bar")));
+
+  ASSERT(slice_eq(kv1.key, S("name")));
+  ASSERT(slice_eq(kv1.value, S("hello world")));
+
+  ASSERT(slice_eq(kv2.key, S("option")));
+  ASSERT(slice_eq(kv2.value, S("日")));
+
+  ASSERT(slice_eq(kv3.key, S("option")));
+  ASSERT(slice_eq(kv3.value, S("!")));
 
   // TODO: more checks.
 }

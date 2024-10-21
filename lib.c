@@ -63,11 +63,11 @@ typedef uint32_t Error;
   }
 
   if ('A' <= c && c <= 'F') {
-    return c - 'A';
+    return 10 + c - 'A';
   }
 
   if ('a' <= c && c <= 'f') {
-    return c - 'a';
+    return 10 + c - 'a';
   }
 
   ASSERT(false);
