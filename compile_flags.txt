@@ -10,4 +10,5 @@
 -Wno-covered-switch-default
 -Wno-class-varargs 
 -Wno-pre-c23-compat
+-Wno-cast-qual
 -Werror

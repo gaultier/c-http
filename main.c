@@ -1,4 +1,5 @@
 #include "http.c"
+#include <foundationdb/fdb_c_options.g.h>
 #define FDB_API_VERSION 710
 #include <foundationdb/fdb_c.h>
 
@@ -30,6 +31,31 @@ static void destroy_future(FDBFuture **future) {
   if (nullptr != future) {
     fdb_future_destroy(*future);
   }
+}
+
+static Slice db_make_poll_key(__uint128_t poll_id, Arena *arena) {
+  DynArrayU8 res = {0};
+  dyn_array_u8_append_u128_hex(&res, poll_id, arena);
+
+  return dyn_array_u8_to_slice(res);
+}
+
+static Slice db_make_poll_value(Poll poll, Arena *arena) {
+  DynArrayU8 res = {0};
+  *dyn_push(&res, arena) = poll.state;
+  dyn_append_length_prefixed_slice(&res, poll.name, arena);
+
+  return dyn_array_u8_to_slice(res);
+}
+
+static Slice db_make_poll_option_key(__uint128_t poll_id, Slice option,
+                                     Arena *arena) {
+  DynArrayU8 res = {0};
+  dyn_array_u8_append_u128_hex(&res, poll_id, arena);
+  *dyn_push(&res, arena) = '/';
+  dyn_append_length_prefixed_slice(&res, option, arena);
+
+  return dyn_array_u8_to_slice(res);
 }
 
 static HttpResponse handle_create_poll(HttpRequest req, FDBDatabase *db,
@@ -71,13 +97,8 @@ static HttpResponse handle_create_poll(HttpRequest req, FDBDatabase *db,
   ASSERT(nullptr != tx);
 
   {
-    DynArrayU8 key = {0};
-    dyn_array_u8_append_u128_hex(&key, poll_id, arena);
-
-    DynArrayU8 value = {0};
-    *dyn_push(&value, arena) = poll.state;
-    dyn_append_length_prefixed_slice(&value, poll.name, arena);
-
+    Slice key = db_make_poll_key(poll_id, arena);
+    Slice value = db_make_poll_value(poll, arena);
     fdb_transaction_set(tx, (uint8_t *)key.data, (int)key.len, value.data,
                         (int)value.len);
   }
@@ -86,10 +107,7 @@ static HttpResponse handle_create_poll(HttpRequest req, FDBDatabase *db,
   for (uint64_t i = 0; i < poll.options.len; i++) {
     Slice option = dyn_at(poll.options, i);
 
-    DynArrayU8 key = {0};
-    dyn_array_u8_append_u128_hex(&key, poll_id, arena);
-    *dyn_push(&key, arena) = '/';
-    dyn_append_length_prefixed_slice(&key, option, arena);
+    Slice key = db_make_poll_option_key(poll_id, option, arena);
 
     // No value.
     fdb_transaction_set(tx, (uint8_t *)key.data, (int)key.len, nullptr, 0);
@@ -142,10 +160,43 @@ static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
     return res;
   }
 
-  [[gnu::cleanup(destroy_future)]] FDBFuture *future = fdb_transaction_get(
-      tx, (uint8_t *)split.slice.data, (int)split.slice.len, false);
-  if (0 != (fdb_err = fdb_future_block_until_ready(future))) {
-    log(LOG_LEVEL_ERROR, "failed to wait for the future", arena,
+  Slice poll_id = split.slice;
+
+  [[gnu::cleanup(destroy_future)]] FDBFuture *future_poll =
+      fdb_transaction_get(tx, poll_id.data, (int)poll_id.len, false);
+
+  DynArrayU8 range_key_end = {0};
+  dyn_append_slice(&range_key_end, poll_id, arena);
+  *dyn_push(&range_key_end, arena) = '/';
+  *dyn_push(&range_key_end, arena) = 0xff;
+
+  [[gnu::cleanup(destroy_future)]] FDBFuture *future_options =
+      fdb_transaction_get_range(
+          tx,
+          FDB_KEYSEL_FIRST_GREATER_THAN( // TODO: Use `<poll id>/` as key start?
+              poll_id.data, (int)poll_id.len),
+          FDB_KEYSEL_FIRST_GREATER_OR_EQUAL(range_key_end.data,
+                                            (int)range_key_end.len),
+          32, 0, FDB_STREAMING_MODE_WANT_ALL, 0, 0, 0);
+
+  for (uint64_t i = 0; i < 1000; i++) {
+    if (fdb_future_is_ready(future_poll) &&
+        fdb_future_is_ready(future_options)) {
+      break;
+    }
+
+    usleep(1'000); // 1 ms.
+  }
+
+  if (0 != (fdb_err = fdb_future_get_error(future_poll))) {
+    log(LOG_LEVEL_ERROR, "failed to wait for the poll future", arena,
+        LCII("req.id", req.id), LCI("err", (uint64_t)fdb_err));
+    res.status = 500;
+    return res;
+  }
+
+  if (0 != (fdb_err = fdb_future_get_error(future_options))) {
+    log(LOG_LEVEL_ERROR, "failed to wait for the options future", arena,
         LCII("req.id", req.id), LCI("err", (uint64_t)fdb_err));
     res.status = 500;
     return res;
@@ -154,9 +205,9 @@ static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
   fdb_bool_t present = false;
   int value_len = 0;
   const uint8_t *value = nullptr;
-  if (0 !=
-      (fdb_err = fdb_future_get_value(future, &present, &value, &value_len))) {
-    log(LOG_LEVEL_ERROR, "failed to get the value of future", arena,
+  if (0 != (fdb_err = fdb_future_get_value(future_poll, &present, &value,
+                                           &value_len))) {
+    log(LOG_LEVEL_ERROR, "failed to get the value of the poll future", arena,
         LCII("req.id", req.id), LCI("err", (uint64_t)fdb_err));
     res.status = 500;
     return res;
@@ -166,6 +217,7 @@ static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
     res.body = S("<html><body>Poll not found.</body></html>");
     return res;
   }
+
   if ((uint64_t)value_len <
       (uint64_t)sizeof(PollState) + (uint64_t)sizeof(uint64_t)) {
     log(LOG_LEVEL_ERROR, "invalid size of value for poll", arena,
@@ -175,12 +227,20 @@ static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
   }
 
   Poll poll = {0};
-  poll.state = AT(value, value_len, 0); // TODO: check enum range.
+  poll.state = AT(value, value_len, 0); // The enum range is checked below.
   memcpy(&poll.name.len, value + 1, sizeof(poll.name.len));
-  // FIXME: need to unnecessarily copy because of const.
-  poll.name.data = arena_new(arena, uint8_t, poll.name.len);
-  memcpy(poll.name.data, AT_PTR(value, value_len, 1 + sizeof(poll.name.len)),
-         (uint64_t)value_len - (1 + sizeof(poll.name.len)));
+  poll.name.data =
+      (uint8_t *)AT_PTR(value, value_len, 1 + sizeof(poll.name.len));
+
+  const FDBKey *db_keys = nullptr;
+  int db_keys_len = 0;
+  if (0 != (fdb_err = fdb_future_get_key_array(future_options, &db_keys,
+                                               &db_keys_len))) {
+    log(LOG_LEVEL_ERROR, "failed to get the value of the options future", arena,
+        LCII("req.id", req.id), LCI("err", (uint64_t)fdb_err));
+    res.status = 500;
+    return res;
+  }
 
   DynArrayU8 resp_body = {0};
   // TODO: Use html builder.
@@ -202,6 +262,35 @@ static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
   default:
     ASSERT(0);
   }
+
+  dyn_append_slice(&resp_body, S("<br>"), arena);
+  for (uint64_t i = 0; i < (uint64_t)db_keys_len; i++) {
+    FDBKey db_key = AT(db_keys, db_keys_len, i);
+    Slice db_key_s = {.data = (uint8_t *)db_key.key,
+                      .len = (uint64_t)db_key.key_length};
+
+    if (slice_is_empty(db_key_s)) {
+      continue;
+    }
+
+    SplitIterator split_it = slice_split_it(db_key_s, '/');
+    SplitResult split_res = slice_split_next(&split_it);
+    if (!split_res.ok) {
+      log(LOG_LEVEL_ERROR, "invalid key", arena, LCII("req.id", req.id),
+          LCS("key", db_key_s));
+      res.status = 500;
+      return res;
+    }
+
+    split_res = slice_split_next(&split_it);
+    Slice option = split_res.slice;
+
+    // TODO: Better HTML.
+    dyn_append_slice(&resp_body, S("<span>"), arena);
+    dyn_append_slice(&resp_body, option, arena);
+    dyn_append_slice(&resp_body, S("</span>"), arena);
+  }
+
   dyn_append_slice(&resp_body, S("</div></body></html>"), arena);
 
   res.body = dyn_array_u8_to_slice(resp_body);
