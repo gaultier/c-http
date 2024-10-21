@@ -21,18 +21,6 @@ static void *run_fdb_network(void *) {
   return nullptr;
 }
 
-static void destroy_transaction(FDBTransaction **tx) {
-  if (nullptr != tx) {
-    fdb_transaction_destroy(*tx);
-  }
-}
-
-static void destroy_future(FDBFuture **future) {
-  if (nullptr != future) {
-    fdb_future_destroy(*future);
-  }
-}
-
 static Slice db_make_poll_key(__uint128_t poll_id, Arena *arena) {
   DynArrayU8 res = {0};
   dyn_array_u8_append_u128_hex(&res, poll_id, arena);
@@ -86,7 +74,7 @@ static HttpResponse handle_create_poll(HttpRequest req, FDBDatabase *db,
   // FIXME: Should be `req.form.id` for idempotency.
   arc4random_buf(&poll_id, sizeof(poll_id));
 
-  [[gnu::cleanup(destroy_transaction)]] FDBTransaction *tx = nullptr;
+  FDBTransaction *tx = nullptr;
   fdb_error_t fdb_err = 0;
   if (0 != (fdb_err = fdb_database_create_transaction(db, &tx))) {
     log(LOG_LEVEL_ERROR, "failed to create db transaction", arena,
@@ -113,8 +101,7 @@ static HttpResponse handle_create_poll(HttpRequest req, FDBDatabase *db,
     fdb_transaction_set(tx, (uint8_t *)key.data, (int)key.len, nullptr, 0);
   }
 
-  [[gnu::cleanup(destroy_future)]] FDBFuture *future =
-      fdb_transaction_commit(tx);
+  FDBFuture *future = fdb_transaction_commit(tx);
   ASSERT(nullptr != future);
   if (0 != (fdb_err = fdb_future_block_until_ready(future))) {
     log(LOG_LEVEL_ERROR, "failed to commit db transaction", arena,
@@ -142,7 +129,7 @@ static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
                                     Arena *arena) {
   HttpResponse res = {0};
 
-  [[gnu::cleanup(destroy_transaction)]] FDBTransaction *tx = nullptr;
+  FDBTransaction *tx = nullptr;
   fdb_error_t fdb_err = 0;
   if (0 != (fdb_err = fdb_database_create_transaction(db, &tx))) {
     log(LOG_LEVEL_ERROR, "failed to create db transaction", arena,
@@ -162,7 +149,7 @@ static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
 
   Slice poll_id = split.slice;
 
-  [[gnu::cleanup(destroy_future)]] FDBFuture *future_poll =
+  FDBFuture *future_poll =
       fdb_transaction_get(tx, poll_id.data, (int)poll_id.len, false);
 
   DynArrayU8 range_key_start = {0};
@@ -174,14 +161,12 @@ static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
   *dyn_push(&range_key_end, arena) = '/';
   *dyn_push(&range_key_end, arena) = 0xff;
 
-  [[gnu::cleanup(destroy_future)]] FDBFuture *future_options =
-      fdb_transaction_get_range(
-          tx,
-          FDB_KEYSEL_FIRST_GREATER_OR_EQUAL(range_key_start.data,
-                                            (int)range_key_start.len),
-          FDB_KEYSEL_FIRST_GREATER_THAN(range_key_end.data,
-                                        (int)range_key_end.len),
-          32, 0, FDB_STREAMING_MODE_WANT_ALL, 0, 0, 0);
+  FDBFuture *future_options = fdb_transaction_get_range(
+      tx,
+      FDB_KEYSEL_FIRST_GREATER_OR_EQUAL(range_key_start.data,
+                                        (int)range_key_start.len),
+      FDB_KEYSEL_FIRST_GREATER_THAN(range_key_end.data, (int)range_key_end.len),
+      32, 0, FDB_STREAMING_MODE_WANT_ALL, 0, 0, 0);
 
   for (uint64_t i = 0; i < 1000; i++) {
     if (fdb_future_is_ready(future_poll) &&
