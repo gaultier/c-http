@@ -1,5 +1,6 @@
 #include "http.c"
-#include <sqlite3.h>
+#define FDB_API_VERSION 710
+#include <foundationdb/fdb_c.h>
 
 typedef enum : uint8_t {
   POLL_STATE_CREATED,
@@ -12,11 +13,16 @@ typedef struct {
   // TODO: creation date, etc.
 } Poll;
 
+static void *run_fdb_network(void *) {
+  ASSERT(0 == fdb_run_network());
+  return nullptr;
+}
 static HttpResponse my_http_request_handler(HttpRequest req, void *ctx,
                                             Arena *arena) {
   ASSERT(0 == req.err);
   ASSERT(nullptr != ctx);
-  sqlite3 *db = ctx;
+  FDBDatabase *db = ctx;
+  ASSERT(nullptr != db);
 
   HttpResponse res = {0};
   http_push_header(&res.headers, S("Connection"), S("close"), arena);
@@ -34,61 +40,29 @@ static HttpResponse my_http_request_handler(HttpRequest req, void *ctx,
     // FIXME: Should be `req.form.id` for idempotency.
     arc4random_buf(&poll_id, sizeof(poll_id));
 
-    // TODO: Move this to `main`?
-    int db_err = 0;
-    const Slice db_insert_kv_query_str =
-        S("INSERT INTO vote (key, value) VALUES (?, ?)");
-    sqlite3_stmt *db_insert_kv_query = nullptr;
-    if (SQLITE_OK !=
-        (db_err = sqlite3_prepare_v2(db, (char *)db_insert_kv_query_str.data,
-                                     db_insert_kv_query_str.len,
-                                     &db_insert_kv_query, nullptr))) {
-      log(LOG_LEVEL_ERROR, "failed to prepare statement", arena,
-          LCII("req.id", req.id), LCI("err", (uint64_t)db_err));
+    FDBTransaction *tx = nullptr;
+    fdb_error_t fdb_err = 0;
+    if (0 != (fdb_err = fdb_database_create_transaction(db, &tx))) {
+      log(LOG_LEVEL_ERROR, "failed to create db transaction", arena,
+          LCII("req.id", req.id), LCI("err", (uint64_t)fdb_err));
       res.status = 500;
       return res;
     }
-    ASSERT(nullptr != db_insert_kv_query);
-
-    if (SQLITE_OK !=
-        (db_err = sqlite3_bind_blob(db_insert_kv_query, 1, &poll_id,
-                                    sizeof(poll_id), SQLITE_STATIC))) {
-      log(LOG_LEVEL_ERROR, "failed to bind 1", arena, LCII("req.id", req.id),
-          LCI("err", (uint64_t)db_err));
-      res.status = 500;
-      return res;
-    }
+    ASSERT(nullptr != tx);
 
     Poll poll = {.state = POLL_STATE_CREATED};
-    if (SQLITE_OK !=
-        (db_err = sqlite3_bind_blob(db_insert_kv_query, 2, &poll, sizeof(poll),
-                                    SQLITE_STATIC))) {
-      log(LOG_LEVEL_ERROR, "failed to bind 2", arena, LCII("req.id", req.id),
-          LCI("err", (uint64_t)db_err));
+    fdb_transaction_set(tx, (uint8_t *)&poll_id, sizeof(poll_id),
+                        (uint8_t *)&poll, sizeof(poll));
+
+    // TODO: For each poll.candidates: insert `<poll.id>/<candidate>`.
+
+    FDBFuture *fut = fdb_transaction_commit(tx);
+    ASSERT(nullptr != fut);
+    if (0 != (fdb_err = fdb_future_block_until_ready(fut))) {
+      log(LOG_LEVEL_ERROR, "failed to commit db transaction", arena,
+          LCII("req.id", req.id), LCI("err", (uint64_t)fdb_err));
       res.status = 500;
       return res;
-    }
-
-    if (SQLITE_DONE != (db_err = sqlite3_step(db_insert_kv_query))) {
-      log(LOG_LEVEL_ERROR, "failed to insert poll", arena,
-          LCII("req.id", req.id), LCI("err", (uint64_t)db_err));
-      res.status = 500;
-      return res;
-    }
-
-    if (SQLITE_OK != (db_err = sqlite3_finalize(db_insert_kv_query))) {
-      log(LOG_LEVEL_ERROR, "failed to finalize prepared statement", arena,
-          LCII("req.id", req.id), LCI("err", (uint64_t)db_err));
-      res.status = 500;
-      return res;
-    }
-
-    log(LOG_LEVEL_ERROR, "created poll", arena, LCII("req.id", req.id),
-        LCII("poll.id", poll_id));
-
-    if (SQLITE_OK != (db_err = sqlite3_clear_bindings(db_insert_kv_query))) {
-      log(LOG_LEVEL_ERROR, "failed to clear bindings", arena,
-          LCII("req.id", req.id), LCI("err", (uint64_t)db_err));
     }
 
     res.status = 301;
@@ -120,23 +94,22 @@ static HttpResponse my_http_request_handler(HttpRequest req, void *ctx,
 int main() {
   Arena arena = arena_make_from_virtual_mem(4096);
 
-  sqlite3 *db = nullptr;
-  int db_err = sqlite3_open("vote.db", &db);
-  if (SQLITE_OK != db_err) {
-    log(LOG_LEVEL_ERROR, "failed to open db", &arena,
-        LCI("err", (uint64_t)db_err));
-    exit(EINVAL);
+  fdb_error_t fdb_err = {0};
+  {
+    ASSERT(0 == fdb_select_api_version(FDB_API_VERSION));
+    ASSERT(0 == fdb_setup_network());
   }
+  pthread_t fdb_network_thread = {0};
+  pthread_create(&fdb_network_thread, nullptr, run_fdb_network, nullptr);
 
-  if (SQLITE_OK != (db_err = sqlite3_exec(
-                        db,
-                        "CREATE TABLE IF NOT EXISTS vote(key varchar not null "
-                        "unique, value varchar)",
-                        nullptr, nullptr, nullptr))) {
-    log(LOG_LEVEL_ERROR, "failed to create table", &arena,
-        LCI("err", (uint64_t)db_err));
+  FDBDatabase *db = nullptr;
+  fdb_err = fdb_create_database("fdb.cluster", &db);
+  if (0 != fdb_err) {
+    log(LOG_LEVEL_ERROR, "failed to connect to db", &arena,
+        LCI("err", (uint64_t)fdb_err));
     exit(EINVAL);
   }
+  ASSERT(nullptr != db);
 
   Error err = http_server_run(HTTP_SERVER_DEFAULT_PORT, my_http_request_handler,
                               db, &arena);
