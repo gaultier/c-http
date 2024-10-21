@@ -86,6 +86,11 @@ static HttpResponse my_http_request_handler(HttpRequest req, void *ctx,
     log(LOG_LEVEL_ERROR, "created poll", arena, LCII("req.id", req.id),
         LCII("poll.id", poll_id));
 
+    if (SQLITE_OK != (db_err = sqlite3_clear_bindings(db_insert_kv_query))) {
+      log(LOG_LEVEL_ERROR, "failed to clear bindings", arena,
+          LCII("req.id", req.id), LCI("err", (uint64_t)db_err));
+    }
+
     res.status = 301;
 
     DynArrayU8 redirect = {0};

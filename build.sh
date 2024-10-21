@@ -18,7 +18,7 @@ case $1 in
     EXTRA_FLAGS="-O0"
     ;;
   asan)
-    EXTRA_FLAGS="-fsanitize=undefined"
+    EXTRA_FLAGS="-fsanitize=thread"
     ;;
   release)
     EXTRA_FLAGS="-O3 -march=native"

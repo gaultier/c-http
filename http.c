@@ -650,13 +650,8 @@ static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
       LCI("backlog", TCP_LISTEN_BACKLOG));
 
   while (true) {
-    // TODO: Should we have a thread dedicated to `accept` and a thread
-    // dedicated to `wait()`-ing on children processes, to cap the number of
-    // concurrent requests being served?
-    // Currently it is boundless.
+    // TODO: setrlimit(2) to cap the number of child processes.
     const int conn_fd = accept(sock_fd, nullptr, 0);
-    log(LOG_LEVEL_DEBUG, "accept(2)-ed", arena, LCI("err", (uint64_t)errno),
-        LCI("arena.available", (uint64_t)arena->end - (uint64_t)arena->start));
     if (conn_fd == -1) {
       log(LOG_LEVEL_ERROR, "accept(2)", arena, LCI("err", (uint64_t)errno),
           LCI("arena.available",
