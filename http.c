@@ -11,7 +11,7 @@
 #include <unistd.h>
 
 static const uint64_t HTTP_REQUEST_LINES_MAX_COUNT = 512;
-static const uint64_t HTTP_SERVER_HANDLER_MEM_LEN = 8192;
+static const uint64_t HTTP_SERVER_HANDLER_MEM_LEN = 16384;
 static const uint16_t HTTP_SERVER_DEFAULT_PORT = 12345;
 static const int TCP_LISTEN_BACKLOG = 16384;
 

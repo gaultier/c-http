@@ -148,13 +148,7 @@ typedef struct {
       return res;
     }
 
-    SplitResult value = slice_split_next(&split_it_equal);
-    if (!value.ok) {
-      res.err = EINVAL;
-      return res;
-    }
-
-    res.poll.name = value.slice;
+    res.poll.name = split_it_equal.slice;
   }
 
   return res;
@@ -362,11 +356,11 @@ handle_get_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
     Slice db_key_s = {.data = (uint8_t *)db_key.key,
                       .len = (uint64_t)db_key.key_length};
 
-    if (slice_is_empty(db_key_s) || db_key_s.len < 32 + 1) {
+    if (slice_is_empty(db_key_s) || db_key_s.len < poll_key.len) {
       continue;
     }
 
-    Slice option = slice_range(db_key_s, 32 + 1, 0);
+    Slice option = slice_range(db_key_s, poll_key.len + 1, 0);
 
     // TODO: Better HTML.
     dyn_append_slice(&resp_body, S("<span>"), arena);
