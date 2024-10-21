@@ -127,6 +127,10 @@ static HttpResponse handle_create_poll(HttpRequest req, FDBDatabase *db,
 
 static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
                                     Arena *arena) {
+  ASSERT(2 == req.path_components.len);
+  Slice poll_id = dyn_at(req.path_components, 1);
+  ASSERT(32 == poll_id.len);
+
   HttpResponse res = {0};
 
   FDBTransaction *tx = nullptr;
@@ -138,16 +142,6 @@ static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
     return res;
   }
   ASSERT(nullptr != tx);
-
-  SplitIterator it = slice_split(req.path, '/');
-  ASSERT(slice_split_next(&it).ok);
-  SplitResult split = slice_split_next(&it);
-  if (!split.ok || split.slice.len != 32) {
-    res.status = 404;
-    return res;
-  }
-
-  Slice poll_id = split.slice;
 
   FDBFuture *future_poll =
       fdb_transaction_get(tx, poll_id.data, (int)poll_id.len, false);
@@ -306,35 +300,33 @@ static HttpResponse my_http_request_handler(HttpRequest req, void *ctx,
     ASSERT(nullptr != db);
   }
 
+  Slice path0 = req.path_components.len >= 1 ? dyn_at(req.path_components, 0)
+                                             : (Slice){0};
+  Slice path1 = req.path_components.len >= 2 ? dyn_at(req.path_components, 1)
+                                             : (Slice){0};
   // Home page.
   if (HM_GET == req.method &&
-      (slice_eq(req.path, S("/")) || slice_eq(req.path, S("/index.html")))) {
+      ((req.path_components.len == 0) || (slice_eq(path0, S("index.html"))))) {
     HttpResponse res = {0};
     res.status = 200;
     http_push_header(&res.headers, S("Content-Type"), S("text/html"), arena);
     http_response_register_file_for_sending(&res, S("index.html"));
     return res;
-  } else if (HM_GET == req.method && (slice_eq(req.path, S("/")) ||
-                                      slice_eq(req.path, S("/pure-min.css")))) {
+  } else if (HM_GET == req.method && 1 == req.path_components.len &&
+             slice_eq(path0, S("pure-min.css"))) {
     HttpResponse res = {0};
     res.status = 200;
     http_push_header(&res.headers, S("Content-Type"), S("text/css"), arena);
     http_response_register_file_for_sending(&res, S("pure-min.css"));
     return res;
-  } else if (HM_POST == req.method && slice_eq(req.path, S("/poll"))) {
+  } else if (HM_POST == req.method && 1 == req.path_components.len &&
+             slice_eq(path0, S("poll"))) {
     return handle_create_poll(req, db, arena);
-  } else if (HM_GET == req.method && slice_starts_with(req.path, S("/poll/")) &&
-             req.path.len >
-                 S("/poll/").len) { // TODO: parse path into components.
+  } else if (HM_GET == req.method && 2 == req.path_components.len &&
+             slice_starts_with(path1, S("poll/")) &&
+             32 == path1.len) { // TODO: parse path into components.
     return handle_get_poll(req, db, arena);
-  } else if (HM_POST == req.method &&
-             slice_starts_with(req.path, S("/poll/")) &&
-             req.path.len > S("/poll/").len) {
-    // Vote for poll.
-    HttpResponse res = {0};
-    res.status = 500; // TODO
-    return res;
-  } else {
+  } else { // TODO: Vote in poll.
     HttpResponse res = {0};
     res.status = 404;
     return res;

@@ -78,7 +78,7 @@ static void test_read_http_request_without_body() {
   ASSERT(reader.buf_idx == req_slice.len); // Read all.
   ASSERT(0 == req.err);
   ASSERT(HM_GET == req.method);
-  ASSERT(slice_eq(req.path, S("/foo?bar=2")));
+  ASSERT(slice_eq(req.path_raw, S("/foo?bar=2")));
 
   ASSERT(2 == req.headers.len);
   ASSERT(slice_eq(dyn_at(req.headers, 0).value, S("localhost:12345")));
@@ -97,7 +97,7 @@ static void test_read_http_request_with_body() {
   ASSERT(reader.buf_idx == req_slice.len); // Read all.
   ASSERT(0 == req.err);
   ASSERT(HM_POST == req.method);
-  ASSERT(slice_eq(req.path, S("/foo?bar=2")));
+  ASSERT(slice_eq(req.path_raw, S("/foo?bar=2")));
 
   ASSERT(3 == req.headers.len);
   ASSERT(slice_eq(dyn_at(req.headers, 0).key, S("Content-Length")));
@@ -236,7 +236,7 @@ static HttpResponse handle_request_post(HttpRequest req, void *ctx,
 
   ASSERT(HM_POST == req.method);
   ASSERT(slice_eq(S("foo\nbar"), req.body));
-  ASSERT(slice_eq(S("/comment"), req.path));
+  ASSERT(slice_eq(S("/comment"), req.path_raw));
 
   HttpResponse res = {0};
   res.status = 201;
@@ -277,7 +277,7 @@ static void test_http_server_post() {
       };
       HttpRequest req = {
           .method = HM_POST,
-          .path = S("/comment"),
+          .path_raw = S("/comment"),
           .body = S("foo\nbar"),
       };
       http_push_header(&req.headers, S("Content-Type"), S("text/plain"),
@@ -323,7 +323,7 @@ static HttpResponse handle_request_file(HttpRequest req, void *ctx,
 
   ASSERT(HM_GET == req.method);
   ASSERT(slice_is_empty(req.body));
-  ASSERT(slice_eq(S("/index.html"), req.path));
+  ASSERT(slice_eq(S("/index.html"), req.path_raw));
 
   HttpResponse res = {0};
   res.status = 200;
@@ -354,7 +354,7 @@ static void test_http_server_serve_file() {
       };
       HttpRequest req = {
           .method = HM_GET,
-          .path = S("/index.html"),
+          .path_raw = S("/index.html"),
       };
       HttpResponse resp = http_client_request((struct sockaddr *)&addr,
                                               sizeof(addr), req, &arena);

@@ -439,7 +439,7 @@ static void dyn_append_length_prefixed_slice(DynArrayU8 *dyn, Slice slice,
   dyn_append_slice(dyn, slice, arena);
 }
 
-static uint8_t u8_to_ch_hex(uint8_t n) {
+[[nodiscard]] static uint8_t u8_to_ch_hex(uint8_t n) {
   ASSERT(n < 16);
 
   if (n <= 9) {

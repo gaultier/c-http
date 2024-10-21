@@ -48,7 +48,8 @@ typedef struct {
 
 typedef struct {
   __uint128_t id;
-  DynArraySlice path;
+  Slice path_raw;
+  DynArraySlice path_components;
   HttpMethod method;
   DynArrayHttpHeaders headers;
   Slice body;
@@ -354,7 +355,8 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
       return req;
     }
 
-    req.path = http_parse_relative_(path.slice, arena);
+    req.path_raw = path.slice;
+    req.path_components = http_parse_relative_path(path.slice, arena);
   }
 
   {
@@ -483,7 +485,7 @@ request_parse_content_length_maybe(HttpRequest req) {
     return (HttpRequest){.err = status_line.err};
   }
 
-  HttpRequest req = request_parse_status_line(status_line);
+  HttpRequest req = request_parse_status_line(status_line, arena);
   if (req.err) {
     return req;
   }
@@ -579,10 +581,10 @@ static void handle_client(int socket, HttpRequestHandleFn handle, void *ctx) {
   Reader reader = reader_make_from_socket(socket);
   const HttpRequest req = request_read(&reader, &arena);
 
-  log(LOG_LEVEL_INFO, "http request start", &arena, LCS("req.path", req.path),
-      LCI("req.body.len", req.body.len), LCI("err", req.err),
-      LCI("req.headers.len", req.headers.len), LCII("req.id", req.id),
-      LCS("req.method", http_method_to_s(req.method)));
+  log(LOG_LEVEL_INFO, "http request start", &arena,
+      LCS("req.path", req.path_raw), LCI("req.body.len", req.body.len),
+      LCI("err", req.err), LCI("req.headers.len", req.headers.len),
+      LCII("req.id", req.id), LCS("req.method", http_method_to_s(req.method)));
   if (req.err) {
     log(LOG_LEVEL_ERROR, "http request read", &arena, LCI("err", req.err),
         LCII("req.id", req.id));
@@ -604,7 +606,7 @@ static void handle_client(int socket, HttpRequestHandleFn handle, void *ctx) {
   const uint64_t mem_use = HTTP_SERVER_HANDLER_MEM_LEN -
                            ((uint64_t)arena.end - (uint64_t)arena.start);
   log(LOG_LEVEL_INFO, "http request end", &arena, LCI("arena_use", mem_use),
-      LCS("req.path", req.path), LCI("req.headers.len", req.headers.len),
+      LCS("req.path", req.path_raw), LCI("req.headers.len", req.headers.len),
       LCI("res.headers.len", res.headers.len), LCI("status", res.status),
       LCS("req.method", http_method_to_s(req.method)),
       LCS("res.file_path", res.file_path), LCI("res.body.len", res.body.len),
@@ -710,8 +712,8 @@ http_client_request(struct sockaddr *addr, uint32_t addr_sizeof,
   DynArrayU8 sb = {0};
   dyn_append_slice(&sb, http_method_to_s(req.method), arena);
   dyn_append_slice(&sb, S(" /"), arena);
-  for (uint64_t i = 0; i < req.path.len; i++) {
-    Slice path_component = dyn_at(req.path, i);
+  for (uint64_t i = 0; i < req.path_components.len; i++) {
+    Slice path_component = dyn_at(req.path_components, i);
     dyn_append_slice(&sb, path_component, arena);
     *dyn_push(&sb, arena) = '/';
   }
