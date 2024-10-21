@@ -1,6 +1,6 @@
-- [ ] Parse request path
+- [ ] Parse request path into components
 - [ ] Parse form fields
-- [ ] Db
+- [x] Db
 - [ ] TLS
 - [ ] e2e tests
 

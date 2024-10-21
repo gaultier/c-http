@@ -173,6 +173,7 @@ static HttpResponse my_http_request_handler(HttpRequest req, void *ctx,
     res.status = 200;
     http_push_header(&res.headers, S("Content-Type"), S("text/html"), arena);
     http_response_register_file_for_sending(&res, S("index.html"));
+    return res;
   } else if (HM_POST == req.method && slice_eq(req.path, S("/poll"))) {
     return handle_create_poll(req, db, arena);
   } else if (HM_GET == req.method && slice_starts_with(req.path, S("/poll/")) &&

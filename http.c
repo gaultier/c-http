@@ -19,6 +19,7 @@ static const int TCP_LISTEN_BACKLOG = 16384;
 typedef enum {
   HS_ERR_INVALID_HTTP_REQUEST,
   HS_ERR_INVALID_HTTP_RESPONSE,
+  HS_ERR_INVALID_FORM_DATA,
 } HS_ERROR;
 
 typedef enum { HM_UNKNOWN, HM_GET, HM_POST } HttpMethod;
@@ -778,5 +779,66 @@ http_client_request(struct sockaddr *addr, uint32_t addr_sizeof,
 
 end:
   close(client);
+  return res;
+}
+
+typedef struct {
+  Slice key, value;
+} FormDataKV;
+
+typedef struct {
+  FormDataKV *data;
+  uint64_t len, cap;
+} DynArrayFormData;
+
+typedef struct {
+  DynArrayFormData form;
+  Error err;
+} FormDataParseResult;
+
+typedef struct {
+  FormDataKV form_data;
+  Error err;
+  bool present;
+  Slice remaining;
+} FormDataKVParseResult;
+
+[[nodiscard]] static bool ch_is_reserved_in_percent_encoding(uint8_t c) {
+  Slice reserved = S("!#$&'()*+,/:;=?@[]");
+  return nullptr != memchr(reserved.data, c, reserved.len);
+}
+
+[[nodiscard]] static bool ch_is_unreserved_in_percent_encoding(uint8_t c) {
+  Slice unreserved =
+      S("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~");
+  return nullptr != memchr(unreserved.data, c, unreserved.len);
+}
+
+[[nodiscard]] static FormDataKVParseResult form_data_kv_parse(Slice in,
+                                                              Arena *arena) {
+  FormDataKVParseResult res = {0};
+
+  DynArrayU8 key = {0}, value = {0};
+
+  for (uint64_t i = 0; i < in.len; i++) {
+    uint8_t c = in.data[i];
+
+    if (ch_is_unreserved_in_percent_encoding(c)) {
+      *dyn_push(&key, arena) = c;
+    } else if ('%' == c) {
+      if ((in.len - i) < 2) {
+        res.err = HS_ERR_INVALID_FORM_DATA;
+        return res;
+      }
+      Slice remaining = slice_range(in, i + 1, 2);
+    }
+  }
+
+  return res;
+}
+
+[[nodiscard]] static FormDataParseResult form_data_parse(Slice in) {
+  FormDataParseResult res = {0};
+
   return res;
 }
