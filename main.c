@@ -5,7 +5,6 @@
 #include <foundationdb/fdb_c.h>
 
 typedef enum : uint8_t {
-  POLL_STATE_CREATED,
   POLL_STATE_OPEN,
   POLL_STATE_CLOSED,
   POLL_STATE_MAX, // Pseudo-value.
@@ -164,7 +163,7 @@ handle_create_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
     return res;
   }
 
-  Poll poll = {.state = POLL_STATE_CREATED};
+  Poll poll = {.state = POLL_STATE_OPEN};
   {
     for (uint64_t i = 0; i < form.form.len; i++) {
       FormDataKV kv = dyn_at(form.form, i);
@@ -335,9 +334,6 @@ handle_get_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
   dyn_append_slice(&resp_body, S("\" "), arena);
 
   switch (poll.state) {
-  case POLL_STATE_CREATED:
-    dyn_append_slice(&resp_body, S(" was successfully created."), arena);
-    break;
   case POLL_STATE_OPEN:
     dyn_append_slice(&resp_body, S(" is open."), arena);
     break;

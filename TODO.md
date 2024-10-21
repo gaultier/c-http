@@ -4,7 +4,6 @@ MVP:
 - [x] Db
 - [x] Proper encoding/decoding with db
 - [ ] e2e tests
-- [ ] Use db tenants
 - [ ] Html builder
 - [ ] Cast a vote (user = `hash(user-agent)`?)
 - [ ] Finish a poll
@@ -27,3 +26,4 @@ QoL:
 - [ ] TLS
 - [ ] Translations
 - [ ] Button to copy url to clipboard
+- [ ] Use db tenants
