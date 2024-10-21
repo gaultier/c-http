@@ -2,19 +2,50 @@
 <html>
 <head>
 <meta charset="utf-8">
+<script>
+  var option_count = 0;
+
+  document.addEventListener('DOMContentLoaded', function(){
+    var button = document.getElementById('add-poll-candidate');
+    button.addEventListener('click', add_candidate);
+  });
+
+  function add_candidate(el) {
+    var parent = document.getElementById('poll-form-inputs');
+    var candidate_input = document.createElement('div');
+    var label = 'option' + (option_count + 1);
+
+    candidate_input.innerHTML = '<label for="poll">Option' +
+      option_count +
+      ': </label>' +
+      '<input type="text" name="' + label + '" id="' + label + '"/>' +
+      '</div>';
+    parent.append(candidate_input);
+
+    option_count += 1;
+  }
+</script>
 </head>
 <body>
   <span>Create a new poll!</span>
 
-  <form action="/poll" method="post">
-    <div class="poll-submit">
-      <label for="poll">Name: </label>
-      <input type="text" name="name" id="name"/>
+  <form id="poll-form" action="/poll" method="post">
+    <div id="poll-form-inputs">
+      <div>
+        <label for="poll">Name: </label>
+        <input type="text" name="name" id="name"/>
+      </div>
     </div>
+
+    <button type="button" id="add-poll-candidate" label="+">
+      +
+    </button>
+
 
     <div class="form-example">
       <input type="submit" value="Create" />
     </div>
   </form>
 </body>
+
 </html>
