@@ -48,7 +48,7 @@ static HttpResponse handle_create_poll(HttpRequest req, FDBDatabase *db,
       FormDataKV kv = dyn_at(form.form, i);
       if (slice_eq(kv.key, S("name"))) {
         poll.name = kv.value;
-      } else if (slice_eq(kv.key, S("poll"))) {
+      } else if (slice_eq(kv.key, S("option")) && !slice_is_empty(kv.value)) {
         *dyn_push(&poll.options, arena) = kv.value;
       }
       // Ignore unknown form data.
@@ -76,17 +76,24 @@ static HttpResponse handle_create_poll(HttpRequest req, FDBDatabase *db,
 
     DynArrayU8 value = {0};
     *dyn_push(&value, arena) = poll.state;
-    dyn_append_slice(&value,
-                     ((Slice){.data = (uint8_t *)&poll.name.len,
-                              .len = sizeof(poll.name.len)}),
-                     arena);
-    dyn_append_slice(&value, poll.name, arena);
+    dyn_append_length_prefixed_slice(&value, poll.name, arena);
 
     fdb_transaction_set(tx, (uint8_t *)key.data, (int)key.len, value.data,
                         (int)value.len);
   }
 
-  // TODO: For each poll.candidates: insert `<poll.id>/<candidate>`.
+  // For each poll option: insert `<poll.id>/<option>`.
+  for (uint64_t i = 0; i < poll.options.len; i++) {
+    Slice option = dyn_at(poll.options, i);
+
+    DynArrayU8 key = {0};
+    dyn_array_u8_append_u128_hex(&key, poll_id, arena);
+    *dyn_push(&key, arena) = '/';
+    dyn_append_length_prefixed_slice(&key, option, arena);
+
+    // No value.
+    fdb_transaction_set(tx, (uint8_t *)key.data, (int)key.len, nullptr, 0);
+  }
 
   [[gnu::cleanup(destroy_future)]] FDBFuture *future =
       fdb_transaction_commit(tx);
@@ -97,6 +104,9 @@ static HttpResponse handle_create_poll(HttpRequest req, FDBDatabase *db,
     res.status = 500;
     return res;
   }
+
+  log(LOG_LEVEL_INFO, "created poll", arena, LCII("req.id", req.id),
+      LCI("poll.options.len", poll.options.len), LCS("poll.name", poll.name));
 
   res.status = 301;
 
