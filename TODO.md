@@ -12,4 +12,5 @@
 - [ ] See poll results
 - [ ] Improve UX for logs
 - [ ] Collect logs into clickhouse
+- [ ] Monkey testing/fuzz testing [Last]
 
