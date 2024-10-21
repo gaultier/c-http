@@ -26,6 +26,7 @@
 </style>
 <script>
   var option_count = 0;
+  var max_option_count = 32;
 
   document.addEventListener('DOMContentLoaded', function(){
     var button = document.getElementById('add-poll-candidate');
@@ -38,6 +39,10 @@
   });
 
   function add_candidate() {
+    if (option_count >= max_option_count) {
+      return;
+    }
+
     var parent = document.getElementById('poll-form-inputs');
     var candidate_input = document.createElement('div');
     var label = 'option' + option_count;
