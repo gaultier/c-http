@@ -19,4 +19,5 @@
 - [ ] Monkey testing/fuzz testing [Last]
 - [ ] Poll TTL & GC
 - [ ] Live poll timer
+- [ ] Clearly split db & html rendering steps
 
