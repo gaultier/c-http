@@ -1,9 +1,9 @@
-- [ ] Parse request path into components
+- [x] Parse request path into components
 - [x] Parse form fields
 - [x] Db
 - [ ] TLS
 - [ ] e2e tests
-- [ ] Proper encoding/decoding with db
+- [x] Proper encoding/decoding with db
 - [ ] Shorter urls
 - [ ] Html builder
 
