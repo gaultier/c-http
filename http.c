@@ -593,14 +593,14 @@ typedef struct {
   int socket;
   HttpRequestHandleFn request_handler;
   void *ctx;
-} HandlerData;
+} ThreadHandlerData;
 
 static void *thread_handle_client(void *arg) {
   ASSERT(nullptr != arg);
 
-  HandlerData copy = {0};
+  ThreadHandlerData copy = {0};
   {
-    HandlerData *data = (HandlerData *)arg;
+    ThreadHandlerData *data = (ThreadHandlerData *)arg;
     copy = *data;
     free(data);
   }
@@ -672,10 +672,10 @@ static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
 
     pthread_t handler = {0};
     // TODO: thread pool + associated data?
-    HandlerData *data = calloc(sizeof(HandlerData), 1);
+    ThreadHandlerData *data = calloc(sizeof(ThreadHandlerData), 1);
     ASSERT(nullptr != data);
 
-    *data = (HandlerData){
+    *data = (ThreadHandlerData){
         .socket = conn_fd,
         .request_handler = request_handler,
         .ctx = ctx,

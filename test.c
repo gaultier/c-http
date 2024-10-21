@@ -230,7 +230,10 @@ static void test_dyn_ensure_cap() {
   }
 }
 
-static HttpResponse handle_request_post(HttpRequest req, Arena *arena) {
+static HttpResponse handle_request_post(HttpRequest req, void *ctx,
+                                        Arena *arena) {
+  (void)ctx;
+
   ASSERT(HM_POST == req.method);
   ASSERT(slice_eq(S("foo\nbar"), req.body));
   ASSERT(slice_eq(S("/comment"), req.path));
@@ -238,7 +241,6 @@ static HttpResponse handle_request_post(HttpRequest req, Arena *arena) {
   HttpResponse res = {0};
   res.status = 201;
   res.body = S("hello world!");
-  http_push_header(&res.headers, S("Connection"), S("close"), arena);
   http_push_header(&res.headers, S("Content-Type"), S("text/plain"), arena);
 
   return res;
@@ -264,7 +266,7 @@ static void test_http_server_post() {
   pid_t pid = fork();
   ASSERT(-1 != pid);
   if (pid == 0) { // Child
-    ASSERT(0 == http_server_run(port, handle_request_post, &arena));
+    ASSERT(0 == http_server_run(port, handle_request_post, nullptr, &arena));
 
   } else { // Parent
 
@@ -290,12 +292,12 @@ static void test_http_server_post() {
         ASSERT(2 == resp.headers.len);
 
         HttpHeader h1 = dyn_at(resp.headers, 0);
-        ASSERT(slice_eq(S("Connection"), h1.key));
-        ASSERT(slice_eq(S("close"), h1.value));
+        ASSERT(slice_eq(S("Content-Type"), h1.key));
+        ASSERT(slice_eq(S("text/plain"), h1.value));
 
         HttpHeader h2 = dyn_at(resp.headers, 1);
-        ASSERT(slice_eq(S("Content-Type"), h2.key));
-        ASSERT(slice_eq(S("text/plain"), h2.value));
+        ASSERT(slice_eq(S("Connection"), h2.key));
+        ASSERT(slice_eq(S("close"), h2.value));
 
         // Stop the http server and check it had no issue.
         {
@@ -315,15 +317,17 @@ static void test_http_server_post() {
   }
 }
 
-static HttpResponse handle_request_file(HttpRequest req, Arena *arena) {
+static HttpResponse handle_request_file(HttpRequest req, void *ctx,
+                                        Arena *arena) {
+  (void)ctx;
+
   ASSERT(HM_GET == req.method);
   ASSERT(slice_is_empty(req.body));
   ASSERT(slice_eq(S("/index.html"), req.path));
 
   HttpResponse res = {0};
   res.status = 200;
-  http_response_register_file_for_sending(&res, "index.html");
-  http_push_header(&res.headers, S("Connection"), S("close"), arena);
+  http_response_register_file_for_sending(&res, S("index.html"));
   http_push_header(&res.headers, S("Content-Type"), S("text/html"), arena);
 
   return res;
@@ -339,7 +343,7 @@ static void test_http_server_serve_file() {
   pid_t pid = fork();
   ASSERT(-1 != pid);
   if (pid == 0) { // Child
-    ASSERT(0 == http_server_run(port, handle_request_file, &arena));
+    ASSERT(0 == http_server_run(port, handle_request_file, nullptr, &arena));
 
   } else { // Parent
 
@@ -361,12 +365,12 @@ static void test_http_server_serve_file() {
         ASSERT(2 == resp.headers.len);
 
         HttpHeader h1 = dyn_at(resp.headers, 0);
-        ASSERT(slice_eq(S("Connection"), h1.key));
-        ASSERT(slice_eq(S("close"), h1.value));
+        ASSERT(slice_eq(S("Content-Type"), h1.key));
+        ASSERT(slice_eq(S("text/html"), h1.value));
 
         HttpHeader h2 = dyn_at(resp.headers, 1);
-        ASSERT(slice_eq(S("Content-Type"), h2.key));
-        ASSERT(slice_eq(S("text/html"), h2.value));
+        ASSERT(slice_eq(S("Connection"), h2.key));
+        ASSERT(slice_eq(S("close"), h2.value));
 
         int file = open("index.html", O_RDONLY);
         ASSERT(-1 != file);
