@@ -117,7 +117,7 @@ static void test_slice_trim() {
 
 static void test_slice_split() {
   Slice slice = S("hello..world...foobar");
-  SplitIterator it = slice_split_it(slice, '.');
+  SplitIterator it = slice_split(slice, '.');
 
   {
     SplitResult elem = slice_split_next(&it);

@@ -48,7 +48,7 @@ typedef struct {
 
 typedef struct {
   __uint128_t id;
-  Slice path; // FIXME: Should be a parsed URL/URI.
+  DynArraySlice path;
   HttpMethod method;
   DynArrayHttpHeaders headers;
   Slice body;
@@ -279,8 +279,32 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
   return line;
 }
 
-[[nodiscard]] static HttpRequest
-request_parse_status_line(LineRead status_line) {
+[[nodiscard]] static DynArraySlice http_parse_relative_path(Slice s,
+                                                            Arena *arena) {
+  DynArraySlice res = {0};
+
+  SplitIterator split_it_question = slice_split(s, '?');
+  Slice work = slice_split_next(&split_it_question).slice;
+
+  SplitIterator split_it_slash = slice_split(work, '/');
+  for (uint64_t i = 0; i < s.len; i++) { // Bound.
+    SplitResult split = slice_split_next(&split_it_slash);
+    if (!split.ok) {
+      break;
+    }
+
+    if (slice_is_empty(split.slice)) {
+      continue;
+    }
+
+    *dyn_push(&res, arena) = split.slice;
+  }
+
+  return res;
+}
+
+[[nodiscard]] static HttpRequest request_parse_status_line(LineRead status_line,
+                                                           Arena *arena) {
   HttpRequest req = {0};
   arc4random_buf(&req.id, sizeof(req.id));
 
@@ -293,7 +317,7 @@ request_parse_status_line(LineRead status_line) {
     return req;
   }
 
-  SplitIterator it = slice_split_it(status_line.line, ' ');
+  SplitIterator it = slice_split(status_line.line, ' ');
 
   {
     SplitResult method = slice_split_next(&it);
@@ -330,7 +354,7 @@ request_parse_status_line(LineRead status_line) {
       return req;
     }
 
-    req.path = path.slice;
+    req.path = http_parse_relative_(path.slice, arena);
   }
 
   {
@@ -365,7 +389,7 @@ request_parse_status_line(LineRead status_line) {
       break;
     }
 
-    SplitIterator it = slice_split_it(line.line, ':');
+    SplitIterator it = slice_split(line.line, ':');
     SplitResult key = slice_split_next(&it);
     if (!key.ok) {
       return HS_ERR_INVALID_HTTP_REQUEST;
@@ -685,8 +709,12 @@ http_client_request(struct sockaddr *addr, uint32_t addr_sizeof,
 
   DynArrayU8 sb = {0};
   dyn_append_slice(&sb, http_method_to_s(req.method), arena);
-  dyn_append_slice(&sb, S(" "), arena);
-  dyn_append_slice(&sb, req.path, arena);
+  dyn_append_slice(&sb, S(" /"), arena);
+  for (uint64_t i = 0; i < req.path.len; i++) {
+    Slice path_component = dyn_at(req.path, i);
+    dyn_append_slice(&sb, path_component, arena);
+    *dyn_push(&sb, arena) = '/';
+  }
   dyn_append_slice(&sb, S(" HTTP/1.1"), arena);
   dyn_append_slice(&sb, S("\r\n"), arena);
 

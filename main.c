@@ -139,7 +139,7 @@ static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
   }
   ASSERT(nullptr != tx);
 
-  SplitIterator it = slice_split_it(req.path, '/');
+  SplitIterator it = slice_split(req.path, '/');
   ASSERT(slice_split_next(&it).ok);
   SplitResult split = slice_split_next(&it);
   if (!split.ok || split.slice.len != 32) {

@@ -135,7 +135,7 @@ typedef struct {
   bool ok;
 } SplitResult;
 
-[[nodiscard]] static SplitIterator slice_split_it(Slice slice, uint8_t sep) {
+[[nodiscard]] static SplitIterator slice_split(Slice slice, uint8_t sep) {
   return (SplitIterator){.slice = slice, .sep = sep};
 }
 
@@ -178,7 +178,7 @@ typedef struct {
       return res;
     }
 
-    if (idx == 0) { // Multiple continguous separators.
+    if (idx == 0) { // Multiple contiguous separators.
       it->slice = slice_range(it->slice, (uint64_t)idx + 1, 0);
       continue;
     } else {
