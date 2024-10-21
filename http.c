@@ -621,26 +621,26 @@ static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
 
   struct sigaction sa = {.sa_flags = SA_NOCLDWAIT};
   if (-1 == sigaction(SIGCHLD, &sa, nullptr)) {
-    log(LOG_LEVEL_ERROR, "sigaction(2)", arena, L("err", (uint64_t)errno));
+    log(LOG_LEVEL_ERROR, "sigaction(2)", arena, L("err", errno));
     return (Error)errno;
   }
 
   const int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (-1 == sock_fd) {
-    log(LOG_LEVEL_ERROR, "socket(2)", arena, L("err", (uint64_t)errno));
+    log(LOG_LEVEL_ERROR, "socket(2)", arena, L("err", errno));
     return (Error)errno;
   }
 
   int val = 1;
   if (-1 == setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val))) {
-    log(LOG_LEVEL_ERROR, "setsockopt(2)", arena, L("err", (uint64_t)errno),
+    log(LOG_LEVEL_ERROR, "setsockopt(2)", arena, L("err", errno),
         L("option", S("SO_REUSEADDR")));
     return (Error)errno;
   }
 
 #ifdef __FreeBSD__
   if (-1 == setsockopt(sock_fd, SOL_SOCKET, SO_REUSEPORT, &val, sizeof(val))) {
-    log(LOG_LEVEL_ERROR, "setsockopt(2)", arena, L("err", (uint64_t)errno),
+    log(LOG_LEVEL_ERROR, "setsockopt(2)", arena, L("err", errno),
         L("option", S("SO_REUSEPORT")));
     return (Error)errno;
   }
@@ -652,12 +652,12 @@ static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
   };
 
   if (-1 == bind(sock_fd, (const struct sockaddr *)&addr, sizeof(addr))) {
-    log(LOG_LEVEL_ERROR, "bind(2)", arena, L("err", (uint64_t)errno));
+    log(LOG_LEVEL_ERROR, "bind(2)", arena, L("err", errno));
     return (Error)errno;
   }
 
   if (-1 == listen(sock_fd, TCP_LISTEN_BACKLOG)) {
-    log(LOG_LEVEL_ERROR, "listen(2)", arena, L("err", (uint64_t)errno));
+    log(LOG_LEVEL_ERROR, "listen(2)", arena, L("err", errno));
     return (Error)errno;
   }
 
@@ -668,7 +668,7 @@ static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
     // TODO: setrlimit(2) to cap the number of child processes.
     const int conn_fd = accept(sock_fd, nullptr, 0);
     if (conn_fd == -1) {
-      log(LOG_LEVEL_ERROR, "accept(2)", arena, L("err", (uint64_t)errno),
+      log(LOG_LEVEL_ERROR, "accept(2)", arena, L("err", errno),
           L("arena.available", (uint64_t)arena->end - (uint64_t)arena->start));
       if (EINTR == errno) {
         continue;
@@ -678,7 +678,7 @@ static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
 
     pid_t pid = fork();
     if (pid == -1) { // Error.
-      log(LOG_LEVEL_ERROR, "fork(2)", arena, L("err", (uint64_t)errno));
+      log(LOG_LEVEL_ERROR, "fork(2)", arena, L("err", errno));
       close(conn_fd);
     } else if (pid == 0) { // Child.
       handle_client(conn_fd, request_handler, ctx);

@@ -185,7 +185,7 @@ handle_create_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
   fdb_error_t fdb_err = 0;
   if (0 != (fdb_err = fdb_database_create_transaction(db, &tx))) {
     log(LOG_LEVEL_ERROR, "failed to create db transaction", arena,
-        L("req.id", req.id), L("err", (uint64_t)fdb_err));
+        L("req.id", req.id), L("err", fdb_err));
     res.status = 500;
     return res;
   }
@@ -212,7 +212,7 @@ handle_create_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
   ASSERT(nullptr != future);
   if (0 != (fdb_err = fdb_future_block_until_ready(future))) {
     log(LOG_LEVEL_ERROR, "failed to commit db transaction", arena,
-        L("req.id", req.id), L("err", (uint64_t)fdb_err));
+        L("req.id", req.id), L("err", fdb_err));
     res.status = 500;
     return res;
   }
@@ -244,7 +244,7 @@ handle_get_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
   fdb_error_t fdb_err = 0;
   if (0 != (fdb_err = fdb_database_create_transaction(db, &tx))) {
     log(LOG_LEVEL_ERROR, "failed to create db transaction", arena,
-        L("req.id", req.id), L("err", (uint64_t)fdb_err));
+        L("req.id", req.id), L("err", fdb_err));
     res.status = 500;
     return res;
   }
@@ -275,14 +275,14 @@ handle_get_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
 
   if (0 != (fdb_err = fdb_future_get_error(future_poll))) {
     log(LOG_LEVEL_ERROR, "failed to wait for the poll future", arena,
-        L("req.id", req.id), L("err", (uint64_t)fdb_err));
+        L("req.id", req.id), L("err", fdb_err));
     res.status = 500;
     return res;
   }
 
   if (0 != (fdb_err = fdb_future_get_error(future_options))) {
     log(LOG_LEVEL_ERROR, "failed to wait for the options future", arena,
-        L("req.id", req.id), L("err", (uint64_t)fdb_err));
+        L("req.id", req.id), L("err", fdb_err));
     res.status = 500;
     return res;
   }
@@ -293,7 +293,7 @@ handle_get_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
   if (0 != (fdb_err = fdb_future_get_value(future_poll, &present, &value,
                                            &value_len))) {
     log(LOG_LEVEL_ERROR, "failed to get the value of the poll future", arena,
-        L("req.id", req.id), L("err", (uint64_t)fdb_err));
+        L("req.id", req.id), L("err", fdb_err));
     res.status = 500;
     return res;
   }
@@ -307,7 +307,7 @@ handle_get_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
   DatabaseDecodePollResult decoded = db_decode_poll(value_slice);
   if (decoded.err) {
     log(LOG_LEVEL_ERROR, "failed to decode the poll from the db", arena,
-        L("req.id", req.id), L("err", (uint64_t)decoded.err));
+        L("req.id", req.id), L("err", decoded.err));
     res.err = decoded.err;
     return res;
   }
@@ -320,7 +320,7 @@ handle_get_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
   if (0 != (fdb_err = fdb_future_get_keyvalue_array(future_options, &db_keys,
                                                     &db_keys_len, &more))) {
     log(LOG_LEVEL_ERROR, "failed to get the value of the options future", arena,
-        L("req.id", req.id), L("err", (uint64_t)fdb_err));
+        L("req.id", req.id), L("err", fdb_err));
     res.status = 500;
     return res;
   }
@@ -390,8 +390,7 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
   {
     fdb_err = fdb_create_database("fdb.cluster", &db);
     if (0 != fdb_err) {
-      log(LOG_LEVEL_ERROR, "failed to connect to db", arena,
-          L("err", (uint64_t)fdb_err));
+      log(LOG_LEVEL_ERROR, "failed to connect to db", arena, L("err", fdb_err));
       exit(EINVAL);
     }
     ASSERT(nullptr != db);
@@ -436,5 +435,5 @@ int main() {
 
   Error err = http_server_run(HTTP_SERVER_DEFAULT_PORT, my_http_request_handler,
                               nullptr, &arena);
-  log(LOG_LEVEL_INFO, "http server stopped", &arena, L("error", (uint64_t)err));
+  log(LOG_LEVEL_INFO, "http server stopped", &arena, L("error", err));
 }
