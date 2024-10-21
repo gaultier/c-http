@@ -5,7 +5,6 @@
 #include <netinet/in.h>
 #include <pthread.h>
 #include <signal.h>
-#include <stdatomic.h>
 #include <stdint.h>
 #include <sys/signal.h>
 #include <sys/stat.h>
