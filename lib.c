@@ -544,26 +544,35 @@ typedef struct {
   LogValue value;
 } LogEntry;
 
-#define LCI(k, v)                                                              \
-  ((LogEntry){                                                                 \
-      .key = S(k),                                                             \
-      .value.kind = LV_U64,                                                    \
-      .value.n64 = v,                                                          \
-  })
+[[nodiscard]] static LogEntry log_entry_u64(Slice k, uint64_t v) {
+  return (LogEntry){
+      .key = k,
+      .value.kind = LV_U64,
+      .value.n64 = v,
+  };
+}
 
-#define LCII(k, v)                                                             \
-  ((LogEntry){                                                                 \
-      .key = S(k),                                                             \
-      .value.kind = LV_U128,                                                   \
-      .value.n128 = v,                                                         \
-  })
+[[nodiscard]] static LogEntry log_entry_u128(Slice k, __uint128_t v) {
+  return (LogEntry){
+      .key = k,
+      .value.kind = LV_U128,
+      .value.n128 = v,
+  };
+}
 
-#define LCS(k, v)                                                              \
-  ((LogEntry){                                                                 \
-      .key = S(k),                                                             \
-      .value.kind = LV_SLICE,                                                  \
-      .value.s = v,                                                            \
-  })
+[[nodiscard]] static LogEntry log_entry_slice(Slice k, Slice v) {
+  return (LogEntry){
+      .key = k,
+      .value.kind = LV_SLICE,
+      .value.s = v,
+  };
+}
+
+#define L(k, v)                                                                \
+  (_Generic((v),                                                               \
+      uint64_t: log_entry_u64,                                                 \
+      __uint128_t: log_entry_u128,                                             \
+      Slice: log_entry_slice)((S(k)), v))
 
 #define LOG_ARGS_COUNT(...)                                                    \
   (sizeof((LogEntry[]){__VA_ARGS__}) / sizeof(LogEntry))

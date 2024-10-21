@@ -185,7 +185,7 @@ handle_create_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
   fdb_error_t fdb_err = 0;
   if (0 != (fdb_err = fdb_database_create_transaction(db, &tx))) {
     log(LOG_LEVEL_ERROR, "failed to create db transaction", arena,
-        LCII("req.id", req.id), LCI("err", (uint64_t)fdb_err));
+        L("req.id", req.id), L("err", (uint64_t)fdb_err));
     res.status = 500;
     return res;
   }
@@ -212,13 +212,13 @@ handle_create_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
   ASSERT(nullptr != future);
   if (0 != (fdb_err = fdb_future_block_until_ready(future))) {
     log(LOG_LEVEL_ERROR, "failed to commit db transaction", arena,
-        LCII("req.id", req.id), LCI("err", (uint64_t)fdb_err));
+        L("req.id", req.id), L("err", (uint64_t)fdb_err));
     res.status = 500;
     return res;
   }
 
-  log(LOG_LEVEL_INFO, "created poll", arena, LCII("req.id", req.id),
-      LCI("poll.options.len", poll.options.len), LCS("poll.name", poll.name));
+  log(LOG_LEVEL_INFO, "created poll", arena, L("req.id", req.id),
+      L("poll.options.len", poll.options.len), L("poll.name", poll.name));
 
   res.status = 301;
 
@@ -391,7 +391,7 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
     fdb_err = fdb_create_database("fdb.cluster", &db);
     if (0 != fdb_err) {
       log(LOG_LEVEL_ERROR, "failed to connect to db", arena,
-          LCI("err", (uint64_t)fdb_err));
+          L("err", (uint64_t)fdb_err));
       exit(EINVAL);
     }
     ASSERT(nullptr != db);
@@ -436,5 +436,5 @@ int main() {
 
   Error err = http_server_run(HTTP_SERVER_DEFAULT_PORT, my_http_request_handler,
                               nullptr, &arena);
-  log(LOG_LEVEL_INFO, "http server stopped", &arena, LCI("error", err));
+  log(LOG_LEVEL_INFO, "http server stopped", &arena, L("error", (uint64_t)err));
 }
