@@ -53,7 +53,7 @@ static Slice db_make_poll_option_key(__uint128_t poll_id, Slice option,
   DynArrayU8 res = {0};
   dyn_array_u8_append_u128_hex(&res, poll_id, arena);
   *dyn_push(&res, arena) = '/';
-  dyn_append_length_prefixed_slice(&res, option, arena);
+  dyn_append_slice(&res, option, arena);
 
   return dyn_array_u8_to_slice(res);
 }
@@ -165,6 +165,10 @@ static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
   [[gnu::cleanup(destroy_future)]] FDBFuture *future_poll =
       fdb_transaction_get(tx, poll_id.data, (int)poll_id.len, false);
 
+  DynArrayU8 range_key_start = {0};
+  dyn_append_slice(&range_key_start, poll_id, arena);
+  *dyn_push(&range_key_start, arena) = '/';
+
   DynArrayU8 range_key_end = {0};
   dyn_append_slice(&range_key_end, poll_id, arena);
   *dyn_push(&range_key_end, arena) = '/';
@@ -173,8 +177,8 @@ static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
   [[gnu::cleanup(destroy_future)]] FDBFuture *future_options =
       fdb_transaction_get_range(
           tx,
-          FDB_KEYSEL_FIRST_GREATER_THAN( // TODO: Use `<poll id>/` as key start?
-              poll_id.data, (int)poll_id.len),
+          FDB_KEYSEL_FIRST_GREATER_OR_EQUAL(range_key_start.data,
+                                            (int)range_key_start.len),
           FDB_KEYSEL_FIRST_GREATER_OR_EQUAL(range_key_end.data,
                                             (int)range_key_end.len),
           32, 0, FDB_STREAMING_MODE_WANT_ALL, 0, 0, 0);
@@ -270,21 +274,11 @@ static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
     Slice db_key_s = {.data = (uint8_t *)db_key.key,
                       .len = (uint64_t)db_key.key_length};
 
-    if (slice_is_empty(db_key_s)) {
+    if (slice_is_empty(db_key_s) || db_key_s.len < 32 + 1) {
       continue;
     }
 
-    SplitIterator split_it = slice_split_it(db_key_s, '/');
-    SplitResult split_res = slice_split_next(&split_it);
-    if (!split_res.ok) {
-      log(LOG_LEVEL_ERROR, "invalid key", arena, LCII("req.id", req.id),
-          LCS("key", db_key_s));
-      res.status = 500;
-      return res;
-    }
-
-    split_res = slice_split_next(&split_it);
-    Slice option = split_res.slice;
+    Slice option = slice_range(db_key_s, 32 + 1, 0);
 
     // TODO: Better HTML.
     dyn_append_slice(&resp_body, S("<span>"), arena);
