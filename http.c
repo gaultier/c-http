@@ -282,6 +282,8 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
 
 [[nodiscard]] static DynArraySlice http_parse_relative_path(Slice s,
                                                             Arena *arena) {
+  ASSERT(slice_starts_with(s, S("/")));
+
   DynArraySlice res = {0};
 
   SplitIterator split_it_question = slice_split(s, '?');
@@ -693,6 +695,13 @@ static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
 http_client_request(struct sockaddr *addr, uint32_t addr_sizeof,
                     HttpRequest req, Arena *arena) {
   HttpResponse res = {0};
+
+  if (!slice_is_empty(req.path_raw)) {
+    // Should use `req.path_components`, not `path.raw`.
+    res.err = EINVAL;
+    return res;
+  }
+
   if (HM_UNKNOWN == req.method) {
     res.err = EINVAL;
     return res;
@@ -712,8 +721,10 @@ http_client_request(struct sockaddr *addr, uint32_t addr_sizeof,
   DynArrayU8 sb = {0};
   dyn_append_slice(&sb, http_method_to_s(req.method), arena);
   dyn_append_slice(&sb, S(" /"), arena);
+
   for (uint64_t i = 0; i < req.path_components.len; i++) {
     Slice path_component = dyn_at(req.path_components, i);
+    // TODO: Need to url encode?
     dyn_append_slice(&sb, path_component, arena);
     *dyn_push(&sb, arena) = '/';
   }

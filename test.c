@@ -236,7 +236,11 @@ static HttpResponse handle_request_post(HttpRequest req, void *ctx,
 
   ASSERT(HM_POST == req.method);
   ASSERT(slice_eq(S("foo\nbar"), req.body));
-  ASSERT(slice_eq(S("/comment"), req.path_raw));
+  ASSERT(slice_eq(S("/comment"), req.path_raw) ||
+         slice_eq(S("/comment/"), req.path_raw));
+  ASSERT(1 == req.path_components.len);
+  Slice path0 = dyn_at(req.path_components, 0);
+  ASSERT(slice_eq(path0, S("comment")));
 
   HttpResponse res = {0};
   res.status = 201;
@@ -277,9 +281,10 @@ static void test_http_server_post() {
       };
       HttpRequest req = {
           .method = HM_POST,
-          .path_raw = S("/comment"),
           .body = S("foo\nbar"),
       };
+      *dyn_push(&req.path_components, &arena) = S("comment");
+
       http_push_header(&req.headers, S("Content-Type"), S("text/plain"),
                        &arena);
       http_push_header(&req.headers, S("Content-Length"), S("7"), &arena);
@@ -323,7 +328,11 @@ static HttpResponse handle_request_file(HttpRequest req, void *ctx,
 
   ASSERT(HM_GET == req.method);
   ASSERT(slice_is_empty(req.body));
-  ASSERT(slice_eq(S("/index.html"), req.path_raw));
+  ASSERT(slice_eq(S("/index.html"), req.path_raw) ||
+         slice_eq(S("/index.html/"), req.path_raw));
+  ASSERT(1 == req.path_components.len);
+  Slice path0 = dyn_at(req.path_components, 0);
+  ASSERT(slice_eq(path0, S("index.html")));
 
   HttpResponse res = {0};
   res.status = 200;
@@ -334,7 +343,7 @@ static HttpResponse handle_request_file(HttpRequest req, void *ctx,
 }
 
 static void test_http_server_serve_file() {
-  Arena arena = arena_make_from_virtual_mem(4096);
+  Arena arena = arena_make_from_virtual_mem(8192);
 
   // The http server runs in its own child process.
   // The parent process acts as a HTTP client contacting the server.
@@ -354,8 +363,8 @@ static void test_http_server_serve_file() {
       };
       HttpRequest req = {
           .method = HM_GET,
-          .path_raw = S("/index.html"),
       };
+      *dyn_push(&req.path_components, &arena) = S("index.html");
       HttpResponse resp = http_client_request((struct sockaddr *)&addr,
                                               sizeof(addr), req, &arena);
 
@@ -406,7 +415,15 @@ static void test_http_server_serve_file() {
   }
 }
 
-typedef void (*TestFn)();
+static void test_form_data_parse() {
+  Arena arena = arena_make_from_virtual_mem(4096);
+
+  Slice form_data_raw = S("foo=bar&name=hello+world&option=%E6%97%A5&option=!");
+  FormDataParseResult parsed = form_data_parse(form_data_raw, &arena);
+  ASSERT(!parsed.err);
+
+  // TODO: more checks.
+}
 
 int main() {
   test_slice_indexof_slice();
@@ -419,4 +436,5 @@ int main() {
   test_dyn_ensure_cap();
   test_http_server_post();
   test_http_server_serve_file();
+  test_form_data_parse();
 }
