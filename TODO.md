@@ -4,7 +4,8 @@
 - [ ] TLS
 - [ ] e2e tests
 - [x] Proper encoding/decoding with db
-- [ ] Shorter urls
+- [ ] Use db tenants
+- [ ] Shorter urls: Either use the first N bytes of the poll id, or use one indirection level
 - [ ] Html builder
 - [ ] Full stacktrace (better assert)
 - [ ] Cast a vote (user = `hash(user-agent)`?)
