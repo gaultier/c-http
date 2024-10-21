@@ -6,7 +6,7 @@ MVP:
 - [ ] e2e tests
 - [ ] Html builder
 - [ ] Cast a vote (user = `hash(user-agent)`?)
-- [ ] Finish a poll
+- [ ] Close a poll
 - [ ] See poll results
 - [ ] Improve UX for writing logs
 - [ ] Collect logs into clickhouse
@@ -28,3 +28,4 @@ QoL:
 - [ ] Button to copy url to clipboard
 - [ ] Use db tenants
 - [ ] Embed static files (if any)
+- [ ] Retake a poll
