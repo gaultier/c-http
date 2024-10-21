@@ -80,7 +80,8 @@ static HttpResponse my_http_request_handler(HttpRequest req, void *ctx,
     // TODO: use attribute(cleanup).
     fdb_future_destroy(future);
   } else if (HM_GET == req.method && slice_starts_with(req.path, S("/poll/")) &&
-             req.path.len > S("/poll/").len) {
+             req.path.len >
+                 S("/poll/").len) { // TODO: parse path into components.
     // Get poll.
     FDBTransaction *tx = nullptr;
     fdb_error_t fdb_err = 0;
@@ -93,7 +94,6 @@ static HttpResponse my_http_request_handler(HttpRequest req, void *ctx,
     ASSERT(nullptr != tx);
 
     SplitIterator it = slice_split_it(req.path, '/');
-    ASSERT(slice_split_next(&it).ok);
     ASSERT(slice_split_next(&it).ok);
     SplitResult split = slice_split_next(&it);
     if (!split.ok || split.slice.len != 32) {
