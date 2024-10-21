@@ -4,14 +4,14 @@ MVP:
 - [x] Db
 - [x] Proper encoding/decoding with db
 - [x] Improve UX for writing logs
+- [ ] Clearly split db & html rendering steps
 - [ ] Html builder
 - [ ] Cast a vote (user = `hash(user-agent)`?)
-- [ ] Close a poll
+- [ ] Close a poll (admin role?)
 - [ ] See poll results
 - [ ] Collect logs into clickhouse
 - [ ] Easy request duration stats (from clickhouse or dtrace/strace)
 - [ ] Monkey testing/fuzz testing [Last]
-- [ ] Clearly split db & html rendering steps
 - [ ] Test with non ascii strings
 - [ ] Test with Chrome
 - [ ] e2e tests
