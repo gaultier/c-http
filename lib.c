@@ -657,5 +657,7 @@ static Error os_sendfile(int fd_in, int fd_out, uint64_t n_bytes) {
     return (Error)errno;
   }
   return 0;
+#else
+#error "sendfile(2) not implemented on other OSes than Linux/FreeBSD."
 #endif
 }
