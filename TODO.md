@@ -5,7 +5,10 @@
 - [ ] e2e tests
 - [x] Proper encoding/decoding with db
 - [ ] Use db tenants
-- [ ] Shorter urls: Either use the first N bytes of the poll id, or use one indirection level
+- [ ] Shorter urls: 
+    - Use the first N bytes of the poll id
+    - Use one indirection level
+    - Use readable english words
 - [ ] Html builder
 - [ ] Full stacktrace (better assert)
 - [ ] Cast a vote (user = `hash(user-agent)`?)
@@ -14,4 +17,6 @@
 - [ ] Improve UX for logs
 - [ ] Collect logs into clickhouse
 - [ ] Monkey testing/fuzz testing [Last]
+- [ ] Poll TTL & GC
+- [ ] Live poll timer
 
