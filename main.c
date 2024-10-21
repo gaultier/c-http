@@ -400,8 +400,7 @@ static HttpResponse my_http_request_handler(HttpRequest req, void *ctx,
              slice_eq(path0, S("poll"))) {
     return handle_create_poll(req, db, arena);
   } else if (HM_GET == req.method && 2 == req.path_components.len &&
-             slice_eq(path0, S("poll")) &&
-             32 == path1.len) { // TODO: parse path into components.
+             slice_eq(path0, S("poll")) && 32 == path1.len) {
     return handle_get_poll(req, db, arena);
   } else { // TODO: Vote in poll.
     HttpResponse res = {0};

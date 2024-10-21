@@ -6,4 +6,5 @@
 - [x] Proper encoding/decoding with db
 - [ ] Shorter urls
 - [ ] Html builder
+- [ ] Full stacktrace (better assert)
 

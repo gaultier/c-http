@@ -439,8 +439,6 @@ static void test_form_data_parse() {
 
   ASSERT(slice_eq(kv3.key, S("option")));
   ASSERT(slice_eq(kv3.value, S("!")));
-
-  // TODO: more checks.
 }
 
 int main() {
