@@ -11,6 +11,7 @@ typedef enum : uint8_t {
 typedef struct {
   PollState state;
   Slice name;
+  DynArraySlice options;
   // TODO: creation date, etc.
 } Poll;
 
@@ -41,14 +42,17 @@ static HttpResponse handle_create_poll(HttpRequest req, FDBDatabase *db,
     return res;
   }
 
-  Slice poll_name = {0};
+  Poll poll = {.state = POLL_STATE_CREATED};
   {
     for (uint64_t i = 0; i < form.form.len; i++) {
       FormDataKV kv = dyn_at(form.form, i);
       if (slice_eq(kv.key, S("name"))) {
-        poll_name = kv.value;
-        break;
+        poll.name = kv.value;
+      } else if (slice_eq(kv.key, S("poll"))) {
+        *dyn_push(&poll.options, arena) = kv.value;
       }
+      // Ignore unknown form data.
+      // TODO: Should it be an error?
     }
   }
 
@@ -65,8 +69,6 @@ static HttpResponse handle_create_poll(HttpRequest req, FDBDatabase *db,
     return res;
   }
   ASSERT(nullptr != tx);
-
-  Poll poll = {.state = POLL_STATE_CREATED, .name = poll_name};
 
   {
     DynArrayU8 key = {0};

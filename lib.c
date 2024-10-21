@@ -386,6 +386,11 @@ typedef struct {
   uint64_t len, cap;
 } DynArrayU8;
 
+typedef struct {
+  Slice *data;
+  uint64_t len, cap;
+} DynArraySlice;
+
 #define dyn_push(s, arena)                                                     \
   (dyn_ensure_cap(s, (s)->len + 1, arena), (s)->data + (s)->len++)
 
