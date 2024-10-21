@@ -23,14 +23,49 @@ static void *run_fdb_network(void *) {
   return nullptr;
 }
 
-static Slice db_make_poll_key(__uint128_t poll_id, Arena *arena) {
+[[nodiscard]] static Slice db_make_poll_key_from_hex_id(Slice poll_id,
+                                                        Arena *arena) {
   DynArrayU8 res = {0};
-  dyn_array_u8_append_u128_hex(&res, poll_id, arena);
+  dyn_append_slice(&res, S("poll/"), arena);
+  dyn_append_slice(&res, poll_id, arena);
 
   return dyn_array_u8_to_slice(res);
 }
 
-static Slice db_make_poll_value(Poll poll, Arena *arena) {
+[[nodiscard]] static Slice db_make_poll_key_from_id(__uint128_t poll_id,
+                                                    Arena *arena) {
+  DynArrayU8 res = {0};
+  dyn_array_u8_append_u128_hex(&res, poll_id, arena);
+
+  return db_make_poll_key_from_hex_id(dyn_array_u8_to_slice(res), arena);
+}
+
+[[nodiscard]] static Slice db_make_poll_key_range_start(Slice poll_id,
+                                                        Arena *arena) {
+  ASSERT(32 == poll_id.len);
+
+  DynArrayU8 res = {0};
+  dyn_append_slice(&res, S("poll/"), arena);
+  dyn_append_slice(&res, poll_id, arena);
+  dyn_append_slice(&res, S("/"), arena);
+
+  return dyn_array_u8_to_slice(res);
+}
+
+[[nodiscard]] static Slice db_make_poll_key_range_end(Slice poll_id,
+                                                      Arena *arena) {
+  ASSERT(32 == poll_id.len);
+
+  DynArrayU8 res = {0};
+  dyn_append_slice(&res, S("poll/"), arena);
+  dyn_append_slice(&res, poll_id, arena);
+  dyn_append_slice(&res, S("/"), arena);
+  *dyn_push(&res, arena) = 0xff;
+
+  return dyn_array_u8_to_slice(res);
+}
+
+[[nodiscard]] static Slice db_make_poll_value(Poll poll, Arena *arena) {
   DynArrayU8 res = {0};
   dyn_append_slice(&res, S("state="), arena);
   dyn_array_u8_append_u64(&res, poll.state, arena);
@@ -42,9 +77,10 @@ static Slice db_make_poll_value(Poll poll, Arena *arena) {
   return dyn_array_u8_to_slice(res);
 }
 
-static Slice db_make_poll_option_key(__uint128_t poll_id, Slice option,
-                                     Arena *arena) {
+[[nodiscard]] static Slice db_make_poll_option_key(__uint128_t poll_id,
+                                                   Slice option, Arena *arena) {
   DynArrayU8 res = {0};
+  dyn_append_slice(&res, S("poll/"), arena);
   dyn_array_u8_append_u128_hex(&res, poll_id, arena);
   *dyn_push(&res, arena) = '/';
   dyn_append_slice(&res, option, arena);
@@ -163,7 +199,7 @@ handle_create_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
   ASSERT(nullptr != tx);
 
   {
-    Slice key = db_make_poll_key(poll_id, arena);
+    Slice key = db_make_poll_key_from_id(poll_id, arena);
     Slice value = db_make_poll_value(poll, arena);
     fdb_transaction_set(tx, (uint8_t *)key.data, (int)key.len, value.data,
                         (int)value.len);
@@ -203,8 +239,8 @@ handle_create_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
   return res;
 }
 
-static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
-                                    Arena *arena) {
+[[nodiscard]] static HttpResponse
+handle_get_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
   ASSERT(2 == req.path_components.len);
   Slice poll_id = dyn_at(req.path_components, 1);
   ASSERT(32 == poll_id.len);
@@ -221,17 +257,12 @@ static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
   }
   ASSERT(nullptr != tx);
 
+  Slice poll_key = db_make_poll_key_from_hex_id(poll_id, arena);
   FDBFuture *future_poll =
-      fdb_transaction_get(tx, poll_id.data, (int)poll_id.len, false);
+      fdb_transaction_get(tx, poll_key.data, (int)poll_key.len, false);
 
-  DynArrayU8 range_key_start = {0};
-  dyn_append_slice(&range_key_start, poll_id, arena);
-  *dyn_push(&range_key_start, arena) = '/';
-
-  DynArrayU8 range_key_end = {0};
-  dyn_append_slice(&range_key_end, poll_id, arena);
-  *dyn_push(&range_key_end, arena) = '/';
-  *dyn_push(&range_key_end, arena) = 0xff;
+  Slice range_key_start = db_make_poll_key_range_start(poll_id, arena);
+  Slice range_key_end = db_make_poll_key_range_end(poll_id, arena);
 
   FDBFuture *future_options = fdb_transaction_get_range(
       tx,
@@ -352,8 +383,8 @@ static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
   return res;
 }
 
-static HttpResponse my_http_request_handler(HttpRequest req, void *ctx,
-                                            Arena *arena) {
+[[nodiscard]] static HttpResponse
+my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
   ASSERT(0 == req.err);
   (void)ctx;
 
