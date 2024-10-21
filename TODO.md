@@ -27,3 +27,4 @@ QoL:
 - [ ] Translations
 - [ ] Button to copy url to clipboard
 - [ ] Use db tenants
+- [ ] Embed static files (if any)
