@@ -7,4 +7,9 @@
 - [ ] Shorter urls
 - [ ] Html builder
 - [ ] Full stacktrace (better assert)
+- [ ] Cast a vote (user = `hash(user-agent)`?)
+- [ ] Finish a poll
+- [ ] See poll results
+- [ ] Improve UX for logs
+- [ ] Collect logs into clickhouse
 
