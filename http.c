@@ -825,6 +825,8 @@ form_data_kv_parse_element(Slice in, uint8_t ch_terminator, Arena *arena) {
 
     if (ch_is_unreserved_in_percent_encoding(c)) {
       *dyn_push(&data, arena) = c;
+    } else if ('+' == c) {
+      *dyn_push(&data, arena) = ' ';
     } else if ('%' == c) {
       if ((in.len - i) < 2) {
         res.err = HS_ERR_INVALID_FORM_DATA;
