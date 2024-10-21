@@ -429,17 +429,6 @@ static void dyn_array_u8_append_u64(DynArrayU8 *dyn, uint64_t n, Arena *arena) {
   dyn_append_slice(dyn, slice, arena);
 }
 
-// FIXME: Proper encoding & rm.
-[[maybe_unused]] static void
-dyn_append_length_prefixed_slice(DynArrayU8 *dyn, Slice slice, Arena *arena) {
-  Slice len = {
-      .data = (uint8_t *)&slice.len,
-      .len = sizeof(slice.len),
-  };
-  dyn_append_slice(dyn, len, arena);
-  dyn_append_slice(dyn, slice, arena);
-}
-
 [[nodiscard]] static uint8_t u8_to_ch_hex(uint8_t n) {
   ASSERT(n < 16);
 

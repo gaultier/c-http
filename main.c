@@ -1,5 +1,6 @@
 #include "http.c"
 #include <foundationdb/fdb_c_options.g.h>
+#include <stdckdint.h>
 #define FDB_API_VERSION 710
 #include <foundationdb/fdb_c.h>
 
@@ -7,6 +8,7 @@ typedef enum : uint8_t {
   POLL_STATE_CREATED,
   POLL_STATE_OPEN,
   POLL_STATE_CLOSED,
+  POLL_STATE_MAX, // Pseudo-value.
 } PollState;
 
 typedef struct {
@@ -30,8 +32,12 @@ static Slice db_make_poll_key(__uint128_t poll_id, Arena *arena) {
 
 static Slice db_make_poll_value(Poll poll, Arena *arena) {
   DynArrayU8 res = {0};
-  *dyn_push(&res, arena) = poll.state;
-  dyn_append_length_prefixed_slice(&res, poll.name, arena);
+  dyn_append_slice(&res, S("state="), arena);
+  dyn_array_u8_append_u64(&res, poll.state, arena);
+  dyn_append_slice(&res, S("&"), arena);
+
+  dyn_append_slice(&res, S("name="), arena);
+  dyn_append_slice(&res, poll.name, arena);
 
   return dyn_array_u8_to_slice(res);
 }
@@ -46,8 +52,80 @@ static Slice db_make_poll_option_key(__uint128_t poll_id, Slice option,
   return dyn_array_u8_to_slice(res);
 }
 
-static HttpResponse handle_create_poll(HttpRequest req, FDBDatabase *db,
-                                       Arena *arena) {
+typedef struct {
+  Poll poll;
+  Error err;
+} DatabaseDecodePollResult;
+
+[[nodiscard]] static DatabaseDecodePollResult db_decode_poll(Slice s) {
+  DatabaseDecodePollResult res = {0};
+
+  SplitIterator split_it_ampersand = slice_split(s, '&');
+  // `state=<state>`
+  {
+    SplitResult kv = slice_split_next(&split_it_ampersand);
+    if (!kv.ok) {
+      res.err = EINVAL;
+      return res;
+    }
+
+    SplitIterator split_it_equal = slice_split(kv.slice, '=');
+    SplitResult key = slice_split_next(&split_it_equal);
+    if (!key.ok) {
+      res.err = EINVAL;
+      return res;
+    }
+
+    SplitResult value = slice_split_next(&split_it_equal);
+    if (!value.ok) {
+      res.err = EINVAL;
+      return res;
+    }
+
+    if (1 != value.slice.len) {
+      res.err = EINVAL;
+      return res;
+    }
+
+    uint8_t state = AT(value.slice.data, value.slice.len, 0);
+    ASSERT(false == ckd_sub(&state, state, '0'));
+
+    if (state >= POLL_STATE_MAX) {
+      res.err = EINVAL;
+      return res;
+    }
+    res.poll.state = state;
+  }
+
+  // `name=<name>`
+  {
+    SplitResult kv = slice_split_next(&split_it_ampersand);
+    if (!kv.ok) {
+      res.err = EINVAL;
+      return res;
+    }
+
+    SplitIterator split_it_equal = slice_split(kv.slice, '=');
+    SplitResult key = slice_split_next(&split_it_equal);
+    if (!key.ok) {
+      res.err = EINVAL;
+      return res;
+    }
+
+    SplitResult value = slice_split_next(&split_it_equal);
+    if (!value.ok) {
+      res.err = EINVAL;
+      return res;
+    }
+
+    res.poll.name = value.slice;
+  }
+
+  return res;
+}
+
+[[nodiscard]] static HttpResponse
+handle_create_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
   HttpResponse res = {0};
 
   FormDataParseResult form = form_data_parse(req.body, arena);
@@ -201,20 +279,16 @@ static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
     return res;
   }
 
-  if ((uint64_t)value_len <
-      (uint64_t)sizeof(PollState) + (uint64_t)sizeof(uint64_t)) {
-    log(LOG_LEVEL_ERROR, "invalid size of value for poll", arena,
-        LCII("req.id", req.id), LCI("value.len", (uint64_t)value_len));
-    res.status = 500;
+  Slice value_slice = {.data = (uint8_t *)value, .len = (uint64_t)value_len};
+  DatabaseDecodePollResult decoded = db_decode_poll(value_slice);
+  if (decoded.err) {
+    log(LOG_LEVEL_ERROR, "failed to decode the poll from the db", arena,
+        LCII("req.id", req.id), LCI("err", (uint64_t)decoded.err));
+    res.err = decoded.err;
     return res;
   }
 
-  Poll poll = {0};
-  poll.state = AT(value, value_len, 0); // The enum range is checked below.
-  // FIXME: Allow empty name.
-  memcpy(&poll.name.len, value + 1, sizeof(poll.name.len));
-  poll.name.data =
-      (uint8_t *)AT_PTR(value, value_len, 1 + sizeof(poll.name.len));
+  Poll poll = decoded.poll;
 
   const FDBKeyValue *db_keys = nullptr;
   int db_keys_len = 0;
@@ -245,6 +319,8 @@ static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
   case POLL_STATE_CLOSED:
     dyn_append_slice(&resp_body, S(" is closed."), arena);
     break;
+  case POLL_STATE_MAX:
+    [[fallthrough]];
   default:
     ASSERT(0);
   }
@@ -305,8 +381,9 @@ static HttpResponse my_http_request_handler(HttpRequest req, void *ctx,
   Slice path1 = req.path_components.len >= 2 ? dyn_at(req.path_components, 1)
                                              : (Slice){0};
   // Home page.
-  if (HM_GET == req.method &&
-      ((req.path_components.len == 0) || (slice_eq(path0, S("index.html"))))) {
+  if (HM_GET == req.method && ((req.path_components.len == 0) ||
+                               ((req.path_components.len == 1) &&
+                                (slice_eq(path0, S("index.html")))))) {
     HttpResponse res = {0};
     res.status = 200;
     http_push_header(&res.headers, S("Content-Type"), S("text/html"), arena);
@@ -323,7 +400,7 @@ static HttpResponse my_http_request_handler(HttpRequest req, void *ctx,
              slice_eq(path0, S("poll"))) {
     return handle_create_poll(req, db, arena);
   } else if (HM_GET == req.method && 2 == req.path_components.len &&
-             slice_starts_with(path1, S("poll/")) &&
+             slice_eq(path0, S("poll")) &&
              32 == path1.len) { // TODO: parse path into components.
     return handle_get_poll(req, db, arena);
   } else { // TODO: Vote in poll.
