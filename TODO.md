@@ -1,23 +1,29 @@
+MVP:
 - [x] Parse request path into components
 - [x] Parse form fields
 - [x] Db
-- [ ] TLS
-- [ ] e2e tests
 - [x] Proper encoding/decoding with db
+- [ ] e2e tests
 - [ ] Use db tenants
-- [ ] Shorter urls: 
-    - Use the first N bytes of the poll id
-    - Use one indirection level
-    - Use readable english words
 - [ ] Html builder
-- [ ] Full stacktrace (better assert)
 - [ ] Cast a vote (user = `hash(user-agent)`?)
 - [ ] Finish a poll
 - [ ] See poll results
-- [ ] Improve UX for logs
+- [ ] Improve UX for writing logs
 - [ ] Collect logs into clickhouse
 - [ ] Monkey testing/fuzz testing [Last]
-- [ ] Poll TTL & GC
-- [ ] Live poll timer
 - [ ] Clearly split db & html rendering steps
+- [ ] Test with non ascii strings
+- [ ] Test with Chrome
 
+QoL:
+- [ ] Live poll timer
+- [ ] Poll TTL & GC
+- [ ] Full stacktrace (better assert)
+- [ ] Shorter urls:
+    - Use the first N bytes of the poll id
+    - Use one indirection level
+    - Use readable english words
+- [ ] TLS
+- [ ] Translations
+- [ ] Button to copy url to clipboard
