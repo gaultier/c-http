@@ -5,4 +5,5 @@
 - [ ] e2e tests
 - [ ] Proper encoding/decoding with db
 - [ ] Shorter urls
+- [ ] Html builder
 

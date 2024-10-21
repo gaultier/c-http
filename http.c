@@ -51,7 +51,6 @@ typedef struct {
   Slice path; // FIXME: Should be a parsed URL/URI.
   HttpMethod method;
   DynArrayHttpHeaders headers;
-  // TODO: fill.
   Slice body;
   Error err;
 } HttpRequest;
@@ -770,6 +769,7 @@ typedef struct {
 } DynArrayFormData;
 
 typedef struct {
+  // NOTE: Repeated keys are allowed, that's how 'arrays' are encoded.
   DynArrayFormData form;
   Error err;
 } FormDataParseResult;
@@ -883,7 +883,5 @@ form_data_kv_parse_element(Slice in, uint8_t ch_terminator, Arena *arena) {
 
     remaining = kv.remaining;
   }
-
-  // TODO: Check unicity of keys or use a hashmap from the start.
   return res;
 }

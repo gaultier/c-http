@@ -492,8 +492,6 @@ static void dyn_array_u8_append_u128_hex(DynArrayU8 *dyn, __uint128_t n,
   return (factor + 1) * n;
 }
 
-// TODO: Should we mmap a page right after that is neither readable nor writable
-// to catch bugs?
 [[nodiscard]] static Arena arena_make_from_virtual_mem(uint64_t size) {
   uint64_t page_size = (uint64_t)sysconf(_SC_PAGE_SIZE); // FIXME
   uint64_t alloc_real_size = round_up_multiple_of(size, page_size);
