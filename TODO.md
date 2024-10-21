@@ -3,7 +3,6 @@ MVP:
 - [x] Parse form fields
 - [x] Db
 - [x] Proper encoding/decoding with db
-- [ ] e2e tests
 - [ ] Html builder
 - [ ] Cast a vote (user = `hash(user-agent)`?)
 - [ ] Close a poll
@@ -14,6 +13,7 @@ MVP:
 - [ ] Clearly split db & html rendering steps
 - [ ] Test with non ascii strings
 - [ ] Test with Chrome
+- [ ] e2e tests
 
 QoL:
 - [ ] Live poll timer
