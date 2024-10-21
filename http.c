@@ -566,6 +566,7 @@ static void handle_client(int socket, HttpRequestHandleFn handle, void *ctx) {
   }
 
   HttpResponse res = handle(req, ctx, &arena);
+  http_push_header(&res.headers, S("Connection"), S("close"), &arena);
 
   Writer writer = writer_make_from_socket(socket);
   Error err = response_write(writer, res, &arena);
@@ -584,6 +585,8 @@ static void handle_client(int socket, HttpRequestHandleFn handle, void *ctx) {
       LCS("req.method", http_method_to_s(req.method)),
       LCS("res.file_path", res.file_path), LCI("res.body.len", res.body.len),
       LCII("req.id", req.id));
+
+  close(socket);
 }
 
 typedef struct {
@@ -592,7 +595,7 @@ typedef struct {
   void *ctx;
 } HandlerData;
 
-static void *thrd_handle_client(void *arg) {
+static void *thread_handle_client(void *arg) {
   ASSERT(nullptr != arg);
 
   HandlerData copy = {0};
@@ -603,7 +606,6 @@ static void *thrd_handle_client(void *arg) {
   }
 
   handle_client(copy.socket, copy.request_handler, copy.ctx);
-  close(copy.socket);
   return nullptr;
 }
 
@@ -678,7 +680,7 @@ static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
         .request_handler = request_handler,
         .ctx = ctx,
     };
-    ASSERT(0 == pthread_create(&handler, nullptr, thrd_handle_client, data));
+    ASSERT(0 == pthread_create(&handler, nullptr, thread_handle_client, data));
     ASSERT(0 == pthread_detach(handler));
   }
 }

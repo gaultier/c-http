@@ -166,12 +166,10 @@ static HttpResponse my_http_request_handler(HttpRequest req, void *ctx,
   FDBDatabase *db = ctx;
   ASSERT(nullptr != db);
 
-  HttpResponse res = {0};
-  http_push_header(&res.headers, S("Connection"), S("close"), arena);
-
   // Home page.
   if (HM_GET == req.method &&
       (slice_eq(req.path, S("/")) || slice_eq(req.path, S("/index.html")))) {
+    HttpResponse res = {0};
     res.status = 200;
     http_push_header(&res.headers, S("Content-Type"), S("text/html"), arena);
     http_response_register_file_for_sending(&res, S("index.html"));
@@ -185,12 +183,15 @@ static HttpResponse my_http_request_handler(HttpRequest req, void *ctx,
              slice_starts_with(req.path, S("/poll/")) &&
              req.path.len > S("/poll/").len) {
     // Vote for poll.
+    HttpResponse res = {0};
     res.status = 500; // TODO
+    return res;
   } else {
+    HttpResponse res = {0};
     res.status = 404;
+    return res;
   }
-
-  return res;
+  ASSERT(0);
 }
 
 int main() {
