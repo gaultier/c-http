@@ -9,6 +9,7 @@ MVP:
 - [ ] Close a poll
 - [ ] See poll results
 - [ ] Collect logs into clickhouse
+- [ ] Easy request duration stats (from clickhouse or dtrace/strace)
 - [ ] Monkey testing/fuzz testing [Last]
 - [ ] Clearly split db & html rendering steps
 - [ ] Test with non ascii strings
