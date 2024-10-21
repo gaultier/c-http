@@ -7,13 +7,14 @@ MVP:
 - [ ] Cast a vote (user = `hash(user-agent)`?)
 - [ ] Close a poll
 - [ ] See poll results
-- [ ] Improve UX for writing logs
+- [x] Improve UX for writing logs
 - [ ] Collect logs into clickhouse
 - [ ] Monkey testing/fuzz testing [Last]
 - [ ] Clearly split db & html rendering steps
 - [ ] Test with non ascii strings
 - [ ] Test with Chrome
 - [ ] e2e tests
+- [ ] Vendor fdb_c
 
 QoL:
 - [ ] Live poll timer
