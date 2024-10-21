@@ -178,7 +178,8 @@ handle_create_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
   }
 
   __uint128_t poll_id = 0;
-  // FIXME: Should be `req.form.id` for idempotency.
+  // NOTE: It's not idempotent since the client did not provided the id.
+  // But in our case it's fine (random id + optional, non-unique name).
   arc4random_buf(&poll_id, sizeof(poll_id));
 
   FDBTransaction *tx = nullptr;
