@@ -217,6 +217,7 @@ static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
 
   Poll poll = {0};
   poll.state = AT(value, value_len, 0); // The enum range is checked below.
+  // FIXME: Allow empty name.
   memcpy(&poll.name.len, value + 1, sizeof(poll.name.len));
   poll.name.data =
       (uint8_t *)AT_PTR(value, value_len, 1 + sizeof(poll.name.len));
