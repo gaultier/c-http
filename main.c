@@ -71,6 +71,7 @@ static void *run_fdb_network(void *) {
   dyn_append_slice(&res, S("&"), arena);
 
   dyn_append_slice(&res, S("name="), arena);
+  // FIXME: Percent-encode.
   dyn_append_slice(&res, poll.name, arena);
 
   return dyn_array_u8_to_slice(res);
@@ -82,6 +83,7 @@ static void *run_fdb_network(void *) {
   dyn_append_slice(&res, S("poll/"), arena);
   dyn_array_u8_append_u128_hex(&res, poll_id, arena);
   *dyn_push(&res, arena) = '/';
+  // FIXME: Percent-encode.
   dyn_append_slice(&res, option, arena);
 
   return dyn_array_u8_to_slice(res);
@@ -133,6 +135,7 @@ typedef struct {
   }
 
   // `name=<name>`
+  // FIXME: Percent-decode.
   {
     SplitResult kv = slice_split_next(&split_it_ampersand);
     if (!kv.ok) {
