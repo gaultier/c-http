@@ -17,8 +17,8 @@ case $1 in
   debug)
     EXTRA_FLAGS="-O0"
     ;;
-  asan)
-    EXTRA_FLAGS="-fsanitize=address,undefined"
+  sanitizer)
+    EXTRA_FLAGS="-fsanitize=undefined"
     ;;
   release)
     EXTRA_FLAGS="-O3 -march=native"
