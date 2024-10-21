@@ -595,9 +595,15 @@ typedef struct {
 static void *thrd_handle_client(void *arg) {
   ASSERT(nullptr != arg);
 
-  HandlerData *data = arg;
-  handle_client(data->socket, data->request_handler, data->ctx);
-  close(data->socket);
+  HandlerData copy = {0};
+  {
+    HandlerData *data = (HandlerData *)arg;
+    copy = *data;
+    free(data);
+  }
+
+  handle_client(copy.socket, copy.request_handler, copy.ctx);
+  close(copy.socket);
   return nullptr;
 }
 
@@ -663,12 +669,16 @@ static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
     }
 
     pthread_t handler = {0};
-    HandlerData data = {
+    // TODO: thread pool + associated data?
+    HandlerData *data = calloc(sizeof(HandlerData), 1);
+    ASSERT(nullptr != data);
+
+    *data = (HandlerData){
         .socket = conn_fd,
         .request_handler = request_handler,
         .ctx = ctx,
     };
-    ASSERT(0 == pthread_create(&handler, nullptr, thrd_handle_client, &data));
+    ASSERT(0 == pthread_create(&handler, nullptr, thrd_handle_client, data));
     ASSERT(0 == pthread_detach(handler));
   }
 }
