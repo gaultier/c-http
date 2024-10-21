@@ -869,17 +869,6 @@ form_data_kv_parse_element(Slice in, uint8_t ch_terminator, Arena *arena) {
   res.kv.key = key_parsed.data;
 
   remaining = key_parsed.remaining;
-  if (slice_is_empty(remaining)) {
-    res.err = HS_ERR_INVALID_FORM_DATA;
-    return res;
-  }
-
-  if ('=' != remaining.data[0]) {
-    res.err = HS_ERR_INVALID_FORM_DATA;
-    return res;
-  }
-
-  remaining = slice_range(remaining, 1, 0);
 
   FormDataKVElementParseResult value_parsed =
       form_data_kv_parse_element(remaining, '&', arena);
@@ -913,18 +902,6 @@ form_data_kv_parse_element(Slice in, uint8_t ch_terminator, Arena *arena) {
     *dyn_push(&res.form, arena) = kv.kv;
 
     remaining = kv.remaining;
-
-    if (slice_is_empty(remaining)) {
-      break;
-    }
-
-    SliceConsume consumed = slice_consume_first(remaining, '&');
-    if (!consumed.consumed) {
-      res.err = HS_ERR_INVALID_FORM_DATA;
-      return res;
-    }
-
-    remaining = consumed.data;
   }
 
   // TODO: Check unicity of keys or use a hashmap from the start.

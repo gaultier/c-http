@@ -164,30 +164,6 @@ typedef struct {
   return res;
 }
 
-typedef struct {
-  Slice data;
-  bool consumed;
-} SliceConsume;
-
-[[nodiscard]] static SliceConsume slice_consume_first(Slice s, uint8_t c) {
-  SliceConsume res = {0};
-
-  if (slice_is_empty(s)) {
-    res.data = s;
-    return res;
-  }
-
-  if (c != s.data[0]) {
-    res.data = s;
-    return res;
-  }
-
-  res.data = slice_range(s, 1, 0);
-  res.consumed = true;
-
-  return res;
-}
-
 [[nodiscard]] static SplitResult slice_split_next(SplitIterator *it) {
   if (slice_is_empty(it->slice)) {
     return (SplitResult){0};

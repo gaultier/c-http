@@ -74,7 +74,10 @@ static HttpResponse handle_create_poll(HttpRequest req, FDBDatabase *db,
 
     DynArrayU8 value = {0};
     *dyn_push(&value, arena) = poll.state;
-    dyn_array_u8_append_u64(&value, poll.name.len, arena);
+    dyn_append_slice(&value,
+                     ((Slice){.data = (uint8_t *)&poll.name.len,
+                              .len = sizeof(poll.name.len)}),
+                     arena);
     dyn_append_slice(&value, poll.name, arena);
 
     fdb_transaction_set(tx, (uint8_t *)key.data, (int)key.len, value.data,
