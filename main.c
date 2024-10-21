@@ -179,8 +179,8 @@ static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
           tx,
           FDB_KEYSEL_FIRST_GREATER_OR_EQUAL(range_key_start.data,
                                             (int)range_key_start.len),
-          FDB_KEYSEL_FIRST_GREATER_OR_EQUAL(range_key_end.data,
-                                            (int)range_key_end.len),
+          FDB_KEYSEL_FIRST_GREATER_THAN(range_key_end.data,
+                                        (int)range_key_end.len),
           32, 0, FDB_STREAMING_MODE_WANT_ALL, 0, 0, 0);
 
   for (uint64_t i = 0; i < 1000; i++) {
@@ -236,10 +236,11 @@ static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
   poll.name.data =
       (uint8_t *)AT_PTR(value, value_len, 1 + sizeof(poll.name.len));
 
-  const FDBKey *db_keys = nullptr;
+  const FDBKeyValue *db_keys = nullptr;
   int db_keys_len = 0;
-  if (0 != (fdb_err = fdb_future_get_key_array(future_options, &db_keys,
-                                               &db_keys_len))) {
+  fdb_bool_t more = false;
+  if (0 != (fdb_err = fdb_future_get_keyvalue_array(future_options, &db_keys,
+                                                    &db_keys_len, &more))) {
     log(LOG_LEVEL_ERROR, "failed to get the value of the options future", arena,
         LCII("req.id", req.id), LCI("err", (uint64_t)fdb_err));
     res.status = 500;
@@ -270,7 +271,7 @@ static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
 
   dyn_append_slice(&resp_body, S("<br>"), arena);
   for (uint64_t i = 0; i < (uint64_t)db_keys_len; i++) {
-    FDBKey db_key = AT(db_keys, db_keys_len, i);
+    FDBKeyValue db_key = AT(db_keys, db_keys_len, i);
     Slice db_key_s = {.data = (uint8_t *)db_key.key,
                       .len = (uint64_t)db_key.key_length};
 
@@ -283,7 +284,7 @@ static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
     // TODO: Better HTML.
     dyn_append_slice(&resp_body, S("<span>"), arena);
     dyn_append_slice(&resp_body, option, arena);
-    dyn_append_slice(&resp_body, S("</span>"), arena);
+    dyn_append_slice(&resp_body, S("</span><br>"), arena);
   }
 
   dyn_append_slice(&resp_body, S("</div></body></html>"), arena);
