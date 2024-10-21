@@ -244,7 +244,7 @@ handle_get_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
   fdb_error_t fdb_err = 0;
   if (0 != (fdb_err = fdb_database_create_transaction(db, &tx))) {
     log(LOG_LEVEL_ERROR, "failed to create db transaction", arena,
-        LCII("req.id", req.id), LCI("err", (uint64_t)fdb_err));
+        L("req.id", req.id), L("err", (uint64_t)fdb_err));
     res.status = 500;
     return res;
   }
@@ -275,14 +275,14 @@ handle_get_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
 
   if (0 != (fdb_err = fdb_future_get_error(future_poll))) {
     log(LOG_LEVEL_ERROR, "failed to wait for the poll future", arena,
-        LCII("req.id", req.id), LCI("err", (uint64_t)fdb_err));
+        L("req.id", req.id), L("err", (uint64_t)fdb_err));
     res.status = 500;
     return res;
   }
 
   if (0 != (fdb_err = fdb_future_get_error(future_options))) {
     log(LOG_LEVEL_ERROR, "failed to wait for the options future", arena,
-        LCII("req.id", req.id), LCI("err", (uint64_t)fdb_err));
+        L("req.id", req.id), L("err", (uint64_t)fdb_err));
     res.status = 500;
     return res;
   }
@@ -293,7 +293,7 @@ handle_get_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
   if (0 != (fdb_err = fdb_future_get_value(future_poll, &present, &value,
                                            &value_len))) {
     log(LOG_LEVEL_ERROR, "failed to get the value of the poll future", arena,
-        LCII("req.id", req.id), LCI("err", (uint64_t)fdb_err));
+        L("req.id", req.id), L("err", (uint64_t)fdb_err));
     res.status = 500;
     return res;
   }
@@ -307,7 +307,7 @@ handle_get_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
   DatabaseDecodePollResult decoded = db_decode_poll(value_slice);
   if (decoded.err) {
     log(LOG_LEVEL_ERROR, "failed to decode the poll from the db", arena,
-        LCII("req.id", req.id), LCI("err", (uint64_t)decoded.err));
+        L("req.id", req.id), L("err", (uint64_t)decoded.err));
     res.err = decoded.err;
     return res;
   }
@@ -320,7 +320,7 @@ handle_get_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
   if (0 != (fdb_err = fdb_future_get_keyvalue_array(future_options, &db_keys,
                                                     &db_keys_len, &more))) {
     log(LOG_LEVEL_ERROR, "failed to get the value of the options future", arena,
-        LCII("req.id", req.id), LCI("err", (uint64_t)fdb_err));
+        L("req.id", req.id), L("err", (uint64_t)fdb_err));
     res.status = 500;
     return res;
   }

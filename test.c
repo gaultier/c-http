@@ -160,8 +160,8 @@ static void test_make_log_line() {
   Arena arena = arena_make_from_virtual_mem(4096);
 
   Slice log_line =
-      make_log_line(LOG_LEVEL_DEBUG, S("foobar"), &arena, 2, LCI("num", 42),
-                    LCS("slice", S("hello \"world\"")));
+      make_log_line(LOG_LEVEL_DEBUG, S("foobar"), &arena, 2, L("num", 42),
+                    L("slice", S("hello \"world\"")));
 
   Slice expected =
       S("message=\"foobar\" num=42 slice=\"hello \\\"world\\\"\"\n");

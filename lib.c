@@ -544,6 +544,30 @@ typedef struct {
   LogValue value;
 } LogEntry;
 
+[[nodiscard]] static LogEntry log_entry_int(Slice k, int v) {
+  return (LogEntry){
+      .key = k,
+      .value.kind = LV_U64,
+      .value.n64 = (uint64_t)v,
+  };
+}
+
+[[nodiscard]] static LogEntry log_entry_u16(Slice k, uint16_t v) {
+  return (LogEntry){
+      .key = k,
+      .value.kind = LV_U64,
+      .value.n64 = (uint64_t)v,
+  };
+}
+
+[[nodiscard]] static LogEntry log_entry_u32(Slice k, uint32_t v) {
+  return (LogEntry){
+      .key = k,
+      .value.kind = LV_U64,
+      .value.n64 = (uint64_t)v,
+  };
+}
+
 [[nodiscard]] static LogEntry log_entry_u64(Slice k, uint64_t v) {
   return (LogEntry){
       .key = k,
@@ -570,6 +594,9 @@ typedef struct {
 
 #define L(k, v)                                                                \
   (_Generic((v),                                                               \
+      int: log_entry_int,                                                      \
+      uint16_t: log_entry_u16,                                                 \
+      uint32_t: log_entry_u32,                                                 \
       uint64_t: log_entry_u64,                                                 \
       __uint128_t: log_entry_u128,                                             \
       Slice: log_entry_slice)((S(k)), v))
