@@ -3,11 +3,11 @@ MVP:
 - [x] Parse form fields
 - [x] Db
 - [x] Proper encoding/decoding with db
+- [x] Improve UX for writing logs
 - [ ] Html builder
 - [ ] Cast a vote (user = `hash(user-agent)`?)
 - [ ] Close a poll
 - [ ] See poll results
-- [x] Improve UX for writing logs
 - [ ] Collect logs into clickhouse
 - [ ] Monkey testing/fuzz testing [Last]
 - [ ] Clearly split db & html rendering steps
