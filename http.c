@@ -590,26 +590,6 @@ static void handle_client(int socket, HttpRequestHandleFn handle, void *ctx) {
   close(socket);
 }
 
-typedef struct {
-  int socket;
-  HttpRequestHandleFn request_handler;
-  void *ctx;
-} ThreadHandlerData;
-
-static void *thread_handle_client(void *arg) {
-  ASSERT(nullptr != arg);
-
-  ThreadHandlerData copy = {0};
-  {
-    ThreadHandlerData *data = (ThreadHandlerData *)arg;
-    copy = *data;
-    free(data);
-  }
-
-  handle_client(copy.socket, copy.request_handler, copy.ctx);
-  return nullptr;
-}
-
 static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
                              void *ctx, Arena *arena) {
 
@@ -671,18 +651,16 @@ static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
       return (Error)errno;
     }
 
-    pthread_t handler = {0};
-    // TODO: thread pool + associated data?
-    ThreadHandlerData *data = calloc(sizeof(ThreadHandlerData), 1);
-    ASSERT(nullptr != data);
-
-    *data = (ThreadHandlerData){
-        .socket = conn_fd,
-        .request_handler = request_handler,
-        .ctx = ctx,
-    };
-    ASSERT(0 == pthread_create(&handler, nullptr, thread_handle_client, data));
-    ASSERT(0 == pthread_detach(handler));
+    pid_t pid = fork();
+    if (pid == -1) { // Error.
+      log(LOG_LEVEL_ERROR, "fork(2)", arena, LCI("err", (uint64_t)errno));
+      close(conn_fd);
+    } else if (pid == 0) { // Child.
+      handle_client(conn_fd, request_handler, ctx);
+      exit(0);
+    } else { // Parent.
+      close(conn_fd);
+    }
   }
 }
 

@@ -299,9 +299,26 @@ static HttpResponse handle_get_poll(HttpRequest req, FDBDatabase *db,
 static HttpResponse my_http_request_handler(HttpRequest req, void *ctx,
                                             Arena *arena) {
   ASSERT(0 == req.err);
-  ASSERT(nullptr != ctx);
-  FDBDatabase *db = ctx;
-  ASSERT(nullptr != db);
+  (void)ctx;
+
+  fdb_error_t fdb_err = {0};
+  {
+    ASSERT(0 == fdb_select_api_version(FDB_API_VERSION));
+    ASSERT(0 == fdb_setup_network());
+  }
+  pthread_t fdb_network_thread = {0};
+  pthread_create(&fdb_network_thread, nullptr, run_fdb_network, nullptr);
+
+  FDBDatabase *db = nullptr;
+  {
+    fdb_err = fdb_create_database("fdb.cluster", &db);
+    if (0 != fdb_err) {
+      log(LOG_LEVEL_ERROR, "failed to connect to db", arena,
+          LCI("err", (uint64_t)fdb_err));
+      exit(EINVAL);
+    }
+    ASSERT(nullptr != db);
+  }
 
   // Home page.
   if (HM_GET == req.method &&
@@ -335,24 +352,7 @@ static HttpResponse my_http_request_handler(HttpRequest req, void *ctx,
 int main() {
   Arena arena = arena_make_from_virtual_mem(4096);
 
-  fdb_error_t fdb_err = {0};
-  {
-    ASSERT(0 == fdb_select_api_version(FDB_API_VERSION));
-    ASSERT(0 == fdb_setup_network());
-  }
-  pthread_t fdb_network_thread = {0};
-  pthread_create(&fdb_network_thread, nullptr, run_fdb_network, nullptr);
-
-  FDBDatabase *db = nullptr;
-  fdb_err = fdb_create_database("fdb.cluster", &db);
-  if (0 != fdb_err) {
-    log(LOG_LEVEL_ERROR, "failed to connect to db", &arena,
-        LCI("err", (uint64_t)fdb_err));
-    exit(EINVAL);
-  }
-  ASSERT(nullptr != db);
-
   Error err = http_server_run(HTTP_SERVER_DEFAULT_PORT, my_http_request_handler,
-                              db, &arena);
+                              nullptr, &arena);
   log(LOG_LEVEL_INFO, "http server stopped", &arena, LCI("error", err));
 }
