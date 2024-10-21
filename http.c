@@ -827,12 +827,6 @@ typedef struct {
   Slice remaining;
 } FormDataKVElementParseResult;
 
-[[nodiscard]] static bool ch_is_unreserved_in_percent_encoding(uint8_t c) {
-  Slice unreserved =
-      S("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~");
-  return nullptr != memchr(unreserved.data, c, unreserved.len);
-}
-
 [[nodiscard]] static FormDataKVElementParseResult
 form_data_kv_parse_element(Slice in, uint8_t ch_terminator, Arena *arena) {
   FormDataKVElementParseResult res = {0};
@@ -842,9 +836,7 @@ form_data_kv_parse_element(Slice in, uint8_t ch_terminator, Arena *arena) {
   for (; i < in.len; i++) {
     uint8_t c = in.data[i];
 
-    if (ch_is_unreserved_in_percent_encoding(c)) {
-      *dyn_push(&data, arena) = c;
-    } else if ('+' == c) {
+    if ('+' == c) {
       *dyn_push(&data, arena) = ' ';
     } else if ('%' == c) {
       if ((in.len - i) < 2) {
@@ -865,8 +857,7 @@ form_data_kv_parse_element(Slice in, uint8_t ch_terminator, Arena *arena) {
       i += 1; // Consume.
       break;
     } else {
-      res.err = HS_ERR_INVALID_FORM_DATA;
-      return res;
+      *dyn_push(&data, arena) = c;
     }
   }
 
