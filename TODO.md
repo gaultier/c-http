@@ -4,6 +4,7 @@ MVP:
 - [x] Db
 - [x] Proper encoding/decoding with db
 - [x] Improve UX for writing logs
+- [ ] Percent encode/decode to/from db
 - [ ] Clearly split db & html rendering steps
 - [ ] Html builder
 - [ ] Cast a vote (user = `hash(user-agent)`?)
@@ -14,6 +15,7 @@ MVP:
 - [ ] Monkey testing/fuzz testing [Last]
 - [ ] Test with non ascii strings
 - [ ] Test with Chrome
+- [ ] Test with max options and long strings
 - [ ] e2e tests
 - [ ] Vendor fdb_c
 
