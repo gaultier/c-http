@@ -2,6 +2,9 @@
 #include <sqlite3.h>
 #include <stdckdint.h>
 
+static sqlite3_stmt *db_insert_poll_stmt = nullptr;
+static sqlite3_stmt *db_select_poll_stmt = nullptr;
+
 typedef enum : uint8_t {
   POLL_STATE_OPEN,
   POLL_STATE_CLOSED,
@@ -27,9 +30,8 @@ typedef struct {
   return dyn_array_u8_to_slice(sb);
 }
 
-[[nodiscard]] static HttpResponse
-handle_create_poll(HttpRequest req, sqlite3_stmt *db_insert_poll_stmt,
-                   Arena *arena) {
+[[nodiscard]] static HttpResponse handle_create_poll(HttpRequest req,
+                                                     Arena *arena) {
   HttpResponse res = {0};
 
   FormDataParseResult form = form_data_parse(req.body, arena);
@@ -105,102 +107,45 @@ handle_create_poll(HttpRequest req, sqlite3_stmt *db_insert_poll_stmt,
 
   HttpResponse res = {0};
 
-#if 0
-  FDBTransaction *tx = nullptr;
-  fdb_error_t fdb_err = 0;
-  if (0 != (fdb_err = fdb_database_create_transaction(db, &tx))) {
-    log(LOG_LEVEL_ERROR, "failed to create db transaction", arena,
-        L("req.id", req.id), L("err", fdb_err));
-    res.status = 500;
-    return res;
-  }
-  ASSERT(nullptr != tx);
-
-  Slice poll_key = db_make_poll_key_from_hex_id(poll_id, arena);
-  FDBFuture *future_poll =
-      fdb_transaction_get(tx, poll_key.data, (int)poll_key.len, false);
-
-  Slice range_key_start = db_make_poll_key_range_start(poll_id, arena);
-  Slice range_key_end = db_make_poll_key_range_end(poll_id, arena);
-
-  FDBFuture *future_options = fdb_transaction_get_range(
-      tx,
-      FDB_KEYSEL_FIRST_GREATER_OR_EQUAL(range_key_start.data,
-                                        (int)range_key_start.len),
-      FDB_KEYSEL_FIRST_GREATER_THAN(range_key_end.data, (int)range_key_end.len),
-      32, 0, FDB_STREAMING_MODE_WANT_ALL, 0, 0, 0);
-
-  for (uint64_t i = 0; i < 1000; i++) {
-    if (fdb_future_is_ready(future_poll) &&
-        fdb_future_is_ready(future_options)) {
-      break;
-    }
-
-    usleep(1'000); // 1 ms.
-  }
-
-  if (0 != (fdb_err = fdb_future_get_error(future_poll))) {
-    log(LOG_LEVEL_ERROR, "failed to wait for the poll future", arena,
-        L("req.id", req.id), L("err", fdb_err));
+  int db_err = 0;
+  if (SQLITE_OK != (db_err = sqlite3_bind_text(db_select_poll_stmt, 1,
+                                               (const char *)poll_id.data,
+                                               (int)poll_id.len, nullptr))) {
+    log(LOG_LEVEL_ERROR, "failed to bind parameter 1", arena,
+        L("error", db_err));
     res.status = 500;
     return res;
   }
 
-  if (0 != (fdb_err = fdb_future_get_error(future_options))) {
-    log(LOG_LEVEL_ERROR, "failed to wait for the options future", arena,
-        L("req.id", req.id), L("err", fdb_err));
-    res.status = 500;
-    return res;
-  }
-
-  fdb_bool_t present = false;
-  int value_len = 0;
-  const uint8_t *value = nullptr;
-  if (0 != (fdb_err = fdb_future_get_value(future_poll, &present, &value,
-                                           &value_len))) {
-    log(LOG_LEVEL_ERROR, "failed to get the value of the poll future", arena,
-        L("req.id", req.id), L("err", fdb_err));
-    res.status = 500;
-    return res;
-  }
-  if (!present) {
+  db_err = sqlite3_step(db_select_poll_stmt);
+  if (SQLITE_DONE == db_err) {
     res.status = 404;
     res.body = S("<!DOCTYPE html><html><body>Poll not found.</body></html>");
     return res;
   }
 
-  Slice value_slice = {.data = (uint8_t *)value, .len = (uint64_t)value_len};
-  DatabaseDecodePollResult decoded = db_decode_poll(value_slice);
-  if (decoded.err) {
-    log(LOG_LEVEL_ERROR, "failed to decode the poll from the db", arena,
-        L("req.id", req.id), L("err", decoded.err));
-    res.err = decoded.err;
-    return res;
-  }
-
-  Poll poll = decoded.poll;
-
-  const FDBKeyValue *db_keys = nullptr;
-  int db_keys_len = 0;
-  fdb_bool_t more = false;
-  if (0 != (fdb_err = fdb_future_get_keyvalue_array(future_options, &db_keys,
-                                                    &db_keys_len, &more))) {
-    log(LOG_LEVEL_ERROR, "failed to get the value of the options future", arena,
-        L("req.id", req.id), L("err", fdb_err));
+  if (SQLITE_ROW != db_err) {
+    log(LOG_LEVEL_ERROR, "failed to execute the prepared statement", arena,
+        L("error", db_err));
     res.status = 500;
     return res;
   }
-#endif
+
+  Poll poll = {0};
+  poll.name.data = (uint8_t *)sqlite3_column_text(db_select_poll_stmt, 0);
+  poll.name.len = (uint64_t)sqlite3_column_bytes(db_select_poll_stmt, 0);
+
+  // TODO: get options.
 
   DynArrayU8 resp_body = {0};
   // TODO: Use html builder.
   dyn_append_slice(&resp_body,
                    S("<!DOCTYPE html><html><body><div id=\"poll\">"), arena);
-#if 0
   dyn_append_slice(&resp_body, S("The poll \""), arena);
   dyn_append_slice(&resp_body, poll.name, arena);
   dyn_append_slice(&resp_body, S("\" "), arena);
 
+#if 0
   switch (poll.state) {
   case POLL_STATE_OPEN:
     dyn_append_slice(&resp_body, S(" is open."), arena);
@@ -245,7 +190,7 @@ handle_create_poll(HttpRequest req, sqlite3_stmt *db_insert_poll_stmt,
 [[nodiscard]] static HttpResponse
 my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
   ASSERT(0 == req.err);
-  sqlite3_stmt *db_insert_poll_stmt = ctx;
+  (void)ctx;
 
   Slice path0 = req.path_components.len >= 1 ? dyn_at(req.path_components, 0)
                                              : (Slice){0};
@@ -269,7 +214,7 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
     return res;
   } else if (HM_POST == req.method && 1 == req.path_components.len &&
              slice_eq(path0, S("poll"))) {
-    return handle_create_poll(req, db_insert_poll_stmt, arena);
+    return handle_create_poll(req, arena);
   } else if (HM_GET == req.method && 2 == req.path_components.len &&
              slice_eq(path0, S("poll")) && 32 == path1.len) {
     return handle_get_poll(req, arena);
@@ -300,7 +245,6 @@ int main() {
     exit(EINVAL);
   }
 
-  sqlite3_stmt *db_insert_poll_stmt = nullptr;
   Slice db_insert_poll_sql = S("insert into poll (id, name) values (?, ?)");
   if (SQLITE_OK !=
       (db_err = sqlite3_prepare_v2(db, (const char *)db_insert_poll_sql.data,
@@ -311,7 +255,17 @@ int main() {
     exit(EINVAL);
   }
 
+  Slice db_select_poll_sql = S("select name from poll where id = ? limit 1");
+  if (SQLITE_OK !=
+      (db_err = sqlite3_prepare_v2(db, (const char *)db_select_poll_sql.data,
+                                   (int)db_select_poll_sql.len,
+                                   &db_select_poll_stmt, nullptr))) {
+    log(LOG_LEVEL_ERROR, "failed to prepare statement", &arena,
+        L("error", db_err));
+    exit(EINVAL);
+  }
+
   Error err = http_server_run(HTTP_SERVER_DEFAULT_PORT, my_http_request_handler,
-                              db_insert_poll_stmt, &arena);
+                              nullptr, &arena);
   log(LOG_LEVEL_INFO, "http server stopped", &arena, L("error", err));
 }
