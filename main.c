@@ -15,140 +15,6 @@ typedef struct {
   // TODO: creation date, etc.
 } Poll;
 
-[[nodiscard]] static Slice db_make_poll_key_from_hex_id(Slice poll_id,
-                                                        Arena *arena) {
-  DynArrayU8 res = {0};
-  dyn_append_slice(&res, S("poll/"), arena);
-  dyn_append_slice(&res, poll_id, arena);
-
-  return dyn_array_u8_to_slice(res);
-}
-
-[[nodiscard]] static Slice db_make_poll_key_from_id(__uint128_t poll_id,
-                                                    Arena *arena) {
-  DynArrayU8 res = {0};
-  dyn_array_u8_append_u128_hex(&res, poll_id, arena);
-
-  return db_make_poll_key_from_hex_id(dyn_array_u8_to_slice(res), arena);
-}
-
-[[nodiscard]] static Slice db_make_poll_key_range_start(Slice poll_id,
-                                                        Arena *arena) {
-  ASSERT(32 == poll_id.len);
-
-  DynArrayU8 res = {0};
-  dyn_append_slice(&res, S("poll/"), arena);
-  dyn_append_slice(&res, poll_id, arena);
-  dyn_append_slice(&res, S("/"), arena);
-
-  return dyn_array_u8_to_slice(res);
-}
-
-[[nodiscard]] static Slice db_make_poll_key_range_end(Slice poll_id,
-                                                      Arena *arena) {
-  ASSERT(32 == poll_id.len);
-
-  DynArrayU8 res = {0};
-  dyn_append_slice(&res, S("poll/"), arena);
-  dyn_append_slice(&res, poll_id, arena);
-  dyn_append_slice(&res, S("/"), arena);
-  *dyn_push(&res, arena) = 0xff;
-
-  return dyn_array_u8_to_slice(res);
-}
-
-[[nodiscard]] static Slice db_make_poll_value(Poll poll, Arena *arena) {
-  DynArrayU8 res = {0};
-  dyn_append_slice(&res, S("state="), arena);
-  dyn_array_u8_append_u64(&res, poll.state, arena);
-  dyn_append_slice(&res, S("&"), arena);
-
-  dyn_append_slice(&res, S("name="), arena);
-  // FIXME: Percent-encode.
-  dyn_append_slice(&res, poll.name, arena);
-
-  return dyn_array_u8_to_slice(res);
-}
-
-[[nodiscard]] static Slice db_make_poll_option_key(__uint128_t poll_id,
-                                                   Slice option, Arena *arena) {
-  DynArrayU8 res = {0};
-  dyn_append_slice(&res, S("poll/"), arena);
-  dyn_array_u8_append_u128_hex(&res, poll_id, arena);
-  *dyn_push(&res, arena) = '/';
-  // FIXME: Percent-encode.
-  dyn_append_slice(&res, option, arena);
-
-  return dyn_array_u8_to_slice(res);
-}
-
-typedef struct {
-  Poll poll;
-  Error err;
-} DatabaseDecodePollResult;
-
-[[nodiscard]] static DatabaseDecodePollResult db_decode_poll(Slice s) {
-  DatabaseDecodePollResult res = {0};
-
-  SplitIterator split_it_ampersand = slice_split(s, '&');
-  // `state=<state>`
-  {
-    SplitResult kv = slice_split_next(&split_it_ampersand);
-    if (!kv.ok) {
-      res.err = EINVAL;
-      return res;
-    }
-
-    SplitIterator split_it_equal = slice_split(kv.slice, '=');
-    SplitResult key = slice_split_next(&split_it_equal);
-    if (!key.ok) {
-      res.err = EINVAL;
-      return res;
-    }
-
-    SplitResult value = slice_split_next(&split_it_equal);
-    if (!value.ok) {
-      res.err = EINVAL;
-      return res;
-    }
-
-    if (1 != value.slice.len) {
-      res.err = EINVAL;
-      return res;
-    }
-
-    uint8_t state = AT(value.slice.data, value.slice.len, 0);
-    ASSERT(false == ckd_sub(&state, state, '0'));
-
-    if (state >= POLL_STATE_MAX) {
-      res.err = EINVAL;
-      return res;
-    }
-    res.poll.state = state;
-  }
-
-  // `name=<name>`
-  // FIXME: Percent-decode.
-  {
-    SplitResult kv = slice_split_next(&split_it_ampersand);
-    if (!kv.ok) {
-      res.err = EINVAL;
-      return res;
-    }
-
-    SplitIterator split_it_equal = slice_split(kv.slice, '=');
-    SplitResult key = slice_split_next(&split_it_equal);
-    if (!key.ok) {
-      res.err = EINVAL;
-      return res;
-    }
-
-    res.poll.name = split_it_equal.slice;
-  }
-
-  return res;
-}
-
 [[nodiscard]] static HttpResponse handle_create_poll(HttpRequest req,
                                                      Arena *arena) {
   HttpResponse res = {0};
@@ -417,6 +283,13 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
 
 int main() {
   Arena arena = arena_make_from_virtual_mem(4096);
+
+  sqlite3 *db = nullptr;
+  int db_err = 0;
+  if (SQLITE_OK != (db_err = sqlite3_open("vote.db", &db))) {
+    log(LOG_LEVEL_ERROR, "failed to open db", &arena, L("error", db_err));
+    exit(EINVAL);
+  }
 
   Error err = http_server_run(HTTP_SERVER_DEFAULT_PORT, my_http_request_handler,
                               nullptr, &arena);
