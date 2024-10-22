@@ -135,6 +135,15 @@ typedef struct {
   poll.name.data = (uint8_t *)sqlite3_column_text(db_select_poll_stmt, 0);
   poll.name.len = (uint64_t)sqlite3_column_bytes(db_select_poll_stmt, 0);
 
+  int state = sqlite3_column_int(db_select_poll_stmt, 1);
+  if (state >= POLL_STATE_MAX) {
+    log(LOG_LEVEL_ERROR, "invalid poll state", arena, L("state", state),
+        L("error", db_err));
+    res.status = 500;
+    return res;
+  }
+  poll.state = (PollState)state;
+
   // TODO: get options.
 
   DynArrayU8 resp_body = {0};
@@ -145,13 +154,12 @@ typedef struct {
   dyn_append_slice(&resp_body, poll.name, arena);
   dyn_append_slice(&resp_body, S("\" "), arena);
 
-#if 0
   switch (poll.state) {
   case POLL_STATE_OPEN:
-    dyn_append_slice(&resp_body, S(" is open."), arena);
+    dyn_append_slice(&resp_body, S("is open."), arena);
     break;
   case POLL_STATE_CLOSED:
-    dyn_append_slice(&resp_body, S(" is closed."), arena);
+    dyn_append_slice(&resp_body, S("is closed."), arena);
     break;
   case POLL_STATE_MAX:
     [[fallthrough]];
@@ -160,6 +168,7 @@ typedef struct {
   }
 
   dyn_append_slice(&resp_body, S("<br>"), arena);
+#if 0
   for (uint64_t i = 0; i < (uint64_t)db_keys_len; i++) {
     FDBKeyValue db_key = AT(db_keys, db_keys_len, i);
     Slice db_key_s = {.data = (uint8_t *)db_key.key,
@@ -236,16 +245,18 @@ int main() {
     exit(EINVAL);
   }
 
-  if (SQLITE_OK !=
-      (db_err = sqlite3_exec(
-           db, "create table if not exists poll (id varchar, name varchar)",
-           nullptr, nullptr, nullptr))) {
+  if (SQLITE_OK != (db_err = sqlite3_exec(
+                        db,
+                        "create table if not exists poll (id "
+                        "varchar(32) primary key, name text, state tinyint)",
+                        nullptr, nullptr, nullptr))) {
     log(LOG_LEVEL_ERROR, "failed to create poll tables", &arena,
         L("error", db_err));
     exit(EINVAL);
   }
 
-  Slice db_insert_poll_sql = S("insert into poll (id, name) values (?, ?)");
+  Slice db_insert_poll_sql =
+      S("insert into poll (id, name, state) values (?, ?, 0)");
   if (SQLITE_OK !=
       (db_err = sqlite3_prepare_v2(db, (const char *)db_insert_poll_sql.data,
                                    (int)db_insert_poll_sql.len,
@@ -255,7 +266,8 @@ int main() {
     exit(EINVAL);
   }
 
-  Slice db_select_poll_sql = S("select name from poll where id = ? limit 1");
+  Slice db_select_poll_sql =
+      S("select name, state from poll where id = ? limit 1");
   if (SQLITE_OK !=
       (db_err = sqlite3_prepare_v2(db, (const char *)db_select_poll_sql.data,
                                    (int)db_select_poll_sql.len,
