@@ -72,7 +72,7 @@ handle_create_poll(HttpRequest req, sqlite3_stmt *db_insert_poll_stmt,
     return res;
   }
 
-  if (SQLITE_OK != (db_err = sqlite3_step(db_insert_poll_stmt))) {
+  if (SQLITE_DONE != (db_err = sqlite3_step(db_insert_poll_stmt))) {
     log(LOG_LEVEL_ERROR, "failed to execute the prepared statement", arena,
         L("error", db_err));
     res.status = 500;
