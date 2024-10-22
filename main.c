@@ -1,8 +1,6 @@
 #include "http.c"
-#include <foundationdb/fdb_c_options.g.h>
+#include <sqlite3.h>
 #include <stdckdint.h>
-#define FDB_API_VERSION 710
-#include <foundationdb/fdb_c.h>
 
 typedef enum : uint8_t {
   POLL_STATE_OPEN,
@@ -16,11 +14,6 @@ typedef struct {
   DynArraySlice options;
   // TODO: creation date, etc.
 } Poll;
-
-static void *run_fdb_network(void *) {
-  ASSERT(0 == fdb_run_network());
-  return nullptr;
-}
 
 [[nodiscard]] static Slice db_make_poll_key_from_hex_id(Slice poll_id,
                                                         Arena *arena) {
@@ -156,8 +149,8 @@ typedef struct {
   return res;
 }
 
-[[nodiscard]] static HttpResponse
-handle_create_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
+[[nodiscard]] static HttpResponse handle_create_poll(HttpRequest req,
+                                                     Arena *arena) {
   HttpResponse res = {0};
 
   FormDataParseResult form = form_data_parse(req.body, arena);
@@ -185,6 +178,7 @@ handle_create_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
   // But in our case it's fine (random id + optional, non-unique name).
   arc4random_buf(&poll_id, sizeof(poll_id));
 
+#if 0
   FDBTransaction *tx = nullptr;
   fdb_error_t fdb_err = 0;
   if (0 != (fdb_err = fdb_database_create_transaction(db, &tx))) {
@@ -220,6 +214,7 @@ handle_create_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
     res.status = 500;
     return res;
   }
+#endif
 
   log(LOG_LEVEL_INFO, "created poll", arena, L("req.id", req.id),
       L("poll.options.len", poll.options.len), L("poll.name", poll.name));
@@ -236,14 +231,15 @@ handle_create_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
   return res;
 }
 
-[[nodiscard]] static HttpResponse
-handle_get_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
+[[nodiscard]] static HttpResponse handle_get_poll(HttpRequest req,
+                                                  Arena *arena) {
   ASSERT(2 == req.path_components.len);
   Slice poll_id = dyn_at(req.path_components, 1);
   ASSERT(32 == poll_id.len);
 
   HttpResponse res = {0};
 
+#if 0
   FDBTransaction *tx = nullptr;
   fdb_error_t fdb_err = 0;
   if (0 != (fdb_err = fdb_database_create_transaction(db, &tx))) {
@@ -328,11 +324,13 @@ handle_get_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
     res.status = 500;
     return res;
   }
+#endif
 
   DynArrayU8 resp_body = {0};
   // TODO: Use html builder.
   dyn_append_slice(&resp_body,
                    S("<!DOCTYPE html><html><body><div id=\"poll\">"), arena);
+#if 0
   dyn_append_slice(&resp_body, S("The poll \""), arena);
   dyn_append_slice(&resp_body, poll.name, arena);
   dyn_append_slice(&resp_body, S("\" "), arena);
@@ -367,6 +365,7 @@ handle_get_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
     dyn_append_slice(&resp_body, option, arena);
     dyn_append_slice(&resp_body, S("</span><br>"), arena);
   }
+#endif
 
   dyn_append_slice(&resp_body, S("</div></body></html>"), arena);
 
@@ -381,24 +380,6 @@ handle_get_poll(HttpRequest req, FDBDatabase *db, Arena *arena) {
 my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
   ASSERT(0 == req.err);
   (void)ctx;
-
-  fdb_error_t fdb_err = {0};
-  {
-    ASSERT(0 == fdb_select_api_version(FDB_API_VERSION));
-    ASSERT(0 == fdb_setup_network());
-  }
-  pthread_t fdb_network_thread = {0};
-  pthread_create(&fdb_network_thread, nullptr, run_fdb_network, nullptr);
-
-  FDBDatabase *db = nullptr;
-  {
-    fdb_err = fdb_create_database("fdb.cluster", &db);
-    if (0 != fdb_err) {
-      log(LOG_LEVEL_ERROR, "failed to connect to db", arena, L("err", fdb_err));
-      exit(EINVAL);
-    }
-    ASSERT(nullptr != db);
-  }
 
   Slice path0 = req.path_components.len >= 1 ? dyn_at(req.path_components, 0)
                                              : (Slice){0};
@@ -422,10 +403,10 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
     return res;
   } else if (HM_POST == req.method && 1 == req.path_components.len &&
              slice_eq(path0, S("poll"))) {
-    return handle_create_poll(req, db, arena);
+    return handle_create_poll(req, arena);
   } else if (HM_GET == req.method && 2 == req.path_components.len &&
              slice_eq(path0, S("poll")) && 32 == path1.len) {
-    return handle_get_poll(req, db, arena);
+    return handle_get_poll(req, arena);
   } else { // TODO: Vote in poll.
     HttpResponse res = {0};
     res.status = 404;
