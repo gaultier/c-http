@@ -50,7 +50,6 @@ typedef struct {
         *dyn_push(&poll.options, arena) = kv.value;
       }
       // Ignore unknown form data.
-      // TODO: Should it be an error?
     }
   }
 
@@ -65,10 +64,24 @@ typedef struct {
     res.status = 500;
     return res;
   }
+
   if (SQLITE_OK != (db_err = sqlite3_bind_text(db_insert_poll_stmt, 2,
                                                (const char *)poll.name.data,
                                                (int)poll.name.len, nullptr))) {
     log(LOG_LEVEL_ERROR, "failed to bind parameter 2", arena,
+        L("error", db_err));
+    res.status = 500;
+    return res;
+  }
+
+  // TODO
+  Slice options_percent_encoded =
+      S("option=bar&option=hello+world&option=%E6%97%A5&option=!");
+  if (SQLITE_OK !=
+      (db_err = sqlite3_bind_text(db_insert_poll_stmt, 3,
+                                  (const char *)options_percent_encoded.data,
+                                  (int)options_percent_encoded.len, nullptr))) {
+    log(LOG_LEVEL_ERROR, "failed to bind parameter 3", arena,
         L("error", db_err));
     res.status = 500;
     return res;
@@ -80,8 +93,6 @@ typedef struct {
     res.status = 500;
     return res;
   }
-
-  // TODO: For each poll option: insert `<poll.id>/<option>`.
 
   log(LOG_LEVEL_INFO, "created poll", arena, L("req.id", req.id),
       L("poll.options.len", poll.options.len), L("poll.id", poll_id),
@@ -145,6 +156,20 @@ typedef struct {
   poll.state = (PollState)state;
 
   // TODO: get options.
+  Slice options_percent_encoded = {0};
+  options_percent_encoded.data =
+      (uint8_t *)sqlite3_column_text(db_select_poll_stmt, 2);
+  options_percent_encoded.len =
+      (uint64_t)sqlite3_column_bytes(db_select_poll_stmt, 2);
+
+  FormDataParseResult options_parsed =
+      form_data_parse(options_percent_encoded, arena);
+  if (options_parsed.err) {
+    log(LOG_LEVEL_ERROR, "invalid poll options", arena,
+        L("options", options_percent_encoded), L("error", options_parsed.err));
+    res.status = 500;
+    return res;
+  }
 
   DynArrayU8 resp_body = {0};
   // TODO: Use html builder.
@@ -168,24 +193,22 @@ typedef struct {
   }
 
   dyn_append_slice(&resp_body, S("<br>"), arena);
-#if 0
-  for (uint64_t i = 0; i < (uint64_t)db_keys_len; i++) {
-    FDBKeyValue db_key = AT(db_keys, db_keys_len, i);
-    Slice db_key_s = {.data = (uint8_t *)db_key.key,
-                      .len = (uint64_t)db_key.key_length};
+  for (uint64_t i = 0; i < options_parsed.form.len; i++) {
+    FormDataKV kv = dyn_at(options_parsed.form, i);
 
-    if (slice_is_empty(db_key_s) || db_key_s.len < poll_key.len) {
-      continue;
+    if (!slice_eq(kv.key, S("option"))) {
+      log(LOG_LEVEL_ERROR, "invalid poll options", arena,
+          L("options", options_percent_encoded),
+          L("error", options_parsed.err));
+      res.status = 500;
+      return res;
     }
-
-    Slice option = slice_range(db_key_s, poll_key.len + 1, 0);
 
     // TODO: Better HTML.
     dyn_append_slice(&resp_body, S("<span>"), arena);
-    dyn_append_slice(&resp_body, option, arena);
+    dyn_append_slice(&resp_body, kv.value, arena);
     dyn_append_slice(&resp_body, S("</span><br>"), arena);
   }
-#endif
 
   dyn_append_slice(&resp_body, S("</div></body></html>"), arena);
 
@@ -245,34 +268,35 @@ int main() {
     exit(EINVAL);
   }
 
-  if (SQLITE_OK != (db_err = sqlite3_exec(
-                        db,
-                        "create table if not exists poll (id "
-                        "varchar(32) primary key, name text, state tinyint)",
-                        nullptr, nullptr, nullptr))) {
-    log(LOG_LEVEL_ERROR, "failed to create poll tables", &arena,
+  if (SQLITE_OK !=
+      (db_err = sqlite3_exec(
+           db,
+           "create table if not exists poll (id "
+           "varchar(32) primary key, name text, state tinyint, options text)",
+           nullptr, nullptr, nullptr))) {
+    log(LOG_LEVEL_ERROR, "failed to create poll table", &arena,
         L("error", db_err));
     exit(EINVAL);
   }
 
   Slice db_insert_poll_sql =
-      S("insert into poll (id, name, state) values (?, ?, 0)");
+      S("insert into poll (id, name, state, options) values (?, ?, 0, ?)");
   if (SQLITE_OK !=
       (db_err = sqlite3_prepare_v2(db, (const char *)db_insert_poll_sql.data,
                                    (int)db_insert_poll_sql.len,
                                    &db_insert_poll_stmt, nullptr))) {
-    log(LOG_LEVEL_ERROR, "failed to prepare statement", &arena,
+    log(LOG_LEVEL_ERROR, "failed to prepare statement to insert poll", &arena,
         L("error", db_err));
     exit(EINVAL);
   }
 
   Slice db_select_poll_sql =
-      S("select name, state from poll where id = ? limit 1");
+      S("select name, state, options from poll where id = ? limit 1");
   if (SQLITE_OK !=
       (db_err = sqlite3_prepare_v2(db, (const char *)db_select_poll_sql.data,
                                    (int)db_select_poll_sql.len,
                                    &db_select_poll_stmt, nullptr))) {
-    log(LOG_LEVEL_ERROR, "failed to prepare statement", &arena,
+    log(LOG_LEVEL_ERROR, "failed to prepare statement to select poll", &arena,
         L("error", db_err));
     exit(EINVAL);
   }
