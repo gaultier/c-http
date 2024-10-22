@@ -15,8 +15,21 @@ typedef struct {
   // TODO: creation date, etc.
 } Poll;
 
-[[nodiscard]] static HttpResponse handle_create_poll(HttpRequest req,
-                                                     Arena *arena) {
+[[nodiscard]] static Slice make_unique_id(Arena *arena) {
+  __uint128_t poll_id = 0;
+  // NOTE: It's not idempotent since the client did not provided the id.
+  // But in our case it's fine (random id + optional, non-unique name).
+  arc4random_buf(&poll_id, sizeof(poll_id));
+
+  DynArrayU8 sb = {0};
+  dyn_array_u8_append_u128_hex(&sb, poll_id, arena);
+
+  return dyn_array_u8_to_slice(sb);
+}
+
+[[nodiscard]] static HttpResponse
+handle_create_poll(HttpRequest req, sqlite3_stmt *db_insert_poll_stmt,
+                   Arena *arena) {
   HttpResponse res = {0};
 
   FormDataParseResult form = form_data_parse(req.body, arena);
@@ -39,57 +52,44 @@ typedef struct {
     }
   }
 
-  __uint128_t poll_id = 0;
-  // NOTE: It's not idempotent since the client did not provided the id.
-  // But in our case it's fine (random id + optional, non-unique name).
-  arc4random_buf(&poll_id, sizeof(poll_id));
+  Slice poll_id = make_unique_id(arena);
 
-#if 0
-  FDBTransaction *tx = nullptr;
-  fdb_error_t fdb_err = 0;
-  if (0 != (fdb_err = fdb_database_create_transaction(db, &tx))) {
-    log(LOG_LEVEL_ERROR, "failed to create db transaction", arena,
-        L("req.id", req.id), L("err", fdb_err));
+  int db_err = 0;
+  if (SQLITE_OK != (db_err = sqlite3_bind_text(db_insert_poll_stmt, 1,
+                                               (const char *)poll_id.data,
+                                               (int)poll_id.len, nullptr))) {
+    log(LOG_LEVEL_ERROR, "failed to bind parameter 1", arena,
+        L("error", db_err));
     res.status = 500;
     return res;
   }
-  ASSERT(nullptr != tx);
-
-  {
-    Slice key = db_make_poll_key_from_id(poll_id, arena);
-    Slice value = db_make_poll_value(poll, arena);
-    fdb_transaction_set(tx, (uint8_t *)key.data, (int)key.len, value.data,
-                        (int)value.len);
-  }
-
-  // For each poll option: insert `<poll.id>/<option>`.
-  for (uint64_t i = 0; i < poll.options.len; i++) {
-    Slice option = dyn_at(poll.options, i);
-
-    Slice key = db_make_poll_option_key(poll_id, option, arena);
-
-    // No value.
-    fdb_transaction_set(tx, (uint8_t *)key.data, (int)key.len, nullptr, 0);
-  }
-
-  FDBFuture *future = fdb_transaction_commit(tx);
-  ASSERT(nullptr != future);
-  if (0 != (fdb_err = fdb_future_block_until_ready(future))) {
-    log(LOG_LEVEL_ERROR, "failed to commit db transaction", arena,
-        L("req.id", req.id), L("err", fdb_err));
+  if (SQLITE_OK != (db_err = sqlite3_bind_text(db_insert_poll_stmt, 2,
+                                               (const char *)poll.name.data,
+                                               (int)poll.name.len, nullptr))) {
+    log(LOG_LEVEL_ERROR, "failed to bind parameter 2", arena,
+        L("error", db_err));
     res.status = 500;
     return res;
   }
-#endif
+
+  if (SQLITE_OK != (db_err = sqlite3_step(db_insert_poll_stmt))) {
+    log(LOG_LEVEL_ERROR, "failed to execute the prepared statement", arena,
+        L("error", db_err));
+    res.status = 500;
+    return res;
+  }
+
+  // TODO: For each poll option: insert `<poll.id>/<option>`.
 
   log(LOG_LEVEL_INFO, "created poll", arena, L("req.id", req.id),
-      L("poll.options.len", poll.options.len), L("poll.name", poll.name));
+      L("poll.options.len", poll.options.len), L("poll.id", poll_id),
+      L("poll.name", poll.name));
 
   res.status = 301;
 
   DynArrayU8 redirect = {0};
   dyn_append_slice(&redirect, S("/poll/"), arena);
-  dyn_array_u8_append_u128_hex(&redirect, poll_id, arena);
+  dyn_append_slice(&redirect, poll_id, arena);
 
   http_push_header(&res.headers, S("Location"), dyn_array_u8_to_slice(redirect),
                    arena);
@@ -245,7 +245,7 @@ typedef struct {
 [[nodiscard]] static HttpResponse
 my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
   ASSERT(0 == req.err);
-  (void)ctx;
+  sqlite3_stmt *db_insert_poll_stmt = ctx;
 
   Slice path0 = req.path_components.len >= 1 ? dyn_at(req.path_components, 0)
                                              : (Slice){0};
@@ -269,7 +269,7 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
     return res;
   } else if (HM_POST == req.method && 1 == req.path_components.len &&
              slice_eq(path0, S("poll"))) {
-    return handle_create_poll(req, arena);
+    return handle_create_poll(req, db_insert_poll_stmt, arena);
   } else if (HM_GET == req.method && 2 == req.path_components.len &&
              slice_eq(path0, S("poll")) && 32 == path1.len) {
     return handle_get_poll(req, arena);
@@ -291,7 +291,27 @@ int main() {
     exit(EINVAL);
   }
 
+  if (SQLITE_OK !=
+      (db_err = sqlite3_exec(
+           db, "create table if not exists poll (id varchar, name varchar)",
+           nullptr, nullptr, nullptr))) {
+    log(LOG_LEVEL_ERROR, "failed to create poll tables", &arena,
+        L("error", db_err));
+    exit(EINVAL);
+  }
+
+  sqlite3_stmt *db_insert_poll_stmt = nullptr;
+  Slice db_insert_poll_sql = S("insert into poll (id, name) values (?, ?)");
+  if (SQLITE_OK !=
+      (db_err = sqlite3_prepare_v2(db, (const char *)db_insert_poll_sql.data,
+                                   (int)db_insert_poll_sql.len,
+                                   &db_insert_poll_stmt, nullptr))) {
+    log(LOG_LEVEL_ERROR, "failed to prepare statement", &arena,
+        L("error", db_err));
+    exit(EINVAL);
+  }
+
   Error err = http_server_run(HTTP_SERVER_DEFAULT_PORT, my_http_request_handler,
-                              nullptr, &arena);
+                              db_insert_poll_stmt, &arena);
   log(LOG_LEVEL_INFO, "http server stopped", &arena, L("error", err));
 }

@@ -663,7 +663,8 @@ typedef struct {
   dyn_append_slice(&sb, S(" "), arena);
 
   dyn_append_slice(&sb, S("message="), arena);
-  dyn_append_slice(&sb, log_entry_quote_value(msg, arena), arena);
+  Slice message_quoted = log_entry_quote_value(msg, arena);
+  dyn_append_slice(&sb, message_quoted, arena);
   dyn_append_slice(&sb, S(" "), arena);
 
   va_list argp = {0};
