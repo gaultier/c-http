@@ -1,7 +1,7 @@
 MVP:
 - [x] Parse request path into components
 - [x] Parse form fields
-- [x] Db
+- [ ] Db
 - [x] Proper encoding/decoding with db
 - [x] Improve UX for writing logs
 - [ ] Percent encode/decode to/from db
