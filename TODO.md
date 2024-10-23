@@ -5,7 +5,7 @@ MVP:
 - [x] Proper encoding/decoding with db
 - [x] Improve UX for writing logs
 - [x] Encode/decode to/from db
-- [.] Use sqlite properly for multiple processes
+- [x] Use sqlite properly for multiple processes
 - [ ] Clearly split db & html rendering steps
 - [ ] Html builder
 - [ ] Cast a vote (user = `hash(user-agent)`?)
