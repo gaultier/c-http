@@ -21,6 +21,8 @@
 #include <sys/sendfile.h>
 #endif
 
+#define static_array_len(a) (sizeof(a) / sizeof((a)[0]))
+
 #define CLAMP(n, min, max)                                                     \
   do {                                                                         \
     if (*(n) < (min)) {                                                        \
@@ -446,8 +448,7 @@ static void dynu8_append_u64(DynU8 *dyn, uint64_t n, Arena *arena) {
   ASSERT(0);
 }
 
-static void dynu8_append_u128_hex(DynU8 *dyn, __uint128_t n,
-                                         Arena *arena) {
+static void dynu8_append_u128_hex(DynU8 *dyn, __uint128_t n, Arena *arena) {
   dyn_ensure_cap(dyn, dyn->len + 32, arena);
   uint64_t dyn_original_len = dyn->len;
 

@@ -2,6 +2,7 @@
 #include <sqlite3.h>
 #include <stdckdint.h>
 
+static sqlite3 *db = nullptr;
 static sqlite3_stmt *db_insert_poll_stmt = nullptr;
 static sqlite3_stmt *db_select_poll_stmt = nullptr;
 
@@ -59,11 +60,20 @@ typedef struct {
   String poll_options_encoded = json_encode_string_slice(poll.options, arena);
 
   int db_err = 0;
+
+  if (SQLITE_OK != (db_err = sqlite3_exec(db, "BEGIN IMMEDIATE", nullptr,
+                                          nullptr, nullptr))) {
+    log(LOG_LEVEL_ERROR, "failed to begin transaction", arena,
+        L("req.id", req.id), L("error", db_err));
+    res.status = 500;
+    return res;
+  }
+
   if (SQLITE_OK != (db_err = sqlite3_bind_text(db_insert_poll_stmt, 1,
                                                (const char *)poll_id.data,
                                                (int)poll_id.len, nullptr))) {
     log(LOG_LEVEL_ERROR, "failed to bind parameter 1", arena,
-        L("error", db_err));
+        L("req.id", req.id), L("error", db_err));
     res.status = 500;
     return res;
   }
@@ -72,7 +82,7 @@ typedef struct {
                                                (const char *)poll.name.data,
                                                (int)poll.name.len, nullptr))) {
     log(LOG_LEVEL_ERROR, "failed to bind parameter 2", arena,
-        L("error", db_err));
+        L("req.id", req.id), L("error", db_err));
     res.status = 500;
     return res;
   }
@@ -82,21 +92,29 @@ typedef struct {
                                   (const char *)poll_options_encoded.data,
                                   (int)poll_options_encoded.len, nullptr))) {
     log(LOG_LEVEL_ERROR, "failed to bind parameter 3", arena,
-        L("error", db_err));
+        L("req.id", req.id), L("error", db_err));
     res.status = 500;
     return res;
   }
 
   if (SQLITE_DONE != (db_err = sqlite3_step(db_insert_poll_stmt))) {
     log(LOG_LEVEL_ERROR, "failed to execute the prepared statement", arena,
-        L("error", db_err));
+        L("req.id", req.id), L("error", db_err));
+    res.status = 500;
+    return res;
+  }
+
+  if (SQLITE_OK !=
+      (db_err = sqlite3_exec(db, "COMMIT", nullptr, nullptr, nullptr))) {
+    log(LOG_LEVEL_ERROR, "failed to begin transaction", arena,
+        L("req.id", req.id), L("error", db_err));
     res.status = 500;
     return res;
   }
 
   log(LOG_LEVEL_INFO, "created poll", arena, L("req.id", req.id),
-      L("poll.options.len", poll.options.len), L("poll.id", poll_id),
-      L("poll.name", poll.name));
+      L("req.id", req.id), L("poll.options.len", poll.options.len),
+      L("poll.id", poll_id), L("poll.name", poll.name));
 
   res.status = 301;
 
@@ -123,7 +141,7 @@ typedef struct {
                                                (const char *)poll_id.data,
                                                (int)poll_id.len, nullptr))) {
     log(LOG_LEVEL_ERROR, "failed to bind parameter 1", arena,
-        L("error", db_err));
+        L("req.id", req.id), L("error", db_err));
     res.status = 500;
     return res;
   }
@@ -137,7 +155,7 @@ typedef struct {
 
   if (SQLITE_ROW != db_err) {
     log(LOG_LEVEL_ERROR, "failed to execute the prepared statement", arena,
-        L("error", db_err));
+        L("req.id", req.id), L("error", db_err));
     res.status = 500;
     return res;
   }
@@ -149,7 +167,7 @@ typedef struct {
   int state = sqlite3_column_int(db_select_poll_stmt, 1);
   if (state >= POLL_STATE_MAX) {
     log(LOG_LEVEL_ERROR, "invalid poll state", arena, L("state", state),
-        L("error", db_err));
+        L("req.id", req.id), L("error", db_err));
     res.status = 500;
     return res;
   }
@@ -165,7 +183,7 @@ typedef struct {
   JsonParseStringStrResult options_parsed =
       json_decode_string_slice(options_json_encoded, arena);
   if (options_parsed.err) {
-    log(LOG_LEVEL_ERROR, "invalid poll options", arena,
+    log(LOG_LEVEL_ERROR, "invalid poll options", arena, L("req.id", req.id),
         L("options", options_json_encoded), L("error", options_parsed.err));
     res.status = 500;
     return res;
@@ -253,19 +271,33 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
 int main() {
   Arena arena = arena_make_from_virtual_mem(4096);
 
-  sqlite3 *db = nullptr;
   int db_err = 0;
   if (SQLITE_OK != (db_err = sqlite3_open("vote.db", &db))) {
     log(LOG_LEVEL_ERROR, "failed to open db", &arena, L("error", db_err));
     exit(EINVAL);
   }
 
-  if (SQLITE_OK !=
-      (db_err = sqlite3_exec(
-           db,
-           "create table if not exists poll (id "
-           "varchar(32) primary key, name text, state tinyint, options text)",
-           nullptr, nullptr, nullptr))) {
+  // See https://kerkour.com/sqlite-for-servers.
+  char *pragmas[] = {
+      "PRAGMA journal_mode = WAL",   "PRAGMA busy_timeout = 5000",
+      "PRAGMA synchronous = NORMAL", "PRAGMA cache_size = 1000000000",
+      "PRAGMA foreign_keys = true",  "PRAGMA temp_store = memory",
+  };
+  for (uint64_t i = 0; i < static_array_len(pragmas); i++) {
+    if (SQLITE_OK !=
+        (db_err = sqlite3_exec(db, AT(pragmas, static_array_len(pragmas), i),
+                               nullptr, nullptr, nullptr))) {
+      log(LOG_LEVEL_ERROR, "failed to execute pragmas", &arena, L("i", i),
+          L("error", db_err));
+      exit(EINVAL);
+    }
+  }
+
+  if (SQLITE_OK != (db_err = sqlite3_exec(db,
+                                          "create table if not exists poll (id "
+                                          "text primary key, name text, "
+                                          "state int, options text) STRICT",
+                                          nullptr, nullptr, nullptr))) {
     log(LOG_LEVEL_ERROR, "failed to create poll table", &arena,
         L("error", db_err));
     exit(EINVAL);
