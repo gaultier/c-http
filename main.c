@@ -56,6 +56,7 @@ typedef struct {
   }
 
   String poll_id = make_unique_id(arena);
+  String poll_options_encoded = json_encode_string_slice(poll.options, arena);
 
   int db_err = 0;
   if (SQLITE_OK != (db_err = sqlite3_bind_text(db_insert_poll_stmt, 1,
@@ -76,11 +77,10 @@ typedef struct {
     return res;
   }
 
-  String options_encoded = json_encode_string_slice(poll.options, arena);
   if (SQLITE_OK !=
       (db_err = sqlite3_bind_text(db_insert_poll_stmt, 3,
-                                  (const char *)options_encoded.data,
-                                  (int)options_encoded.len, nullptr))) {
+                                  (const char *)poll_options_encoded.data,
+                                  (int)poll_options_encoded.len, nullptr))) {
     log(LOG_LEVEL_ERROR, "failed to bind parameter 3", arena,
         L("error", db_err));
     res.status = 500;
