@@ -78,14 +78,8 @@ typedef struct {
   uint64_t len;
 } String;
 
-[[nodiscard]] static bool slice_is_empty(String s) {
-  if (s.len == 0) {
-    return true;
-  }
-
-  ASSERT(s.data != nullptr);
-  return false;
-}
+#define slice_is_empty(s)                                                      \
+  (((s).len == 0) ? true : (ASSERT(nullptr != (s).data), false))
 
 #define S(s) ((String){.data = (uint8_t *)s, .len = sizeof(s) - 1})
 
