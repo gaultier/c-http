@@ -776,8 +776,8 @@ typedef struct {
 #endif
 }
 
-[[nodiscard]] static Slice json_encode_array(DynArraySlice slices,
-                                             Arena *arena) {
+[[nodiscard]] static Slice json_encode_array_slice(DynArraySlice slices,
+                                                   Arena *arena) {
   DynArrayU8 sb = {0};
   *dyn_push(&sb, arena) = '[';
 
@@ -830,7 +830,8 @@ typedef enum {
   return -1;
 }
 
-[[nodiscard]] static JsonParseResult json_decode_array(Slice s, Arena *arena) {
+[[nodiscard]] static JsonParseResult json_decode_array_slice(Slice s,
+                                                             Arena *arena) {
   JsonParseResult res = {0};
   if (s.len < 2) {
     res.err = HS_ERR_INVALID_JSON;

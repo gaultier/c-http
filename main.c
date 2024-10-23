@@ -74,7 +74,7 @@ typedef struct {
     return res;
   }
 
-  Slice options_encoded = json_encode_array(poll.options, arena);
+  Slice options_encoded = json_encode_array_slice(poll.options, arena);
   if (SQLITE_OK !=
       (db_err = sqlite3_bind_text(db_insert_poll_stmt, 3,
                                   (const char *)options_encoded.data,
@@ -161,7 +161,7 @@ typedef struct {
       (uint64_t)sqlite3_column_bytes(db_select_poll_stmt, 2);
 
   JsonParseResult options_parsed =
-      json_decode_array(options_json_encoded, arena);
+      json_decode_array_slice(options_json_encoded, arena);
   if (options_parsed.err) {
     log(LOG_LEVEL_ERROR, "invalid poll options", arena,
         L("options", options_json_encoded), L("error", options_parsed.err));
