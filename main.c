@@ -25,7 +25,7 @@ typedef struct {
   arc4random_buf(&poll_id, sizeof(poll_id));
 
   DynU8 sb = {0};
-  dyn_array_u8_append_u128_hex(&sb, poll_id, arena);
+  dynu8_append_u128_hex(&sb, poll_id, arena);
 
   return dyn_slice(String, sb);
 }

@@ -510,7 +510,7 @@ request_parse_content_length_maybe(HttpRequest req) {
   DynU8 sb = {0};
 
   dyn_append_slice(&sb, S("HTTP/1.1 "), arena);
-  dyn_array_u8_append_u64(&sb, res.status, arena);
+  dynu8_append_u64(&sb, res.status, arena);
   dyn_append_slice(&sb, S("\r\n"), arena);
 
   for (uint64_t i = 0; i < res.headers.len; i++) {

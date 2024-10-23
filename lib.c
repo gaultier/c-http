@@ -415,7 +415,7 @@ typedef struct {
 
 #define dyn_slice(T, dyn) ((T){.data = dyn.data, .len = dyn.len})
 
-static void dyn_array_u8_append_u64(DynU8 *dyn, uint64_t n, Arena *arena) {
+static void dynu8_append_u64(DynU8 *dyn, uint64_t n, Arena *arena) {
   uint8_t tmp[30] = {0};
   const int written_count = snprintf((char *)tmp, sizeof(tmp), "%lu", n);
 
@@ -446,7 +446,7 @@ static void dyn_array_u8_append_u64(DynU8 *dyn, uint64_t n, Arena *arena) {
   ASSERT(0);
 }
 
-static void dyn_array_u8_append_u128_hex(DynU8 *dyn, __uint128_t n,
+static void dynu8_append_u128_hex(DynU8 *dyn, __uint128_t n,
                                          Arena *arena) {
   dyn_ensure_cap(dyn, dyn->len + 32, arena);
   uint64_t dyn_original_len = dyn->len;
@@ -711,7 +711,7 @@ typedef struct {
   dyn_append_slice(&sb, S(" "), arena);
 
   dyn_append_slice(&sb, S("timestamp_ns="), arena);
-  dyn_array_u8_append_u64(
+  dynu8_append_u64(
       &sb, (uint64_t)now.tv_sec * 1000'000'000 + (uint64_t)now.tv_nsec, arena);
   dyn_append_slice(&sb, S(" "), arena);
 
@@ -735,11 +735,11 @@ typedef struct {
       break;
     }
     case LV_U64:
-      dyn_array_u8_append_u64(&sb, entry.value.n64, arena);
+      dynu8_append_u64(&sb, entry.value.n64, arena);
       break;
     case LV_U128:
       dyn_append_slice(&sb, S("\""), arena);
-      dyn_array_u8_append_u128_hex(&sb, entry.value.n128, arena);
+      dynu8_append_u128_hex(&sb, entry.value.n128, arena);
       dyn_append_slice(&sb, S("\""), arena);
       break;
     default:
