@@ -152,10 +152,11 @@ typedef struct {
 #define slice_range(s, start, end)                                             \
   (ASSERT((start) <= (end == 0 ? (s).len : end)), ASSERT((start) <= (s).len),  \
    ASSERT((end == 0 ? (s).len : end) <= (s).len),                              \
-   (typeof((s))){                                                              \
-       .data = (s).data + start * sizeof(typeof((s).data[0])),                 \
-       .len = (end == 0 ? (s).len : end) - (start),                            \
-   })
+   (0 == (s).len) ? s                                                          \
+                  : (typeof((s))){                                             \
+                        .data = &(s).data[start],                              \
+                        .len = (end == 0 ? (s).len : end) - (start),           \
+                    })
 
 [[nodiscard]] static SplitResult string_split_next(SplitIterator *it) {
   if (slice_is_empty(it->slice)) {
