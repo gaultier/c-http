@@ -4,3 +4,4 @@ a.out
 *.db
 profile*
 vote.db*
+*.data

@@ -113,8 +113,8 @@ typedef struct {
   }
 
   log(LOG_LEVEL_INFO, "created poll", arena, L("req.id", req.id),
-      L("req.id", req.id), L("poll.options.len", poll.options.len),
-      L("poll.id", poll_id), L("poll.name", poll.name));
+      L("poll.options.len", poll.options.len), L("poll.id", poll_id),
+      L("poll.name", poll.name));
 
   res.status = 301;
 
