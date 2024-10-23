@@ -1,5 +1,5 @@
 #!/bin/sh
-set -ex
+set -e
 set -f # disable globbing.
 
 CFLAGS="${CFLAGS}"
