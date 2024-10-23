@@ -8,25 +8,25 @@
 
 static void test_string_indexof_slice() {
   // Empty haystack.
-  { ASSERT(-1 == slice_indexof_slice((String){0}, S("fox"))); }
+  { ASSERT(-1 == string_indexof_string((String){0}, S("fox"))); }
 
   // Empty needle.
-  { ASSERT(-1 == slice_indexof_slice(S("hello"), (String){0})); }
+  { ASSERT(-1 == string_indexof_string(S("hello"), (String){0})); }
 
   // Not found.
-  { ASSERT(-1 == slice_indexof_slice(S("hello world"), S("foobar"))); }
+  { ASSERT(-1 == string_indexof_string(S("hello world"), S("foobar"))); }
 
   // Found, one occurence.
-  { ASSERT(6 == slice_indexof_slice(S("hello world"), S("world"))); }
+  { ASSERT(6 == string_indexof_string(S("hello world"), S("world"))); }
 
   // Found, first occurence.
-  { ASSERT(6 == slice_indexof_slice(S("world hello hell"), S("hell"))); }
+  { ASSERT(6 == string_indexof_string(S("world hello hell"), S("hell"))); }
 
   // Found, second occurence.
-  { ASSERT(10 == slice_indexof_slice(S("hello fox foxy"), S("foxy"))); }
+  { ASSERT(10 == string_indexof_string(S("hello fox foxy"), S("foxy"))); }
 
   // Almost found, prefix matches.
-  { ASSERT(-1 == slice_indexof_slice(S("hello world"), S("worldly"))); }
+  { ASSERT(-1 == string_indexof_string(S("hello world"), S("worldly"))); }
 }
 
 typedef struct {

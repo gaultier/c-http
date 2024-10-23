@@ -211,7 +211,7 @@ reader_read_until_slice(Reader *reader, String needle, Arena *arena) {
       return io;
     }
 
-    int64_t idx = slice_indexof_slice(io.slice, needle);
+    int64_t idx = string_indexof_string(io.slice, needle);
     // Not found, continue reading.
     if (idx == -1) {
       continue;
@@ -450,7 +450,7 @@ request_parse_content_length_maybe(HttpRequest req) {
       continue;
     }
 
-    return slice_parse_u64_decimal(h.value);
+    return string_parse_u64_decimal(h.value);
   }
   return (ParseNumberResult){0};
 }
@@ -755,7 +755,7 @@ http_client_request(struct sockaddr *addr, uint32_t addr_sizeof,
 
     String status_str =
         slice_range(status_line.line, http_version_needle.len, 0);
-    ParseNumberResult status_parsed = slice_parse_u64_decimal(status_str);
+    ParseNumberResult status_parsed = string_parse_u64_decimal(status_str);
     if (status_parsed.err) {
       res.err = status_parsed.err;
       goto end;

@@ -214,8 +214,8 @@ typedef struct {
   return memcmp(a.data, b.data, a.len) == 0;
 }
 
-[[nodiscard]] static int64_t slice_indexof_slice(String haystack,
-                                                 String needle) {
+[[nodiscard]] static int64_t string_indexof_string(String haystack,
+                                                   String needle) {
   if (haystack.data == nullptr) {
     return -1;
   }
@@ -247,13 +247,13 @@ typedef struct {
 }
 
 [[nodiscard]] static bool string_starts_with(String haystack, String needle) {
-  int64_t idx = slice_indexof_slice(haystack, needle);
+  int64_t idx = string_indexof_string(haystack, needle);
   return idx == 0;
 }
 
 [[maybe_unused]] [[nodiscard]] static bool string_ends_with(String haystack,
                                                             String needle) {
-  int64_t idx = slice_indexof_slice(haystack, needle);
+  int64_t idx = string_indexof_string(haystack, needle);
   return idx == (int64_t)haystack.len - (int64_t)needle.len;
 }
 
@@ -263,7 +263,7 @@ typedef struct {
   bool present;
 } ParseNumberResult;
 
-[[nodiscard]] static ParseNumberResult slice_parse_u64_decimal(String slice) {
+[[nodiscard]] static ParseNumberResult string_parse_u64_decimal(String slice) {
   String trimmed = string_trim(slice, ' ');
 
   ParseNumberResult res = {0};
