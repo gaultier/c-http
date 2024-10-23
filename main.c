@@ -14,7 +14,7 @@ typedef enum : uint8_t {
 typedef struct {
   PollState state;
   Slice name;
-  DynArraySlice options;
+  StringSlice options;
   // TODO: creation date, etc.
 } Poll;
 
@@ -27,7 +27,7 @@ typedef struct {
   DynArrayU8 sb = {0};
   dyn_array_u8_append_u128_hex(&sb, poll_id, arena);
 
-  return dyn_array_u8_to_slice(sb);
+  return dyn_slice(Slice, sb);
 }
 
 [[nodiscard]] static HttpResponse handle_create_poll(HttpRequest req,
@@ -42,15 +42,17 @@ typedef struct {
 
   Poll poll = {.state = POLL_STATE_OPEN};
   {
+    DynArraySlice options = {0};
     for (uint64_t i = 0; i < form.form.len; i++) {
       FormDataKV kv = dyn_at(form.form, i);
       if (slice_eq(kv.key, S("name"))) {
         poll.name = kv.value;
       } else if (slice_eq(kv.key, S("option")) && !slice_is_empty(kv.value)) {
-        *dyn_push(&poll.options, arena) = kv.value;
+        *dyn_push(&options, arena) = kv.value;
       }
       // Ignore unknown form data.
     }
+    poll.options = dyn_slice(StringSlice, options);
   }
 
   Slice poll_id = make_unique_id(arena);
@@ -74,7 +76,7 @@ typedef struct {
     return res;
   }
 
-  Slice options_encoded = json_encode_array_slice(poll.options, arena);
+  Slice options_encoded = json_encode_string_slice(poll.options, arena);
   if (SQLITE_OK !=
       (db_err = sqlite3_bind_text(db_insert_poll_stmt, 3,
                                   (const char *)options_encoded.data,
@@ -102,7 +104,7 @@ typedef struct {
   dyn_append_slice(&redirect, S("/poll/"), arena);
   dyn_append_slice(&redirect, poll_id, arena);
 
-  http_push_header(&res.headers, S("Location"), dyn_array_u8_to_slice(redirect),
+  http_push_header(&res.headers, S("Location"), dyn_slice(Slice, redirect),
                    arena);
 
   return res;
@@ -160,8 +162,8 @@ typedef struct {
   options_json_encoded.len =
       (uint64_t)sqlite3_column_bytes(db_select_poll_stmt, 2);
 
-  JsonParseResult options_parsed =
-      json_decode_array_slice(options_json_encoded, arena);
+  JsonParseStringSliceResult options_parsed =
+      json_decode_string_slice(options_json_encoded, arena);
   if (options_parsed.err) {
     log(LOG_LEVEL_ERROR, "invalid poll options", arena,
         L("options", options_json_encoded), L("error", options_parsed.err));
@@ -191,8 +193,8 @@ typedef struct {
   }
 
   dyn_append_slice(&resp_body, S("<br>"), arena);
-  for (uint64_t i = 0; i < options_parsed.array.len; i++) {
-    Slice option = dyn_at(options_parsed.array, i);
+  for (uint64_t i = 0; i < options_parsed.string_slice.len; i++) {
+    Slice option = dyn_at(options_parsed.string_slice, i);
 
     // TODO: Better HTML.
     dyn_append_slice(&resp_body, S("<span>"), arena);
@@ -202,7 +204,7 @@ typedef struct {
 
   dyn_append_slice(&resp_body, S("</div></body></html>"), arena);
 
-  res.body = dyn_array_u8_to_slice(resp_body);
+  res.body = dyn_slice(Slice, resp_body);
   res.status = 200;
   http_push_header(&res.headers, S("Content-Type"), S("text/html"), arena);
 

@@ -415,9 +415,7 @@ typedef struct {
     }                                                                          \
   } while (0)
 
-[[nodiscard]] static Slice dyn_array_u8_to_slice(DynArrayU8 dyn) {
-  return (Slice){.data = dyn.data, .len = dyn.len};
-}
+#define dyn_slice(T, dyn) ((T){.data = dyn.data, .len = dyn.len})
 
 static void dyn_array_u8_append_u64(DynArrayU8 *dyn, uint64_t n, Arena *arena) {
   uint8_t tmp[30] = {0};
@@ -644,7 +642,7 @@ typedef struct {
   }
   *dyn_push(&sb, arena) = '"';
 
-  return dyn_array_u8_to_slice(sb);
+  return dyn_slice(Slice, sb);
 }
 
 [[nodiscard]] static Slice json_unescape_string(Slice entry, Arena *arena) {
@@ -677,7 +675,7 @@ typedef struct {
     }
   }
 
-  return dyn_array_u8_to_slice(sb);
+  return dyn_slice(Slice, sb);
 }
 
 [[nodiscard]] static Slice make_log_line(LogLevel level, Slice msg,
@@ -751,7 +749,7 @@ typedef struct {
   dyn_pop(&sb);
   dyn_append_slice(&sb, S("\n"), arena);
 
-  return dyn_array_u8_to_slice(sb);
+  return dyn_slice(Slice, sb);
 }
 
 [[nodiscard]] static Error os_sendfile(int fd_in, int fd_out,
@@ -776,30 +774,35 @@ typedef struct {
 #endif
 }
 
-[[nodiscard]] static Slice json_encode_array_slice(DynArraySlice slices,
-                                                   Arena *arena) {
+typedef struct {
+  Slice *data;
+  uint64_t len;
+} StringSlice;
+
+[[nodiscard]] static Slice json_encode_string_slice(StringSlice strings,
+                                                    Arena *arena) {
   DynArrayU8 sb = {0};
   *dyn_push(&sb, arena) = '[';
 
-  for (uint64_t i = 0; i < slices.len; i++) {
-    Slice slice = dyn_at(slices, i);
+  for (uint64_t i = 0; i < strings.len; i++) {
+    Slice slice = dyn_at(strings, i);
     Slice encoded = json_escape_string(slice, arena);
     dyn_append_slice(&sb, encoded, arena);
 
-    if (i + 1 < slices.len) {
+    if (i + 1 < strings.len) {
       *dyn_push(&sb, arena) = ',';
     }
   }
 
   *dyn_push(&sb, arena) = ']';
 
-  return dyn_array_u8_to_slice(sb);
+  return dyn_slice(Slice, sb);
 }
 
 typedef struct {
   Error err;
-  DynArraySlice array;
-} JsonParseResult;
+  StringSlice string_slice;
+} JsonParseStringSliceResult;
 
 typedef enum {
   HS_ERR_INVALID_HTTP_REQUEST,
@@ -830,9 +833,9 @@ typedef enum {
   return -1;
 }
 
-[[nodiscard]] static JsonParseResult json_decode_array_slice(Slice s,
-                                                             Arena *arena) {
-  JsonParseResult res = {0};
+[[nodiscard]] static JsonParseStringSliceResult
+json_decode_string_slice(Slice s, Arena *arena) {
+  JsonParseStringSliceResult res = {0};
   if (s.len < 2) {
     res.err = HS_ERR_INVALID_JSON;
     return res;
@@ -842,6 +845,7 @@ typedef enum {
     return res;
   }
 
+  DynArraySlice dyn = {0};
   for (uint64_t i = 1; i < s.len - 1; i++) {
     uint8_t c = AT(s.data, s.len, i);
     if (' ' == c) {
@@ -864,7 +868,7 @@ typedef enum {
 
     Slice str = slice_range(s, i + 1, (i + 1) + ((uint64_t)end_quote_idx - 1));
     Slice unescaped = json_unescape_string(str, arena);
-    *dyn_push(&res.array, arena) = unescaped;
+    *dyn_push(&dyn, arena) = unescaped;
   }
 
   if (']' != AT(s.data, s.len, s.len - 1)) {
@@ -872,5 +876,6 @@ typedef enum {
     return res;
   }
 
+  res.string_slice = dyn_slice(StringSlice, dyn);
   return res;
 }

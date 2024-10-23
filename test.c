@@ -452,6 +452,14 @@ static void test_form_data_parse() {
   ASSERT(slice_eq(kv3.value, S("!")));
 }
 
+static void test_json_encode_decode_array_slice() {
+  Arena arena = arena_make_from_virtual_mem(4096);
+
+  DynArraySlice array = {0};
+  *dyn_push(&array, &arena) = S("hello \"world\\n\"!");
+  *dyn_push(&array, &arena) = S("日");
+}
+
 int main() {
   test_slice_indexof_slice();
   test_slice_trim();

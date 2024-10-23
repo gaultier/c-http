@@ -527,7 +527,7 @@ request_parse_content_length_maybe(HttpRequest req) {
     dyn_append_slice(&sb, res.body, arena);
   }
 
-  const Slice slice = dyn_array_u8_to_slice(sb);
+  const Slice slice = dyn_slice(Slice, sb);
 
   Error err = writer_write_all(writer, slice);
   if (0 != err) {
@@ -854,7 +854,7 @@ form_data_kv_parse_element(Slice in, uint8_t ch_terminator, Arena *arena) {
     }
   }
 
-  res.data = dyn_array_u8_to_slice(data);
+  res.data = dyn_slice(Slice, data);
   res.remaining = slice_range(in, i, 0);
   return res;
 }
