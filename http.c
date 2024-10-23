@@ -534,7 +534,7 @@ request_parse_content_length_maybe(HttpRequest req) {
   }
 
   if (!slice_is_empty(res.file_path)) {
-    char *file_path_c = slice_to_cstr(res.file_path, arena);
+    char *file_path_c = string_to_cstr(res.file_path, arena);
     int file_fd = open(file_path_c, O_RDONLY);
     if (file_fd == -1) {
       return (Error)errno;

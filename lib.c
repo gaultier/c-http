@@ -312,11 +312,14 @@ arena_alloc(Arena *a, uint64_t size, uint64_t align, uint64_t count) {
   return memset(res, 0, count * size);
 }
 
-[[nodiscard]] static char *slice_to_cstr(String s, Arena *arena) {
+[[nodiscard]] static char *string_to_cstr(String s, Arena *arena) {
   char *res = arena_alloc(arena, 1, 1, s.len + 1);
   if (NULL != s.data) {
     memcpy(res, s.data, s.len);
   }
+
+  ASSERT(0 == AT(res, s.len + 1, s.len));
+
   return res;
 }
 
