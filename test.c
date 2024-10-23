@@ -147,12 +147,23 @@ static void test_log_entry_quote_value() {
   {
     Slice s = S("hello");
     Slice expected = S("\"hello\"");
-    ASSERT(slice_eq(expected, log_entry_quote_value(s, &arena)));
+    ASSERT(slice_eq(expected, json_escape_string(s, &arena)));
   }
   {
     Slice s = S("{\"id\": 1}");
     Slice expected = S("\"{\\\"id\\\": 1}\"");
-    ASSERT(slice_eq(expected, log_entry_quote_value(s, &arena)));
+    ASSERT(slice_eq(expected, json_escape_string(s, &arena)));
+  }
+  {
+    uint8_t backslash = 0x5c;
+    uint8_t double_quote = '"';
+    uint8_t data[] = {backslash, double_quote};
+    Slice s = {.data = data, .len = sizeof(data)};
+
+    uint8_t data_expected[] = {double_quote, backslash,    backslash,
+                               backslash,    double_quote, double_quote};
+    Slice expected = {.data = data_expected, .len = sizeof(data_expected)};
+    ASSERT(slice_eq(expected, json_escape_string(s, &arena)));
   }
 }
 

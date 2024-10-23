@@ -623,8 +623,7 @@ typedef struct {
     } else if ('\\' == c) {
       *dyn_push(&sb, arena) = '\\';
       *dyn_push(&sb, arena) = '\\';
-    } // TODO: '/'?
-    else if ('\b' == c) {
+    } else if ('\b' == c) {
       *dyn_push(&sb, arena) = '\\';
       *dyn_push(&sb, arena) = 'b';
     } else if ('\f' == c) {
