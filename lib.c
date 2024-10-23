@@ -48,6 +48,8 @@ static void print_stacktrace(const char *file, int line, const char *function) {
 
 #define AT(arr, len, idx) (*AT_PTR(arr, len, idx))
 
+#define slice_at(s, idx) (AT((s).data, (s).len, idx))
+
 typedef uint32_t Error;
 
 [[nodiscard]] static bool ch_is_hex_digit(uint8_t c) {
@@ -147,16 +149,13 @@ typedef struct {
   return res - haystack.data;
 }
 
-[[nodiscard]] static String slice_range(String src, uint64_t start,
-                                        uint64_t end) {
-  const uint64_t real_end = end == 0 ? src.len : end;
-  ASSERT(start <= real_end);
-  ASSERT(start <= src.len);
-  ASSERT(real_end <= src.len);
-
-  String res = {.data = src.data + start, .len = real_end - start};
-  return res;
-}
+#define slice_range(s, start, end)                                             \
+  (ASSERT((start) <= (end == 0 ? (s).len : end)), ASSERT((start) <= (s).len),  \
+   ASSERT((end == 0 ? (s).len : end) <= (s).len),                              \
+   (typeof((s))){                                                              \
+       .data = (s).data + start * sizeof(typeof((s).data[0])),                 \
+       .len = (end == 0 ? (s).len : end) - (start),                            \
+   })
 
 [[nodiscard]] static SplitResult string_split_next(SplitIterator *it) {
   if (slice_is_empty(it->slice)) {
@@ -782,9 +781,9 @@ typedef struct {
 typedef struct {
   String *data;
   uint64_t len;
-} StringString;
+} StringSlice;
 
-[[nodiscard]] static String json_encode_string_slice(StringString strings,
+[[nodiscard]] static String json_encode_string_slice(StringSlice strings,
                                                      Arena *arena) {
   DynU8 sb = {0};
   *dyn_push(&sb, arena) = '[';
@@ -806,7 +805,7 @@ typedef struct {
 
 typedef struct {
   Error err;
-  StringString string_slice;
+  StringSlice string_slice;
 } JsonParseStringStrResult;
 
 typedef enum {
@@ -914,6 +913,6 @@ json_decode_string_slice(String s, Arena *arena) {
     return res;
   }
 
-  res.string_slice = dyn_slice(StringString, dyn);
+  res.string_slice = dyn_slice(StringSlice, dyn);
   return res;
 }

@@ -14,7 +14,7 @@ typedef enum : uint8_t {
 typedef struct {
   PollState state;
   String name;
-  StringString options;
+  StringSlice options;
   // TODO: creation date, etc.
 } Poll;
 
@@ -52,7 +52,7 @@ typedef struct {
       }
       // Ignore unknown form data.
     }
-    poll.options = dyn_slice(StringString, options);
+    poll.options = dyn_slice(StringSlice, options);
   }
 
   String poll_id = make_unique_id(arena);

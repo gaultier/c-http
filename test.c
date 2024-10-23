@@ -462,7 +462,7 @@ static void test_json_encode_decode_string_slice() {
   *dyn_push(&dyn, &arena) = S("日");
 
   String encoded =
-      json_encode_string_slice(dyn_slice(StringString, dyn), &arena);
+      json_encode_string_slice(dyn_slice(StringSlice, dyn), &arena);
   JsonParseStringStrResult decoded = json_decode_string_slice(encoded, &arena);
   ASSERT(!decoded.err);
   ASSERT(decoded.string_slice.len == dyn.len);
@@ -471,6 +471,25 @@ static void test_json_encode_decode_string_slice() {
     String got = AT(decoded.string_slice.data, decoded.string_slice.len, i);
     ASSERT(string_eq(got, expected));
   }
+}
+
+static void test_slice_range() {
+  Arena arena = arena_make_from_virtual_mem(4096);
+
+  DynString dyn = {0};
+  // Works on empty slices.
+  (void)slice_range(dyn_slice(StringSlice, dyn), 0, 0);
+
+  *dyn_push(&dyn, &arena) = S("hello \"world\n\"!");
+  *dyn_push(&dyn, &arena) = S("日");
+  *dyn_push(&dyn, &arena) = S("本語");
+
+  StringSlice slice = dyn_slice(StringSlice, dyn);
+  StringSlice range = slice_range(slice, 1, 0);
+  ASSERT(2 == range.len);
+
+  ASSERT(string_eq(slice_at(slice, 1), slice_at(range, 0)));
+  ASSERT(string_eq(slice_at(slice, 2), slice_at(range, 1)));
 }
 
 int main() {
@@ -486,4 +505,5 @@ int main() {
   test_http_server_serve_file();
   test_form_data_parse();
   test_json_encode_decode_string_slice();
+  test_slice_range();
 }
