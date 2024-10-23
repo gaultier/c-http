@@ -45,9 +45,9 @@ typedef struct {
     DynString options = {0};
     for (uint64_t i = 0; i < form.form.len; i++) {
       FormDataKV kv = dyn_at(form.form, i);
-      if (slice_eq(kv.key, S("name"))) {
+      if (string_eq(kv.key, S("name"))) {
         poll.name = kv.value;
-      } else if (slice_eq(kv.key, S("option")) && !slice_is_empty(kv.value)) {
+      } else if (string_eq(kv.key, S("option")) && !slice_is_empty(kv.value)) {
         *dyn_push(&options, arena) = kv.value;
       }
       // Ignore unknown form data.
@@ -216,31 +216,31 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
   ASSERT(0 == req.err);
   (void)ctx;
 
-  String path0 =
-      req.path_components.len >= 1 ? dyn_at(req.path_components, 0) : (String){0};
-  String path1 =
-      req.path_components.len >= 2 ? dyn_at(req.path_components, 1) : (String){0};
+  String path0 = req.path_components.len >= 1 ? dyn_at(req.path_components, 0)
+                                              : (String){0};
+  String path1 = req.path_components.len >= 2 ? dyn_at(req.path_components, 1)
+                                              : (String){0};
   // Home page.
   if (HM_GET == req.method && ((req.path_components.len == 0) ||
                                ((req.path_components.len == 1) &&
-                                (slice_eq(path0, S("index.html")))))) {
+                                (string_eq(path0, S("index.html")))))) {
     HttpResponse res = {0};
     res.status = 200;
     http_push_header(&res.headers, S("Content-Type"), S("text/html"), arena);
     http_response_register_file_for_sending(&res, S("index.html"));
     return res;
   } else if (HM_GET == req.method && 1 == req.path_components.len &&
-             slice_eq(path0, S("pure-min.css"))) {
+             string_eq(path0, S("pure-min.css"))) {
     HttpResponse res = {0};
     res.status = 200;
     http_push_header(&res.headers, S("Content-Type"), S("text/css"), arena);
     http_response_register_file_for_sending(&res, S("pure-min.css"));
     return res;
   } else if (HM_POST == req.method && 1 == req.path_components.len &&
-             slice_eq(path0, S("poll"))) {
+             string_eq(path0, S("poll"))) {
     return handle_create_poll(req, arena);
   } else if (HM_GET == req.method && 2 == req.path_components.len &&
-             slice_eq(path0, S("poll")) && 32 == path1.len) {
+             string_eq(path0, S("poll")) && 32 == path1.len) {
     return handle_get_poll(req, arena);
   } else { // TODO: Vote in poll.
     HttpResponse res = {0};
