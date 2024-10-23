@@ -274,17 +274,17 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
 }
 
 [[nodiscard]] static DynString http_parse_relative_path(String s,
-                                                            Arena *arena) {
-  ASSERT(slice_starts_with(s, S("/")));
+                                                        Arena *arena) {
+  ASSERT(string_starts_with(s, S("/")));
 
   DynString res = {0};
 
-  SplitIterator split_it_question = slice_split(s, '?');
-  String work = slice_split_next(&split_it_question).slice;
+  SplitIterator split_it_question = string_split(s, '?');
+  String work = string_split_next(&split_it_question).slice;
 
-  SplitIterator split_it_slash = slice_split(work, '/');
+  SplitIterator split_it_slash = string_split(work, '/');
   for (uint64_t i = 0; i < s.len; i++) { // Bound.
-    SplitResult split = slice_split_next(&split_it_slash);
+    SplitResult split = string_split_next(&split_it_slash);
     if (!split.ok) {
       break;
     }
@@ -313,18 +313,18 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
     return req;
   }
 
-  SplitIterator it = slice_split(status_line.line, ' ');
+  SplitIterator it = string_split(status_line.line, ' ');
 
   {
-    SplitResult method = slice_split_next(&it);
+    SplitResult method = string_split_next(&it);
     if (!method.ok) {
       req.err = HS_ERR_INVALID_HTTP_REQUEST;
       return req;
     }
 
-    if (slice_eq(method.slice, S("GET"))) {
+    if (string_eq(method.slice, S("GET"))) {
       req.method = HM_GET;
-    } else if (slice_eq(method.slice, S("POST"))) {
+    } else if (string_eq(method.slice, S("POST"))) {
       req.method = HM_POST;
     } else {
       // FIXME: More.
@@ -334,7 +334,7 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
   }
 
   {
-    SplitResult path = slice_split_next(&it);
+    SplitResult path = string_split_next(&it);
     if (!path.ok) {
       req.err = HS_ERR_INVALID_HTTP_REQUEST;
       return req;
@@ -355,13 +355,13 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
   }
 
   {
-    SplitResult http_version = slice_split_next(&it);
+    SplitResult http_version = string_split_next(&it);
     if (!http_version.ok) {
       req.err = HS_ERR_INVALID_HTTP_REQUEST;
       return req;
     }
 
-    if (!slice_eq(http_version.slice, S("HTTP/1.1"))) {
+    if (!string_eq(http_version.slice, S("HTTP/1.1"))) {
       req.err = HS_ERR_INVALID_HTTP_REQUEST;
       return req;
     }
@@ -370,9 +370,8 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
   return req;
 }
 
-[[nodiscard]] static Error reader_read_headers(Reader *reader,
-                                               DynHttpHeaders *headers,
-                                               Arena *arena) {
+[[nodiscard]] static Error
+reader_read_headers(Reader *reader, DynHttpHeaders *headers, Arena *arena) {
   dyn_ensure_cap(headers, 30, arena);
 
   for (uint64_t _i = 0; _i < HTTP_REQUEST_LINES_MAX_COUNT; _i++) {
@@ -386,16 +385,16 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
       break;
     }
 
-    SplitIterator it = slice_split(line.line, ':');
-    SplitResult key = slice_split_next(&it);
+    SplitIterator it = string_split(line.line, ':');
+    SplitResult key = string_split_next(&it);
     if (!key.ok) {
       return HS_ERR_INVALID_HTTP_REQUEST;
     }
 
-    String key_trimmed = slice_trim(key.slice, ' ');
+    String key_trimmed = string_trim(key.slice, ' ');
 
     String value = it.slice; // Remainder.
-    String value_trimmed = slice_trim(value, ' ');
+    String value_trimmed = string_trim(value, ' ');
 
     HttpHeader header = {.key = key_trimmed, .value = value_trimmed};
     *dyn_push(headers, arena) = header;
@@ -447,7 +446,7 @@ request_parse_content_length_maybe(HttpRequest req) {
   for (uint64_t i = 0; i < req.headers.len; i++) {
     HttpHeader h = req.headers.data[i];
 
-    if (!slice_eq(S("Content-Length"), h.key)) {
+    if (!string_eq(S("Content-Length"), h.key)) {
       continue;
     }
 
@@ -557,8 +556,8 @@ request_parse_content_length_maybe(HttpRequest req) {
   return 0;
 }
 
-static void http_push_header(DynHttpHeaders *headers, String key,
-                             String value, Arena *arena) {
+static void http_push_header(DynHttpHeaders *headers, String key, String value,
+                             Arena *arena) {
   *dyn_push(headers, arena) = (HttpHeader){.key = key, .value = value};
 }
 
@@ -749,7 +748,7 @@ http_client_request(struct sockaddr *addr, uint32_t addr_sizeof,
     }
 
     String http_version_needle = S("HTTP/1.1 ");
-    if (!slice_starts_with(status_line.line, http_version_needle)) {
+    if (!string_starts_with(status_line.line, http_version_needle)) {
       res.err = HS_ERR_INVALID_HTTP_RESPONSE;
       goto end;
     }
