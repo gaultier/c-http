@@ -3,3 +3,4 @@ a.out
 *.dwo
 *.db
 profile*
+vote.db*
