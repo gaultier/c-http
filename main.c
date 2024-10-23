@@ -268,13 +268,11 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
   ASSERT(0);
 }
 
-int main() {
-  Arena arena = arena_make_from_virtual_mem(4096);
-
+[[nodiscard]] static int setup_db(Arena *arena) {
   int db_err = 0;
   if (SQLITE_OK != (db_err = sqlite3_open("vote.db", &db))) {
-    log(LOG_LEVEL_ERROR, "failed to open db", &arena, L("error", db_err));
-    exit(EINVAL);
+    log(LOG_LEVEL_ERROR, "failed to open db", arena, L("error", db_err));
+    return db_err;
   }
 
   // See https://kerkour.com/sqlite-for-servers.
@@ -287,9 +285,9 @@ int main() {
     if (SQLITE_OK !=
         (db_err = sqlite3_exec(db, AT(pragmas, static_array_len(pragmas), i),
                                nullptr, nullptr, nullptr))) {
-      log(LOG_LEVEL_ERROR, "failed to execute pragmas", &arena, L("i", i),
+      log(LOG_LEVEL_ERROR, "failed to execute pragmas", arena, L("i", i),
           L("error", db_err));
-      exit(EINVAL);
+      return db_err;
     }
   }
 
@@ -298,9 +296,9 @@ int main() {
                                           "text primary key, name text, "
                                           "state int, options text) STRICT",
                                           nullptr, nullptr, nullptr))) {
-    log(LOG_LEVEL_ERROR, "failed to create poll table", &arena,
+    log(LOG_LEVEL_ERROR, "failed to create poll table", arena,
         L("error", db_err));
-    exit(EINVAL);
+    return db_err;
   }
 
   String db_insert_poll_sql =
@@ -309,9 +307,9 @@ int main() {
       (db_err = sqlite3_prepare_v2(db, (const char *)db_insert_poll_sql.data,
                                    (int)db_insert_poll_sql.len,
                                    &db_insert_poll_stmt, nullptr))) {
-    log(LOG_LEVEL_ERROR, "failed to prepare statement to insert poll", &arena,
+    log(LOG_LEVEL_ERROR, "failed to prepare statement to insert poll", arena,
         L("error", db_err));
-    exit(EINVAL);
+    return db_err;
   }
 
   String db_select_poll_sql =
@@ -320,10 +318,21 @@ int main() {
       (db_err = sqlite3_prepare_v2(db, (const char *)db_select_poll_sql.data,
                                    (int)db_select_poll_sql.len,
                                    &db_select_poll_stmt, nullptr))) {
-    log(LOG_LEVEL_ERROR, "failed to prepare statement to select poll", &arena,
+    log(LOG_LEVEL_ERROR, "failed to prepare statement to select poll", arena,
         L("error", db_err));
+    return db_err;
+  }
+
+  return 0;
+}
+
+int main() {
+  Arena arena = arena_make_from_virtual_mem(4096);
+
+  if (0 != setup_db(&arena)) {
     exit(EINVAL);
   }
+  ASSERT(nullptr != db);
 
   Error err = http_server_run(HTTP_SERVER_DEFAULT_PORT, my_http_request_handler,
                               nullptr, &arena);
