@@ -822,8 +822,8 @@ typedef enum {
   HS_ERR_INVALID_JSON,
 } HS_ERROR;
 
-[[nodiscard]] static int64_t slice_indexof_unescaped_byte(String haystack,
-                                                          uint8_t needle) {
+[[nodiscard]] static int64_t string_indexof_unescaped_byte(String haystack,
+                                                           uint8_t needle) {
   for (uint64_t i = 0; i < haystack.len; i++) {
     uint8_t c = AT(haystack.data, haystack.len, i);
 
@@ -882,7 +882,7 @@ json_decode_string_slice(String s, Arena *arena) {
     i += 1;
 
     String remaining = slice_range(s, i, 0);
-    int64_t end_quote_idx = slice_indexof_unescaped_byte(remaining, '"');
+    int64_t end_quote_idx = string_indexof_unescaped_byte(remaining, '"');
     if (-1 == end_quote_idx) {
       res.err = HS_ERR_INVALID_JSON;
       return res;
