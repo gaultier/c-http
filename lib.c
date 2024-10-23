@@ -384,12 +384,12 @@ static void dyn_grow(void *slice, uint64_t size, uint64_t align, uint64_t count,
 typedef struct {
   uint8_t *data;
   uint64_t len, cap;
-} DynArrayU8;
+} DynU8;
 
 typedef struct {
   Slice *data;
   uint64_t len, cap;
-} DynArraySlice;
+} DynString;
 
 #define dyn_push(s, arena)                                                     \
   (dyn_ensure_cap(s, (s)->len + 1, arena), (s)->data + (s)->len++)
@@ -417,7 +417,7 @@ typedef struct {
 
 #define dyn_slice(T, dyn) ((T){.data = dyn.data, .len = dyn.len})
 
-static void dyn_array_u8_append_u64(DynArrayU8 *dyn, uint64_t n, Arena *arena) {
+static void dyn_array_u8_append_u64(DynU8 *dyn, uint64_t n, Arena *arena) {
   uint8_t tmp[30] = {0};
   const int written_count = snprintf((char *)tmp, sizeof(tmp), "%lu", n);
 
@@ -448,7 +448,7 @@ static void dyn_array_u8_append_u64(DynArrayU8 *dyn, uint64_t n, Arena *arena) {
   ASSERT(0);
 }
 
-static void dyn_array_u8_append_u128_hex(DynArrayU8 *dyn, __uint128_t n,
+static void dyn_array_u8_append_u128_hex(DynU8 *dyn, __uint128_t n,
                                          Arena *arena) {
   dyn_ensure_cap(dyn, dyn->len + 32, arena);
   uint64_t dyn_original_len = dyn->len;
@@ -610,7 +610,7 @@ typedef struct {
   } while (0)
 
 [[nodiscard]] static Slice json_escape_string(Slice entry, Arena *arena) {
-  DynArrayU8 sb = {0};
+  DynU8 sb = {0};
   *dyn_push(&sb, arena) = '"';
 
   for (uint64_t i = 0; i < entry.len; i++) {
@@ -646,7 +646,7 @@ typedef struct {
 }
 
 [[nodiscard]] static Slice json_unescape_string(Slice entry, Arena *arena) {
-  DynArrayU8 sb = {0};
+  DynU8 sb = {0};
 
   for (uint64_t i = 0; i < entry.len; i++) {
     uint8_t c = AT(entry.data, entry.len, i);
@@ -691,7 +691,7 @@ typedef struct {
   struct timespec now = {0};
   clock_gettime(CLOCK_MONOTONIC, &now);
 
-  DynArrayU8 sb = {0};
+  DynU8 sb = {0};
 
   dyn_append_slice(&sb, S("level="), arena);
   switch (level) {
@@ -788,7 +788,7 @@ typedef struct {
 
 [[nodiscard]] static Slice json_encode_string_slice(StringSlice strings,
                                                     Arena *arena) {
-  DynArrayU8 sb = {0};
+  DynU8 sb = {0};
   *dyn_push(&sb, arena) = '[';
 
   for (uint64_t i = 0; i < strings.len; i++) {
@@ -866,7 +866,7 @@ json_decode_string_slice(Slice s, Arena *arena) {
     return res;
   }
 
-  DynArraySlice dyn = {0};
+  DynString dyn = {0};
   for (uint64_t i = 1; i < s.len - 2;) {
     i = skip_over_whitespace(s, i);
 

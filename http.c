@@ -37,21 +37,21 @@ typedef struct {
 typedef struct {
   HttpHeader *data;
   uint64_t len, cap;
-} DynArrayHttpHeaders;
+} DynHttpHeaders;
 
 typedef struct {
   __uint128_t id;
   Slice path_raw;
-  DynArraySlice path_components;
+  DynString path_components;
   HttpMethod method;
-  DynArrayHttpHeaders headers;
+  DynHttpHeaders headers;
   Slice body;
   Error err;
 } HttpRequest;
 
 typedef struct {
   uint16_t status;
-  DynArrayHttpHeaders headers;
+  DynHttpHeaders headers;
   Error err;
 
   // TODO: union{file_path,body}?
@@ -68,7 +68,7 @@ typedef IoOperationResult (*ReadFn)(void *ctx, void *buf, size_t buf_len);
 
 typedef struct {
   uint64_t buf_idx;
-  DynArrayU8 buf;
+  DynU8 buf;
   void *ctx;
   ReadFn read_fn;
 } Reader;
@@ -273,11 +273,11 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
   return line;
 }
 
-[[nodiscard]] static DynArraySlice http_parse_relative_path(Slice s,
+[[nodiscard]] static DynString http_parse_relative_path(Slice s,
                                                             Arena *arena) {
   ASSERT(slice_starts_with(s, S("/")));
 
-  DynArraySlice res = {0};
+  DynString res = {0};
 
   SplitIterator split_it_question = slice_split(s, '?');
   Slice work = slice_split_next(&split_it_question).slice;
@@ -371,7 +371,7 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
 }
 
 [[nodiscard]] static Error reader_read_headers(Reader *reader,
-                                               DynArrayHttpHeaders *headers,
+                                               DynHttpHeaders *headers,
                                                Arena *arena) {
   dyn_ensure_cap(headers, 30, arena);
 
@@ -508,7 +508,7 @@ request_parse_content_length_maybe(HttpRequest req) {
   // Invalid to both want to serve a file and a body.
   ASSERT(slice_is_empty(res.file_path) || slice_is_empty(res.body));
 
-  DynArrayU8 sb = {0};
+  DynU8 sb = {0};
 
   dyn_append_slice(&sb, S("HTTP/1.1 "), arena);
   dyn_array_u8_append_u64(&sb, res.status, arena);
@@ -557,7 +557,7 @@ request_parse_content_length_maybe(HttpRequest req) {
   return 0;
 }
 
-static void http_push_header(DynArrayHttpHeaders *headers, Slice key,
+static void http_push_header(DynHttpHeaders *headers, Slice key,
                              Slice value, Arena *arena) {
   *dyn_push(headers, arena) = (HttpHeader){.key = key, .value = value};
 }
@@ -710,7 +710,7 @@ http_client_request(struct sockaddr *addr, uint32_t addr_sizeof,
     goto end;
   }
 
-  DynArrayU8 sb = {0};
+  DynU8 sb = {0};
   dyn_append_slice(&sb, http_method_to_s(req.method), arena);
   dyn_append_slice(&sb, S(" /"), arena);
 
@@ -799,11 +799,11 @@ typedef struct {
 typedef struct {
   FormDataKV *data;
   uint64_t len, cap;
-} DynArrayFormData;
+} DynFormData;
 
 typedef struct {
   // NOTE: Repeated keys are allowed, that's how 'arrays' are encoded.
-  DynArrayFormData form;
+  DynFormData form;
   Error err;
 } FormDataParseResult;
 
@@ -822,7 +822,7 @@ typedef struct {
 [[nodiscard]] static FormDataKVElementParseResult
 form_data_kv_parse_element(Slice in, uint8_t ch_terminator, Arena *arena) {
   FormDataKVElementParseResult res = {0};
-  DynArrayU8 data = {0};
+  DynU8 data = {0};
 
   uint64_t i = 0;
   for (; i < in.len; i++) {

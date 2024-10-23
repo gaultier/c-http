@@ -188,7 +188,7 @@ static void test_dyn_ensure_cap() {
   {
     Arena arena = arena_make_from_virtual_mem(arena_cap);
 
-    DynArrayU8 dyn = {0};
+    DynU8 dyn = {0};
     *dyn_push(&dyn, &arena) = 1;
     ASSERT(1 == dyn.len);
     ASSERT(2 == dyn.cap);
@@ -209,12 +209,12 @@ static void test_dyn_ensure_cap() {
   {
     Arena arena = arena_make_from_virtual_mem(arena_cap);
 
-    DynArrayU8 dyn = {0};
+    DynU8 dyn = {0};
     *dyn_push(&dyn, &arena) = 1;
     ASSERT(1 == dyn.len);
     ASSERT(2 == dyn.cap);
 
-    DynArrayU8 dummy = {0};
+    DynU8 dummy = {0};
     *dyn_push(&dummy, &arena) = 2;
     *dyn_push(&dummy, &arena) = 3;
 
@@ -455,7 +455,7 @@ static void test_form_data_parse() {
 static void test_json_encode_decode_string_slice() {
   Arena arena = arena_make_from_virtual_mem(4096);
 
-  DynArraySlice dyn = {0};
+  DynString dyn = {0};
   *dyn_push(&dyn, &arena) = S("hello \"world\n\"!");
   *dyn_push(&dyn, &arena) = S("日");
 

@@ -24,7 +24,7 @@ typedef struct {
   // But in our case it's fine (random id + optional, non-unique name).
   arc4random_buf(&poll_id, sizeof(poll_id));
 
-  DynArrayU8 sb = {0};
+  DynU8 sb = {0};
   dyn_array_u8_append_u128_hex(&sb, poll_id, arena);
 
   return dyn_slice(Slice, sb);
@@ -42,7 +42,7 @@ typedef struct {
 
   Poll poll = {.state = POLL_STATE_OPEN};
   {
-    DynArraySlice options = {0};
+    DynString options = {0};
     for (uint64_t i = 0; i < form.form.len; i++) {
       FormDataKV kv = dyn_at(form.form, i);
       if (slice_eq(kv.key, S("name"))) {
@@ -100,7 +100,7 @@ typedef struct {
 
   res.status = 301;
 
-  DynArrayU8 redirect = {0};
+  DynU8 redirect = {0};
   dyn_append_slice(&redirect, S("/poll/"), arena);
   dyn_append_slice(&redirect, poll_id, arena);
 
@@ -171,7 +171,7 @@ typedef struct {
     return res;
   }
 
-  DynArrayU8 resp_body = {0};
+  DynU8 resp_body = {0};
   // TODO: Use html builder.
   dyn_append_slice(&resp_body,
                    S("<!DOCTYPE html><html><body><div id=\"poll\">"), arena);
