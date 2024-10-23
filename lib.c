@@ -611,19 +611,37 @@ typedef struct {
     write(1, log_line.data, log_line.len);                                     \
   } while (0)
 
-[[nodiscard]] static Slice log_entry_quote_value(Slice entry, Arena *arena) {
+[[nodiscard]] static Slice json_escape_string(Slice entry, Arena *arena) {
   DynArrayU8 sb = {0};
   *dyn_push(&sb, arena) = '"';
 
   for (uint64_t i = 0; i < entry.len; i++) {
     uint8_t c = AT(entry.data, entry.len, i);
-    if ('"' != c) { // Easy case.
+    if ('"' == c) {
+      *dyn_push(&sb, arena) = '\\';
+      *dyn_push(&sb, arena) = '"';
+    } else if ('\\' == c) {
+      *dyn_push(&sb, arena) = '\\';
+      *dyn_push(&sb, arena) = '\\';
+    } // TODO: '/'?
+    else if ('\b' == c) {
+      *dyn_push(&sb, arena) = '\\';
+      *dyn_push(&sb, arena) = 'b';
+    } else if ('\f' == c) {
+      *dyn_push(&sb, arena) = '\\';
+      *dyn_push(&sb, arena) = 'f';
+    } else if ('\n' == c) {
+      *dyn_push(&sb, arena) = '\\';
+      *dyn_push(&sb, arena) = 'n';
+    } else if ('\r' == c) {
+      *dyn_push(&sb, arena) = '\\';
+      *dyn_push(&sb, arena) = 'r';
+    } else if ('\t' == c) {
+      *dyn_push(&sb, arena) = '\\';
+      *dyn_push(&sb, arena) = 't';
+    } else {
       *dyn_push(&sb, arena) = c;
-      continue;
     }
-
-    *dyn_push(&sb, arena) = '\\';
-    *dyn_push(&sb, arena) = c;
   }
   *dyn_push(&sb, arena) = '"';
 
@@ -663,7 +681,7 @@ typedef struct {
   dyn_append_slice(&sb, S(" "), arena);
 
   dyn_append_slice(&sb, S("message="), arena);
-  Slice message_quoted = log_entry_quote_value(msg, arena);
+  Slice message_quoted = json_escape_string(msg, arena);
   dyn_append_slice(&sb, message_quoted, arena);
   dyn_append_slice(&sb, S(" "), arena);
 
@@ -677,7 +695,7 @@ typedef struct {
 
     switch (entry.value.kind) {
     case LV_SLICE: {
-      Slice value = log_entry_quote_value(entry.value.s, arena);
+      Slice value = json_escape_string(entry.value.s, arena);
       dyn_append_slice(&sb, value, arena);
       break;
     }
