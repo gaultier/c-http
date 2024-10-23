@@ -650,23 +650,30 @@ typedef struct {
 
   for (uint64_t i = 0; i < entry.len; i++) {
     uint8_t c = AT(entry.data, entry.len, i);
-    uint8_t next = i < entry.len - 1 ? AT(entry.data, entry.len, i - 1) : 0;
+    uint8_t next = i + 1 < entry.len ? AT(entry.data, entry.len, i + 1) : 0;
 
     if ('\\' == c) {
       if ('"' == next) {
         *dyn_push(&sb, arena) = '"';
+        i += 1;
       } else if ('\\' == next) {
         *dyn_push(&sb, arena) = '\\';
-      } else if ('\b' == next) {
+        i += 1;
+      } else if ('b' == next) {
         *dyn_push(&sb, arena) = '\b';
-      } else if ('\f' == next) {
+        i += 1;
+      } else if ('f' == next) {
         *dyn_push(&sb, arena) = '\f';
-      } else if ('\n' == next) {
+        i += 1;
+      } else if ('n' == next) {
         *dyn_push(&sb, arena) = '\n';
-      } else if ('\r' == next) {
+        i += 1;
+      } else if ('r' == next) {
         *dyn_push(&sb, arena) = '\r';
-      } else if ('\t' == next) {
+        i += 1;
+      } else if ('t' == next) {
         *dyn_push(&sb, arena) = '\t';
+        i += 1;
       } else {
         *dyn_push(&sb, arena) = c;
       }
@@ -833,6 +840,20 @@ typedef enum {
   return -1;
 }
 
+static uint64_t skip_over_whitespace(Slice s, uint64_t idx_start) {
+  ASSERT(idx_start < s.len);
+
+  uint64_t idx = idx_start;
+  for (; idx < s.len; idx++) {
+    uint8_t c = AT(s.data, s.len, idx);
+    if (' ' != c) {
+      return idx;
+    }
+  }
+
+  return idx;
+}
+
 [[nodiscard]] static JsonParseStringSliceResult
 json_decode_string_slice(Slice s, Arena *arena) {
   JsonParseStringSliceResult res = {0};
@@ -846,18 +867,17 @@ json_decode_string_slice(Slice s, Arena *arena) {
   }
 
   DynArraySlice dyn = {0};
-  for (uint64_t i = 1; i < s.len - 1; i++) {
-    uint8_t c = AT(s.data, s.len, i);
-    if (' ' == c) {
-      continue;
-    }
+  for (uint64_t i = 1; i < s.len - 2;) {
+    i = skip_over_whitespace(s, i);
 
-    if ('"' != c) {
+    uint8_t c = AT(s.data, s.len, i);
+    if ('"' != c) { // Opening quote.
       res.err = HS_ERR_INVALID_JSON;
       return res;
     }
+    i += 1;
 
-    Slice remaining = slice_range(s, i + 1, 0);
+    Slice remaining = slice_range(s, i, 0);
     int64_t end_quote_idx = slice_indexof_unescaped_byte(remaining, '"');
     if (-1 == end_quote_idx) {
       res.err = HS_ERR_INVALID_JSON;
@@ -866,9 +886,29 @@ json_decode_string_slice(Slice s, Arena *arena) {
 
     ASSERT(0 <= end_quote_idx);
 
-    Slice str = slice_range(s, i + 1, (i + 1) + ((uint64_t)end_quote_idx - 1));
+    Slice str = slice_range(s, i, i + (uint64_t)end_quote_idx);
     Slice unescaped = json_unescape_string(str, arena);
     *dyn_push(&dyn, arena) = unescaped;
+
+    i += (uint64_t)end_quote_idx;
+
+    if ('"' != c) { // Closing quote.
+      res.err = HS_ERR_INVALID_JSON;
+      return res;
+    }
+    i += 1;
+
+    i = skip_over_whitespace(s, i);
+    if (i + 1 == s.len) {
+      break;
+    }
+
+    c = AT(s.data, s.len, i);
+    if (',' != c) {
+      res.err = HS_ERR_INVALID_JSON;
+      return res;
+    }
+    i += 1;
   }
 
   if (']' != AT(s.data, s.len, s.len - 1)) {

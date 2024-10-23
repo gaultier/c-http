@@ -18,7 +18,7 @@ case $1 in
     EXTRA_FLAGS="-O0"
     ;;
   sanitizer)
-    EXTRA_FLAGS="-fsanitize=undefined"
+    EXTRA_FLAGS="-fsanitize=undefined -fsanitize-trap=all"
     ;;
   release)
     EXTRA_FLAGS="-O3 -march=native"

@@ -456,7 +456,7 @@ static void test_json_encode_decode_string_slice() {
   Arena arena = arena_make_from_virtual_mem(4096);
 
   DynArraySlice dyn = {0};
-  *dyn_push(&dyn, &arena) = S("hello \"world\\n\"!");
+  *dyn_push(&dyn, &arena) = S("hello \"world\n\"!");
   *dyn_push(&dyn, &arena) = S("日");
 
   Slice encoded = json_encode_string_slice(dyn_slice(StringSlice, dyn), &arena);
