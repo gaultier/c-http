@@ -8,10 +8,10 @@
 
 static void test_slice_indexof_slice() {
   // Empty haystack.
-  { ASSERT(-1 == slice_indexof_slice((Slice){0}, S("fox"))); }
+  { ASSERT(-1 == slice_indexof_slice((String){0}, S("fox"))); }
 
   // Empty needle.
-  { ASSERT(-1 == slice_indexof_slice(S("hello"), (Slice){0})); }
+  { ASSERT(-1 == slice_indexof_slice(S("hello"), (String){0})); }
 
   // Not found.
   { ASSERT(-1 == slice_indexof_slice(S("hello world"), S("foobar"))); }
@@ -30,7 +30,7 @@ static void test_slice_indexof_slice() {
 }
 
 typedef struct {
-  Slice slice;
+  String slice;
   uint64_t idx;
 } MemReadContext;
 
@@ -68,7 +68,7 @@ static Reader reader_make_from_slice(MemReadContext *ctx) {
 }
 
 static void test_read_http_request_without_body() {
-  Slice req_slice = S("GET /foo?bar=2 HTTP/1.1\r\nHost: "
+  String req_slice = S("GET /foo?bar=2 HTTP/1.1\r\nHost: "
                       "localhost:12345\r\nAccept: */*\r\n\r\n");
   MemReadContext ctx = {.slice = req_slice};
   Reader reader = reader_make_from_slice(&ctx);
@@ -87,7 +87,7 @@ static void test_read_http_request_without_body() {
 }
 
 static void test_read_http_request_with_body() {
-  Slice req_slice = S("POST /foo?bar=2 HTTP/1.1\r\nContent-Length: 13\r\nHost: "
+  String req_slice = S("POST /foo?bar=2 HTTP/1.1\r\nContent-Length: 13\r\nHost: "
                       "localhost:12345\r\nAccept: */*\r\n\r\nhello\r\nworld!");
   MemReadContext ctx = {.slice = req_slice};
   Reader reader = reader_make_from_slice(&ctx);
@@ -111,12 +111,12 @@ static void test_read_http_request_with_body() {
 }
 
 static void test_slice_trim() {
-  Slice trimmed = slice_trim(S("   foo "), ' ');
+  String trimmed = slice_trim(S("   foo "), ' ');
   ASSERT(slice_eq(trimmed, S("foo")));
 }
 
 static void test_slice_split() {
-  Slice slice = S("hello..world...foobar");
+  String slice = S("hello..world...foobar");
   SplitIterator it = slice_split(slice, '.');
 
   {
@@ -145,24 +145,24 @@ static void test_log_entry_quote_value() {
   Arena arena = arena_make_from_virtual_mem(4096);
   // Nothing to escape.
   {
-    Slice s = S("hello");
-    Slice expected = S("\"hello\"");
+    String s = S("hello");
+    String expected = S("\"hello\"");
     ASSERT(slice_eq(expected, json_escape_string(s, &arena)));
   }
   {
-    Slice s = S("{\"id\": 1}");
-    Slice expected = S("\"{\\\"id\\\": 1}\"");
+    String s = S("{\"id\": 1}");
+    String expected = S("\"{\\\"id\\\": 1}\"");
     ASSERT(slice_eq(expected, json_escape_string(s, &arena)));
   }
   {
     uint8_t backslash = 0x5c;
     uint8_t double_quote = '"';
     uint8_t data[] = {backslash, double_quote};
-    Slice s = {.data = data, .len = sizeof(data)};
+    String s = {.data = data, .len = sizeof(data)};
 
     uint8_t data_expected[] = {double_quote, backslash,    backslash,
                                backslash,    double_quote, double_quote};
-    Slice expected = {.data = data_expected, .len = sizeof(data_expected)};
+    String expected = {.data = data_expected, .len = sizeof(data_expected)};
     ASSERT(slice_eq(expected, json_escape_string(s, &arena)));
   }
 }
@@ -170,11 +170,11 @@ static void test_log_entry_quote_value() {
 static void test_make_log_line() {
   Arena arena = arena_make_from_virtual_mem(4096);
 
-  Slice log_line =
+  String log_line =
       make_log_line(LOG_LEVEL_DEBUG, S("foobar"), &arena, 2, L("num", 42),
                     L("slice", S("hello \"world\"")));
 
-  Slice expected =
+  String expected =
       S("message=\"foobar\" num=42 slice=\"hello \\\"world\\\"\"\n");
   ASSERT(slice_starts_with(log_line, S("level=debug timestamp_ns=")));
   ASSERT(slice_ends_with(log_line, expected));
@@ -250,7 +250,7 @@ static HttpResponse handle_request_post(HttpRequest req, void *ctx,
   ASSERT(slice_eq(S("/comment"), req.path_raw) ||
          slice_eq(S("/comment/"), req.path_raw));
   ASSERT(1 == req.path_components.len);
-  Slice path0 = dyn_at(req.path_components, 0);
+  String path0 = dyn_at(req.path_components, 0);
   ASSERT(slice_eq(path0, S("comment")));
 
   HttpResponse res = {0};
@@ -342,7 +342,7 @@ static HttpResponse handle_request_file(HttpRequest req, void *ctx,
   ASSERT(slice_eq(S("/index.html"), req.path_raw) ||
          slice_eq(S("/index.html/"), req.path_raw));
   ASSERT(1 == req.path_components.len);
-  Slice path0 = dyn_at(req.path_components, 0);
+  String path0 = dyn_at(req.path_components, 0);
   ASSERT(slice_eq(path0, S("index.html")));
 
   HttpResponse res = {0};
@@ -404,7 +404,7 @@ static void test_http_server_serve_file() {
                                   MAP_PRIVATE, file, 0);
         ASSERT(nullptr != file_content);
 
-        Slice file_content_slice = {.data = file_content,
+        String file_content_slice = {.data = file_content,
                                     .len = (uint64_t)st.st_size};
         ASSERT(slice_eq(file_content_slice, resp.body));
 
@@ -429,7 +429,7 @@ static void test_http_server_serve_file() {
 static void test_form_data_parse() {
   Arena arena = arena_make_from_virtual_mem(4096);
 
-  Slice form_data_raw = S("foo=bar&name=hello+world&option=%E6%97%A5&option=!");
+  String form_data_raw = S("foo=bar&name=hello+world&option=%E6%97%A5&option=!");
   FormDataParseResult parsed = form_data_parse(form_data_raw, &arena);
   ASSERT(!parsed.err);
   ASSERT(4 == parsed.form.len);
@@ -459,14 +459,14 @@ static void test_json_encode_decode_string_slice() {
   *dyn_push(&dyn, &arena) = S("hello \"world\n\"!");
   *dyn_push(&dyn, &arena) = S("日");
 
-  Slice encoded = json_encode_string_slice(dyn_slice(StringSlice, dyn), &arena);
-  JsonParseStringSliceResult decoded =
+  String encoded = json_encode_string_slice(dyn_slice(StringString, dyn), &arena);
+  JsonParseStringStrResult decoded =
       json_decode_string_slice(encoded, &arena);
   ASSERT(!decoded.err);
   ASSERT(decoded.string_slice.len == dyn.len);
   for (uint64_t i = 0; i < dyn.len; i++) {
-    Slice expected = dyn_at(dyn, i);
-    Slice got = AT(decoded.string_slice.data, decoded.string_slice.len, i);
+    String expected = dyn_at(dyn, i);
+    String got = AT(decoded.string_slice.data, decoded.string_slice.len, i);
     ASSERT(slice_eq(got, expected));
   }
 }

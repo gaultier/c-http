@@ -13,12 +13,12 @@ typedef enum : uint8_t {
 
 typedef struct {
   PollState state;
-  Slice name;
-  StringSlice options;
+  String name;
+  StringString options;
   // TODO: creation date, etc.
 } Poll;
 
-[[nodiscard]] static Slice make_unique_id(Arena *arena) {
+[[nodiscard]] static String make_unique_id(Arena *arena) {
   __uint128_t poll_id = 0;
   // NOTE: It's not idempotent since the client did not provided the id.
   // But in our case it's fine (random id + optional, non-unique name).
@@ -27,7 +27,7 @@ typedef struct {
   DynU8 sb = {0};
   dyn_array_u8_append_u128_hex(&sb, poll_id, arena);
 
-  return dyn_slice(Slice, sb);
+  return dyn_slice(String, sb);
 }
 
 [[nodiscard]] static HttpResponse handle_create_poll(HttpRequest req,
@@ -52,10 +52,10 @@ typedef struct {
       }
       // Ignore unknown form data.
     }
-    poll.options = dyn_slice(StringSlice, options);
+    poll.options = dyn_slice(StringString, options);
   }
 
-  Slice poll_id = make_unique_id(arena);
+  String poll_id = make_unique_id(arena);
 
   int db_err = 0;
   if (SQLITE_OK != (db_err = sqlite3_bind_text(db_insert_poll_stmt, 1,
@@ -76,7 +76,7 @@ typedef struct {
     return res;
   }
 
-  Slice options_encoded = json_encode_string_slice(poll.options, arena);
+  String options_encoded = json_encode_string_slice(poll.options, arena);
   if (SQLITE_OK !=
       (db_err = sqlite3_bind_text(db_insert_poll_stmt, 3,
                                   (const char *)options_encoded.data,
@@ -104,7 +104,7 @@ typedef struct {
   dyn_append_slice(&redirect, S("/poll/"), arena);
   dyn_append_slice(&redirect, poll_id, arena);
 
-  http_push_header(&res.headers, S("Location"), dyn_slice(Slice, redirect),
+  http_push_header(&res.headers, S("Location"), dyn_slice(String, redirect),
                    arena);
 
   return res;
@@ -113,7 +113,7 @@ typedef struct {
 [[nodiscard]] static HttpResponse handle_get_poll(HttpRequest req,
                                                   Arena *arena) {
   ASSERT(2 == req.path_components.len);
-  Slice poll_id = dyn_at(req.path_components, 1);
+  String poll_id = dyn_at(req.path_components, 1);
   ASSERT(32 == poll_id.len);
 
   HttpResponse res = {0};
@@ -156,13 +156,13 @@ typedef struct {
   poll.state = (PollState)state;
 
   // TODO: get options.
-  Slice options_json_encoded = {0};
+  String options_json_encoded = {0};
   options_json_encoded.data =
       (uint8_t *)sqlite3_column_text(db_select_poll_stmt, 2);
   options_json_encoded.len =
       (uint64_t)sqlite3_column_bytes(db_select_poll_stmt, 2);
 
-  JsonParseStringSliceResult options_parsed =
+  JsonParseStringStrResult options_parsed =
       json_decode_string_slice(options_json_encoded, arena);
   if (options_parsed.err) {
     log(LOG_LEVEL_ERROR, "invalid poll options", arena,
@@ -194,7 +194,7 @@ typedef struct {
 
   dyn_append_slice(&resp_body, S("<br>"), arena);
   for (uint64_t i = 0; i < options_parsed.string_slice.len; i++) {
-    Slice option = dyn_at(options_parsed.string_slice, i);
+    String option = dyn_at(options_parsed.string_slice, i);
 
     // TODO: Better HTML.
     dyn_append_slice(&resp_body, S("<span>"), arena);
@@ -204,7 +204,7 @@ typedef struct {
 
   dyn_append_slice(&resp_body, S("</div></body></html>"), arena);
 
-  res.body = dyn_slice(Slice, resp_body);
+  res.body = dyn_slice(String, resp_body);
   res.status = 200;
   http_push_header(&res.headers, S("Content-Type"), S("text/html"), arena);
 
@@ -216,10 +216,10 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
   ASSERT(0 == req.err);
   (void)ctx;
 
-  Slice path0 = req.path_components.len >= 1 ? dyn_at(req.path_components, 0)
-                                             : (Slice){0};
-  Slice path1 = req.path_components.len >= 2 ? dyn_at(req.path_components, 1)
-                                             : (Slice){0};
+  String path0 =
+      req.path_components.len >= 1 ? dyn_at(req.path_components, 0) : (String){0};
+  String path1 =
+      req.path_components.len >= 2 ? dyn_at(req.path_components, 1) : (String){0};
   // Home page.
   if (HM_GET == req.method && ((req.path_components.len == 0) ||
                                ((req.path_components.len == 1) &&
@@ -271,7 +271,7 @@ int main() {
     exit(EINVAL);
   }
 
-  Slice db_insert_poll_sql =
+  String db_insert_poll_sql =
       S("insert into poll (id, name, state, options) values (?, ?, 0, ?)");
   if (SQLITE_OK !=
       (db_err = sqlite3_prepare_v2(db, (const char *)db_insert_poll_sql.data,
@@ -282,7 +282,7 @@ int main() {
     exit(EINVAL);
   }
 
-  Slice db_select_poll_sql =
+  String db_select_poll_sql =
       S("select name, state, options from poll where id = ? limit 1");
   if (SQLITE_OK !=
       (db_err = sqlite3_prepare_v2(db, (const char *)db_select_poll_sql.data,

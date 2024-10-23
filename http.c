@@ -17,7 +17,7 @@ static const int TCP_LISTEN_BACKLOG = 16384;
 
 typedef enum { HM_UNKNOWN, HM_GET, HM_POST } HttpMethod;
 
-Slice static http_method_to_s(HttpMethod m) {
+String static http_method_to_s(HttpMethod m) {
   switch (m) {
   case HM_UNKNOWN:
     return S("unknown");
@@ -31,7 +31,7 @@ Slice static http_method_to_s(HttpMethod m) {
 }
 
 typedef struct {
-  Slice key, value;
+  String key, value;
 } HttpHeader;
 
 typedef struct {
@@ -41,11 +41,11 @@ typedef struct {
 
 typedef struct {
   __uint128_t id;
-  Slice path_raw;
+  String path_raw;
   DynString path_components;
   HttpMethod method;
   DynHttpHeaders headers;
-  Slice body;
+  String body;
   Error err;
 } HttpRequest;
 
@@ -55,12 +55,12 @@ typedef struct {
   Error err;
 
   // TODO: union{file_path,body}?
-  Slice file_path;
-  Slice body;
+  String file_path;
+  String body;
 } HttpResponse;
 
 typedef struct {
-  Slice slice;
+  String slice;
   Error err;
 } IoOperationResult;
 
@@ -119,9 +119,9 @@ writer_write_from_socket(void *ctx, void *buf, size_t buf_len) {
   };
 }
 
-[[nodiscard]] static Error writer_write_all(Writer writer, Slice slice) {
+[[nodiscard]] static Error writer_write_all(Writer writer, String slice) {
   for (uint64_t idx = 0; idx < slice.len;) {
-    const Slice to_write = slice_range(slice, idx, 0);
+    const String to_write = slice_range(slice, idx, 0);
     const IoOperationResult write_res =
         writer.write(writer.ctx, to_write.data, to_write.len);
     if (write_res.err) {
@@ -137,7 +137,7 @@ writer_write_from_socket(void *ctx, void *buf, size_t buf_len) {
 }
 
 typedef struct {
-  Slice line;
+  String line;
   Error err;
   bool present;
 } LineRead;
@@ -171,7 +171,7 @@ typedef struct {
     return res;
   }
 
-  Slice slice = {.data = tmp, .len = res.slice.len};
+  String slice = {.data = tmp, .len = res.slice.len};
 
   uint64_t reader_buf_len_prev = reader->buf.len;
   dyn_append_slice(&reader->buf, slice, arena);
@@ -199,7 +199,7 @@ typedef struct {
 }
 
 [[nodiscard]] static IoOperationResult
-reader_read_until_slice(Reader *reader, Slice needle, Arena *arena) {
+reader_read_until_slice(Reader *reader, String needle, Arena *arena) {
   ASSERT(reader->buf.len >= reader->buf_idx);
 
   IoOperationResult io = {0};
@@ -257,7 +257,7 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
 }
 
 [[nodiscard]] static LineRead reader_read_line(Reader *reader, Arena *arena) {
-  const Slice NEWLINE = S("\r\n");
+  const String NEWLINE = S("\r\n");
 
   LineRead line = {0};
 
@@ -273,14 +273,14 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
   return line;
 }
 
-[[nodiscard]] static DynString http_parse_relative_path(Slice s,
+[[nodiscard]] static DynString http_parse_relative_path(String s,
                                                             Arena *arena) {
   ASSERT(slice_starts_with(s, S("/")));
 
   DynString res = {0};
 
   SplitIterator split_it_question = slice_split(s, '?');
-  Slice work = slice_split_next(&split_it_question).slice;
+  String work = slice_split_next(&split_it_question).slice;
 
   SplitIterator split_it_slash = slice_split(work, '/');
   for (uint64_t i = 0; i < s.len; i++) { // Bound.
@@ -392,10 +392,10 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
       return HS_ERR_INVALID_HTTP_REQUEST;
     }
 
-    Slice key_trimmed = slice_trim(key.slice, ' ');
+    String key_trimmed = slice_trim(key.slice, ' ');
 
-    Slice value = it.slice; // Remainder.
-    Slice value_trimmed = slice_trim(value, ' ');
+    String value = it.slice; // Remainder.
+    String value_trimmed = slice_trim(value, ' ');
 
     HttpHeader header = {.key = key_trimmed, .value = value_trimmed};
     *dyn_push(headers, arena) = header;
@@ -527,7 +527,7 @@ request_parse_content_length_maybe(HttpRequest req) {
     dyn_append_slice(&sb, res.body, arena);
   }
 
-  const Slice slice = dyn_slice(Slice, sb);
+  const String slice = dyn_slice(String, sb);
 
   Error err = writer_write_all(writer, slice);
   if (0 != err) {
@@ -557,13 +557,13 @@ request_parse_content_length_maybe(HttpRequest req) {
   return 0;
 }
 
-static void http_push_header(DynHttpHeaders *headers, Slice key,
-                             Slice value, Arena *arena) {
+static void http_push_header(DynHttpHeaders *headers, String key,
+                             String value, Arena *arena) {
   *dyn_push(headers, arena) = (HttpHeader){.key = key, .value = value};
 }
 
 static void http_response_register_file_for_sending(HttpResponse *res,
-                                                    Slice path) {
+                                                    String path) {
   ASSERT(!slice_is_empty(path));
   res->file_path = path;
 }
@@ -715,7 +715,7 @@ http_client_request(struct sockaddr *addr, uint32_t addr_sizeof,
   dyn_append_slice(&sb, S(" /"), arena);
 
   for (uint64_t i = 0; i < req.path_components.len; i++) {
-    Slice path_component = dyn_at(req.path_components, i);
+    String path_component = dyn_at(req.path_components, i);
     // TODO: Need to url encode?
     dyn_append_slice(&sb, path_component, arena);
     *dyn_push(&sb, arena) = '/';
@@ -748,13 +748,13 @@ http_client_request(struct sockaddr *addr, uint32_t addr_sizeof,
       goto end;
     }
 
-    Slice http_version_needle = S("HTTP/1.1 ");
+    String http_version_needle = S("HTTP/1.1 ");
     if (!slice_starts_with(status_line.line, http_version_needle)) {
       res.err = HS_ERR_INVALID_HTTP_RESPONSE;
       goto end;
     }
 
-    Slice status_str =
+    String status_str =
         slice_range(status_line.line, http_version_needle.len, 0);
     ParseNumberResult status_parsed = slice_parse_u64_decimal(status_str);
     if (status_parsed.err) {
@@ -793,7 +793,7 @@ end:
 }
 
 typedef struct {
-  Slice key, value;
+  String key, value;
 } FormDataKV;
 
 typedef struct {
@@ -810,17 +810,17 @@ typedef struct {
 typedef struct {
   FormDataKV kv;
   Error err;
-  Slice remaining;
+  String remaining;
 } FormDataKVParseResult;
 
 typedef struct {
-  Slice data;
+  String data;
   Error err;
-  Slice remaining;
+  String remaining;
 } FormDataKVElementParseResult;
 
 [[nodiscard]] static FormDataKVElementParseResult
-form_data_kv_parse_element(Slice in, uint8_t ch_terminator, Arena *arena) {
+form_data_kv_parse_element(String in, uint8_t ch_terminator, Arena *arena) {
   FormDataKVElementParseResult res = {0};
   DynU8 data = {0};
 
@@ -854,16 +854,16 @@ form_data_kv_parse_element(Slice in, uint8_t ch_terminator, Arena *arena) {
     }
   }
 
-  res.data = dyn_slice(Slice, data);
+  res.data = dyn_slice(String, data);
   res.remaining = slice_range(in, i, 0);
   return res;
 }
 
-[[nodiscard]] static FormDataKVParseResult form_data_kv_parse(Slice in,
+[[nodiscard]] static FormDataKVParseResult form_data_kv_parse(String in,
                                                               Arena *arena) {
   FormDataKVParseResult res = {0};
 
-  Slice remaining = in;
+  String remaining = in;
 
   FormDataKVElementParseResult key_parsed =
       form_data_kv_parse_element(remaining, '=', arena);
@@ -887,11 +887,11 @@ form_data_kv_parse_element(Slice in, uint8_t ch_terminator, Arena *arena) {
   return res;
 }
 
-[[nodiscard]] static FormDataParseResult form_data_parse(Slice in,
+[[nodiscard]] static FormDataParseResult form_data_parse(String in,
                                                          Arena *arena) {
   FormDataParseResult res = {0};
 
-  Slice remaining = in;
+  String remaining = in;
 
   for (uint64_t i = 0; i < in.len; i++) { // Bound.
     if (slice_is_empty(remaining)) {
