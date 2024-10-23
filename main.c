@@ -74,13 +74,11 @@ typedef struct {
     return res;
   }
 
-  // TODO
-  Slice options_percent_encoded =
-      S("option=bar&option=hello+world&option=%E6%97%A5&option=!");
+  Slice options_encoded = json_encode_array(poll.options, arena);
   if (SQLITE_OK !=
       (db_err = sqlite3_bind_text(db_insert_poll_stmt, 3,
-                                  (const char *)options_percent_encoded.data,
-                                  (int)options_percent_encoded.len, nullptr))) {
+                                  (const char *)options_encoded.data,
+                                  (int)options_encoded.len, nullptr))) {
     log(LOG_LEVEL_ERROR, "failed to bind parameter 3", arena,
         L("error", db_err));
     res.status = 500;
@@ -156,17 +154,17 @@ typedef struct {
   poll.state = (PollState)state;
 
   // TODO: get options.
-  Slice options_percent_encoded = {0};
-  options_percent_encoded.data =
+  Slice options_json_encoded = {0};
+  options_json_encoded.data =
       (uint8_t *)sqlite3_column_text(db_select_poll_stmt, 2);
-  options_percent_encoded.len =
+  options_json_encoded.len =
       (uint64_t)sqlite3_column_bytes(db_select_poll_stmt, 2);
 
-  FormDataParseResult options_parsed =
-      form_data_parse(options_percent_encoded, arena);
+  JsonParseResult options_parsed =
+      json_decode_array(options_json_encoded, arena);
   if (options_parsed.err) {
     log(LOG_LEVEL_ERROR, "invalid poll options", arena,
-        L("options", options_percent_encoded), L("error", options_parsed.err));
+        L("options", options_json_encoded), L("error", options_parsed.err));
     res.status = 500;
     return res;
   }
@@ -193,20 +191,12 @@ typedef struct {
   }
 
   dyn_append_slice(&resp_body, S("<br>"), arena);
-  for (uint64_t i = 0; i < options_parsed.form.len; i++) {
-    FormDataKV kv = dyn_at(options_parsed.form, i);
-
-    if (!slice_eq(kv.key, S("option"))) {
-      log(LOG_LEVEL_ERROR, "invalid poll options", arena,
-          L("options", options_percent_encoded),
-          L("error", options_parsed.err));
-      res.status = 500;
-      return res;
-    }
+  for (uint64_t i = 0; i < options_parsed.array.len; i++) {
+    Slice option = dyn_at(options_parsed.array, i);
 
     // TODO: Better HTML.
     dyn_append_slice(&resp_body, S("<span>"), arena);
-    dyn_append_slice(&resp_body, kv.value, arena);
+    dyn_append_slice(&resp_body, option, arena);
     dyn_append_slice(&resp_body, S("</span><br>"), arena);
   }
 

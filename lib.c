@@ -647,6 +647,39 @@ typedef struct {
   return dyn_array_u8_to_slice(sb);
 }
 
+[[nodiscard]] static Slice json_unescape_string(Slice entry, Arena *arena) {
+  DynArrayU8 sb = {0};
+
+  for (uint64_t i = 0; i < entry.len; i++) {
+    uint8_t c = AT(entry.data, entry.len, i);
+    uint8_t next = i < entry.len - 1 ? AT(entry.data, entry.len, i - 1) : 0;
+
+    if ('\\' == c) {
+      if ('"' == next) {
+        *dyn_push(&sb, arena) = '"';
+      } else if ('\\' == next) {
+        *dyn_push(&sb, arena) = '\\';
+      } else if ('\b' == next) {
+        *dyn_push(&sb, arena) = '\b';
+      } else if ('\f' == next) {
+        *dyn_push(&sb, arena) = '\f';
+      } else if ('\n' == next) {
+        *dyn_push(&sb, arena) = '\n';
+      } else if ('\r' == next) {
+        *dyn_push(&sb, arena) = '\r';
+      } else if ('\t' == next) {
+        *dyn_push(&sb, arena) = '\t';
+      } else {
+        *dyn_push(&sb, arena) = c;
+      }
+    } else {
+      *dyn_push(&sb, arena) = c;
+    }
+  }
+
+  return dyn_array_u8_to_slice(sb);
+}
+
 [[nodiscard]] static Slice make_log_line(LogLevel level, Slice msg,
                                          Arena *arena, int32_t args_count,
                                          ...) {
@@ -721,7 +754,8 @@ typedef struct {
   return dyn_array_u8_to_slice(sb);
 }
 
-static Error os_sendfile(int fd_in, int fd_out, uint64_t n_bytes) {
+[[nodiscard]] static Error os_sendfile(int fd_in, int fd_out,
+                                       uint64_t n_bytes) {
 #if defined(__linux__)
   ssize_t res = sendfile(fd_out, fd_in, nullptr, n_bytes);
   if (res == -1) {
@@ -740,4 +774,102 @@ static Error os_sendfile(int fd_in, int fd_out, uint64_t n_bytes) {
 #else
 #error "sendfile(2) not implemented on other OSes than Linux/FreeBSD."
 #endif
+}
+
+[[nodiscard]] static Slice json_encode_array(DynArraySlice slices,
+                                             Arena *arena) {
+  DynArrayU8 sb = {0};
+  *dyn_push(&sb, arena) = '[';
+
+  for (uint64_t i = 0; i < slices.len; i++) {
+    Slice slice = dyn_at(slices, i);
+    Slice encoded = json_escape_string(slice, arena);
+    dyn_append_slice(&sb, encoded, arena);
+
+    if (i + 1 < slices.len) {
+      *dyn_push(&sb, arena) = ',';
+    }
+  }
+
+  *dyn_push(&sb, arena) = ']';
+
+  return dyn_array_u8_to_slice(sb);
+}
+
+typedef struct {
+  Error err;
+  DynArraySlice array;
+} JsonParseResult;
+
+typedef enum {
+  HS_ERR_INVALID_HTTP_REQUEST,
+  HS_ERR_INVALID_HTTP_RESPONSE,
+  HS_ERR_INVALID_FORM_DATA,
+  HS_ERR_INVALID_JSON,
+} HS_ERROR;
+
+[[nodiscard]] static int64_t slice_indexof_unescaped_byte(Slice haystack,
+                                                          uint8_t needle) {
+  for (uint64_t i = 0; i < haystack.len; i++) {
+    uint8_t c = AT(haystack.data, haystack.len, i);
+
+    if (c != needle) {
+      continue;
+    }
+
+    if (i == 0) {
+      return (int64_t)i;
+    }
+
+    uint8_t previous = AT(haystack.data, haystack.len, i - 1);
+    if ('\\' != previous) {
+      return (int64_t)i;
+    }
+  }
+
+  return -1;
+}
+
+[[nodiscard]] static JsonParseResult json_decode_array(Slice s, Arena *arena) {
+  JsonParseResult res = {0};
+  if (s.len < 2) {
+    res.err = HS_ERR_INVALID_JSON;
+    return res;
+  }
+  if ('[' != AT(s.data, s.len, 0)) {
+    res.err = HS_ERR_INVALID_JSON;
+    return res;
+  }
+
+  for (uint64_t i = 1; i < s.len - 1; i++) {
+    uint8_t c = AT(s.data, s.len, i);
+    if (' ' == c) {
+      continue;
+    }
+
+    if ('"' != c) {
+      res.err = HS_ERR_INVALID_JSON;
+      return res;
+    }
+
+    Slice remaining = slice_range(s, i + 1, 0);
+    int64_t end_quote_idx = slice_indexof_unescaped_byte(remaining, '"');
+    if (-1 == end_quote_idx) {
+      res.err = HS_ERR_INVALID_JSON;
+      return res;
+    }
+
+    ASSERT(0 <= end_quote_idx);
+
+    Slice str = slice_range(s, i + 1, (i + 1) + ((uint64_t)end_quote_idx - 1));
+    Slice unescaped = json_unescape_string(str, arena);
+    *dyn_push(&res.array, arena) = unescaped;
+  }
+
+  if (']' != AT(s.data, s.len, s.len - 1)) {
+    res.err = HS_ERR_INVALID_JSON;
+    return res;
+  }
+
+  return res;
 }

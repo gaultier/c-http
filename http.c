@@ -15,12 +15,6 @@ static const uint64_t HTTP_SERVER_HANDLER_MEM_LEN = 16384;
 static const uint16_t HTTP_SERVER_DEFAULT_PORT = 12345;
 static const int TCP_LISTEN_BACKLOG = 16384;
 
-typedef enum {
-  HS_ERR_INVALID_HTTP_REQUEST,
-  HS_ERR_INVALID_HTTP_RESPONSE,
-  HS_ERR_INVALID_FORM_DATA,
-} HS_ERROR;
-
 typedef enum { HM_UNKNOWN, HM_GET, HM_POST } HttpMethod;
 
 Slice static http_method_to_s(HttpMethod m) {
