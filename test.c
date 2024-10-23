@@ -452,12 +452,23 @@ static void test_form_data_parse() {
   ASSERT(slice_eq(kv3.value, S("!")));
 }
 
-static void test_json_encode_decode_array_slice() {
+static void test_json_encode_decode_string_slice() {
   Arena arena = arena_make_from_virtual_mem(4096);
 
-  DynArraySlice array = {0};
-  *dyn_push(&array, &arena) = S("hello \"world\\n\"!");
-  *dyn_push(&array, &arena) = S("日");
+  DynArraySlice dyn = {0};
+  *dyn_push(&dyn, &arena) = S("hello \"world\\n\"!");
+  *dyn_push(&dyn, &arena) = S("日");
+
+  Slice encoded = json_encode_string_slice(dyn_slice(StringSlice, dyn), &arena);
+  JsonParseStringSliceResult decoded =
+      json_decode_string_slice(encoded, &arena);
+  ASSERT(!decoded.err);
+  ASSERT(decoded.string_slice.len == dyn.len);
+  for (uint64_t i = 0; i < dyn.len; i++) {
+    Slice expected = dyn_at(dyn, i);
+    Slice got = AT(decoded.string_slice.data, decoded.string_slice.len, i);
+    ASSERT(slice_eq(got, expected));
+  }
 }
 
 int main() {
@@ -472,4 +483,5 @@ int main() {
   test_http_server_post();
   test_http_server_serve_file();
   test_form_data_parse();
+  test_json_encode_decode_string_slice();
 }
