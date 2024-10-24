@@ -328,11 +328,11 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
   ASSERT(0);
 }
 
-[[nodiscard]] static int setup_db(Arena *arena) {
+[[nodiscard]] static DatabaseError db_setup(Arena *arena) {
   int db_err = 0;
   if (SQLITE_OK != (db_err = sqlite3_open("vote.db", &db))) {
     log(LOG_LEVEL_ERROR, "failed to open db", arena, L("error", db_err));
-    return db_err;
+    return DB_ERR_INVALID_USE;
   }
 
   // See https://kerkour.com/sqlite-for-servers.
@@ -347,7 +347,7 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
                                nullptr, nullptr, nullptr))) {
       log(LOG_LEVEL_ERROR, "failed to execute pragmas", arena, L("i", i),
           L("error", db_err));
-      return db_err;
+      return DB_ERR_INVALID_USE;
     }
   }
 
@@ -358,7 +358,7 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
                                           nullptr, nullptr, nullptr))) {
     log(LOG_LEVEL_ERROR, "failed to create poll table", arena,
         L("error", db_err));
-    return db_err;
+    return DB_ERR_INVALID_USE;
   }
 
   String db_insert_poll_sql =
@@ -369,7 +369,7 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
                                    &db_insert_poll_stmt, nullptr))) {
     log(LOG_LEVEL_ERROR, "failed to prepare statement to insert poll", arena,
         L("error", db_err));
-    return db_err;
+    return DB_ERR_INVALID_USE;
   }
 
   String db_select_poll_sql =
@@ -380,16 +380,16 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
                                    &db_select_poll_stmt, nullptr))) {
     log(LOG_LEVEL_ERROR, "failed to prepare statement to select poll", arena,
         L("error", db_err));
-    return db_err;
+    return DB_ERR_INVALID_USE;
   }
 
-  return 0;
+  return DB_ERR_NONE;
 }
 
 int main() {
   Arena arena = arena_make_from_virtual_mem(4096);
 
-  if (0 != setup_db(&arena)) {
+  if (DB_ERR_NONE != db_setup(&arena)) {
     exit(EINVAL);
   }
   ASSERT(nullptr != db);
