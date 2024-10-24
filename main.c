@@ -317,7 +317,7 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
 
 [[nodiscard]] static DatabaseError
 db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
-             StringSlice options, Arena *arena) {
+             StringSlice vote_options, Arena *arena) {
 
   int err = 0;
   if (SQLITE_OK !=
@@ -335,18 +335,18 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
 
   // Check that the options sent match the options for the poll.
   {
-    if (options.len != get_poll.poll.options.len) {
+    if (vote_options.len != get_poll.poll.options.len) {
       return DB_ERR_INVALID_DATA;
     }
 
-    for (uint64_t i = 0; i < options.len; i++) {
-      String option = slice_at(options, i);
+    for (uint64_t i_vote = 0; i_vote < vote_options.len; i_vote++) {
+      String vote_option = slice_at(vote_options, i_vote);
 
       bool found = false;
-      for (uint64_t j = 0; j < get_poll.poll.options.len; j++) {
-        String poll_option = slice_at(get_poll.poll.options, j);
+      for (uint64_t i_poll = 0; i_poll < get_poll.poll.options.len; i_poll++) {
+        String poll_option = slice_at(get_poll.poll.options, i_poll);
 
-        if (string_eq(option, poll_option)) {
+        if (string_eq(vote_option, poll_option)) {
           found = true;
           break;
         }
@@ -373,7 +373,7 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
     return DB_ERR_INVALID_USE;
   }
 
-  String poll_options_encoded = json_encode_string_slice(options, arena);
+  String poll_options_encoded = json_encode_string_slice(vote_options, arena);
   if (SQLITE_OK !=
       (err = sqlite3_bind_text(db_insert_vote_stmt, 3,
                                (const char *)poll_options_encoded.data,
