@@ -327,11 +327,42 @@ typedef struct {
 
 [[nodiscard]] static DatabaseError
 db_cast_vote(String req_id, String poll_id, StringSlice options, Arena *arena) {
-  (void)req_id;
-  (void)poll_id;
-  (void)options;
-  (void)arena;
-  // TODO
+
+  int db_err = 0;
+  if (SQLITE_OK != (db_err = sqlite3_exec(db, "BEGIN IMMEDIATE", nullptr,
+                                          nullptr, nullptr))) {
+    log(LOG_LEVEL_ERROR, "failed to begin transaction", arena,
+        L("req.id", req_id), L("error", db_err));
+    return DB_ERR_INVALID_USE;
+  }
+
+  if (SQLITE_OK != (db_err = sqlite3_bind_text(db_insert_vote_stmt, 1,
+                                               (const char *)poll_id.data,
+                                               (int)poll_id.len, nullptr))) {
+    log(LOG_LEVEL_ERROR, "failed to bind parameter 1", arena,
+        L("req.id", req_id), L("error", db_err));
+    return DB_ERR_INVALID_USE;
+  }
+
+  String poll_options_encoded = json_encode_string_slice(options, arena);
+  if (SQLITE_OK !=
+      (db_err = sqlite3_bind_text(db_insert_vote_stmt, 2,
+                                  (const char *)poll_options_encoded.data,
+                                  (int)poll_options_encoded.len, nullptr))) {
+    log(LOG_LEVEL_ERROR, "failed to bind parameter 2", arena,
+        L("req.id", req_id), L("error", db_err));
+    return DB_ERR_INVALID_USE;
+  }
+
+  if (SQLITE_OK !=
+      (db_err = sqlite3_exec(db, "COMMIT", nullptr, nullptr, nullptr))) {
+    log(LOG_LEVEL_ERROR, "failed to begin transaction", arena,
+        L("req.id", req_id), L("error", db_err));
+    return DB_ERR_INVALID_USE;
+  }
+
+  // TODO: get rowid
+
   return DB_ERR_NONE;
 }
 
@@ -498,7 +529,7 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
 
   String db_insert_vote_sql =
       S("insert into votes (id, created_at, user_id, poll_id, options) values "
-        "(?, datetime('now'), 'fixme', ?, ?)");
+        "(NULL, datetime('now'), 'fixme', ?, ?)");
   if (SQLITE_OK !=
       (db_err = sqlite3_prepare_v2(db, (const char *)db_insert_vote_sql.data,
                                    (int)db_insert_vote_sql.len,
@@ -509,8 +540,8 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
   }
 
   ASSERT(nullptr != db);
+  ASSERT(nullptr != db_insert_poll_stmt);
   ASSERT(nullptr != db_select_poll_stmt);
-  ASSERT(nullptr != db_insert_vote_stmt);
   ASSERT(nullptr != db_insert_vote_stmt);
 
   return DB_ERR_NONE;
