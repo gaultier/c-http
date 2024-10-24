@@ -74,7 +74,7 @@ typedef struct {
 
   if (SQLITE_OK !=
       (db_err = sqlite3_exec(db, "COMMIT", nullptr, nullptr, nullptr))) {
-    log(LOG_LEVEL_ERROR, "failed to begin transaction", arena,
+    log(LOG_LEVEL_ERROR, "failed to commit creating a poll", arena,
         L("req.id", req_id), L("error", db_err));
     return DB_ERR_INVALID_USE;
   }
@@ -329,47 +329,48 @@ typedef struct {
 [[nodiscard]] static DatabaseError
 db_cast_vote(String req_id, String poll_id, StringSlice options, Arena *arena) {
 
-  int db_err = 0;
-  if (SQLITE_OK != (db_err = sqlite3_exec(db, "BEGIN IMMEDIATE", nullptr,
-                                          nullptr, nullptr))) {
+  int err = 0;
+  if (SQLITE_OK !=
+      (err = sqlite3_exec(db, "BEGIN IMMEDIATE", nullptr, nullptr, nullptr))) {
     log(LOG_LEVEL_ERROR, "failed to begin transaction", arena,
-        L("req.id", req_id), L("error", db_err));
+        L("req.id", req_id), L("error", err));
     return DB_ERR_INVALID_USE;
   }
 
-  if (SQLITE_OK != (db_err = sqlite3_bind_text(db_insert_vote_stmt, 1,
-                                               (const char *)poll_id.data,
-                                               (int)poll_id.len, nullptr))) {
+  if (SQLITE_OK != (err = sqlite3_bind_text(db_insert_vote_stmt, 1,
+                                            (const char *)poll_id.data,
+                                            (int)poll_id.len, nullptr))) {
     log(LOG_LEVEL_ERROR, "failed to bind parameter 1", arena,
-        L("req.id", req_id), L("error", db_err));
+        L("req.id", req_id), L("error", err));
     return DB_ERR_INVALID_USE;
   }
 
   String poll_options_encoded = json_encode_string_slice(options, arena);
   if (SQLITE_OK !=
-      (db_err = sqlite3_bind_text(db_insert_vote_stmt, 2,
-                                  (const char *)poll_options_encoded.data,
-                                  (int)poll_options_encoded.len, nullptr))) {
+      (err = sqlite3_bind_text(db_insert_vote_stmt, 2,
+                               (const char *)poll_options_encoded.data,
+                               (int)poll_options_encoded.len, nullptr))) {
     log(LOG_LEVEL_ERROR, "failed to bind parameter 2", arena,
-        L("req.id", req_id), L("error", db_err));
+        L("req.id", req_id), L("error", err));
     return DB_ERR_INVALID_USE;
   }
 
-  if (SQLITE_DONE != (db_err = sqlite3_step(db_insert_vote_stmt))) {
+  // TODO: Check that the options sent match the options for the poll.
+  // Or use foreign keys for that :D
+
+  if (SQLITE_DONE != (err = sqlite3_step(db_insert_vote_stmt))) {
     log(LOG_LEVEL_ERROR,
         "failed to execute the prepared statement to insert a vote", arena,
-        L("req.id", req_id), L("error", db_err));
+        L("req.id", req_id), L("error", err));
     return DB_ERR_INVALID_USE;
   }
 
   if (SQLITE_OK !=
-      (db_err = sqlite3_exec(db, "COMMIT", nullptr, nullptr, nullptr))) {
-    log(LOG_LEVEL_ERROR, "failed to begin transaction", arena,
-        L("req.id", req_id), L("error", db_err));
+      (err = sqlite3_exec(db, "COMMIT", nullptr, nullptr, nullptr))) {
+    log(LOG_LEVEL_ERROR, "failed to commit creating a vote", arena,
+        L("req.id", req_id), L("error", err));
     return DB_ERR_INVALID_USE;
   }
-
-  // TODO: get rowid
 
   return DB_ERR_NONE;
 }
