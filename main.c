@@ -335,6 +335,8 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
   }
   ASSERT(0 != get_poll.poll.db_id);
 
+  // TODO: Update vote if it already exists.
+
   if (SQLITE_OK !=
       (err = sqlite3_bind_int64(db_insert_vote_stmt, 1, get_poll.poll.db_id))) {
     log(LOG_LEVEL_ERROR, "failed to bind parameter 1", arena,
