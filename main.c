@@ -501,12 +501,12 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
   }
 
   if (SQLITE_OK !=
-      (db_err = sqlite3_exec(
-           db,
-           "create table if not exists polls (id "
-           "integer primary key, name text, "
-           "state int, options text, human_readable_id text) STRICT",
-           nullptr, nullptr, nullptr))) {
+      (db_err = sqlite3_exec(db,
+                             "create table if not exists polls (id "
+                             "integer primary key, name text, "
+                             "state int, options text, human_readable_id text, "
+                             "created_at text) STRICT",
+                             nullptr, nullptr, nullptr))) {
     log(LOG_LEVEL_ERROR, "failed to create polls table", arena,
         L("error", db_err));
     return DB_ERR_INVALID_USE;
@@ -525,8 +525,9 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
     return DB_ERR_INVALID_USE;
   }
 
-  String db_insert_poll_sql = S("insert into polls (human_readable_id, name, "
-                                "state, options) values (?, ?, 0, ?)");
+  String db_insert_poll_sql =
+      S("insert into polls (human_readable_id, name, "
+        "state, options, created_at) values (?, ?, 0, ?, datetime('now'))");
   if (SQLITE_OK !=
       (db_err = sqlite3_prepare_v2(db, (const char *)db_insert_poll_sql.data,
                                    (int)db_insert_poll_sql.len,
