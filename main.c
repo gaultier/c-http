@@ -319,6 +319,7 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
   }
 
   DynU8 resp_body = {0};
+  // TODO: html for submitting a vote.
   // TODO: Use html builder.
   dyn_append_slice(&resp_body,
                    S("<!DOCTYPE html><html><body><div id=\"poll\">"), arena);

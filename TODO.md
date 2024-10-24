@@ -7,8 +7,9 @@ MVP:
 - [x] Encode/decode to/from db
 - [x] Use sqlite properly for multiple processes
 - [x] Clearly split db & html rendering steps
-- [x] Cast a vote (user = `hash(user-agent)`?)
+- [x] Cast a vote API (user = `hash(user-agent)`?)
 - [ ] Html builder
+- [ ] Cast a vote UI
 - [ ] See poll results
 - [ ] Pretty UI
 - [ ] Collect logs into OLAP db
