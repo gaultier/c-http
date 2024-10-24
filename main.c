@@ -5,6 +5,7 @@
 static sqlite3 *db = nullptr;
 static sqlite3_stmt *db_insert_poll_stmt = nullptr;
 static sqlite3_stmt *db_select_poll_stmt = nullptr;
+static sqlite3_stmt *db_insert_vote_stmt = nullptr;
 
 typedef enum {
   DB_ERR_NONE,
@@ -449,18 +450,32 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
     }
   }
 
-  if (SQLITE_OK != (db_err = sqlite3_exec(db,
-                                          "create table if not exists poll (id "
-                                          "text primary key, name text, "
-                                          "state int, options text) STRICT",
-                                          nullptr, nullptr, nullptr))) {
-    log(LOG_LEVEL_ERROR, "failed to create poll table", arena,
+  if (SQLITE_OK !=
+      (db_err = sqlite3_exec(db,
+                             "create table if not exists polls (id "
+                             "text primary key, name text, "
+                             "state int, options text) STRICT",
+                             nullptr, nullptr, nullptr))) {
+    log(LOG_LEVEL_ERROR, "failed to create polls table", arena,
+        L("error", db_err));
+    return DB_ERR_INVALID_USE;
+  }
+  if (SQLITE_OK !=
+      (db_err = sqlite3_exec(db,
+                             "create table if not exists votes (id "
+                             "int primary key, created_at int, user_id text, "
+                             "poll_id text,"
+                             "options text,"
+                             "foreign key(poll_id) references polls(id)"
+                             ") STRICT",
+                             nullptr, nullptr, nullptr))) {
+    log(LOG_LEVEL_ERROR, "failed to create votes table", arena,
         L("error", db_err));
     return DB_ERR_INVALID_USE;
   }
 
   String db_insert_poll_sql =
-      S("insert into poll (id, name, state, options) values (?, ?, 0, ?)");
+      S("insert into polls (id, name, state, options) values (?, ?, 0, ?)");
   if (SQLITE_OK !=
       (db_err = sqlite3_prepare_v2(db, (const char *)db_insert_poll_sql.data,
                                    (int)db_insert_poll_sql.len,
@@ -471,7 +486,7 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
   }
 
   String db_select_poll_sql =
-      S("select name, state, options from poll where id = ? limit 1");
+      S("select name, state, options from polls where id = ? limit 1");
   if (SQLITE_OK !=
       (db_err = sqlite3_prepare_v2(db, (const char *)db_select_poll_sql.data,
                                    (int)db_select_poll_sql.len,
@@ -480,6 +495,23 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
         L("error", db_err));
     return DB_ERR_INVALID_USE;
   }
+
+  String db_insert_vote_sql =
+      S("insert into votes (id, created_at, user_id, poll_id, options) values "
+        "(?, datetime('now'), 'fixme', ?, ?)");
+  if (SQLITE_OK !=
+      (db_err = sqlite3_prepare_v2(db, (const char *)db_insert_vote_sql.data,
+                                   (int)db_insert_vote_sql.len,
+                                   &db_insert_vote_stmt, nullptr))) {
+    log(LOG_LEVEL_ERROR, "failed to prepare statement to insert vote", arena,
+        L("error", db_err));
+    return DB_ERR_INVALID_USE;
+  }
+
+  ASSERT(nullptr != db);
+  ASSERT(nullptr != db_select_poll_stmt);
+  ASSERT(nullptr != db_insert_vote_stmt);
+  ASSERT(nullptr != db_insert_vote_stmt);
 
   return DB_ERR_NONE;
 }
