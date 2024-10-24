@@ -53,6 +53,8 @@ typedef struct {
     return DB_ERR_INVALID_USE;
   }
 
+  String poll_options_encoded = json_encode_string_slice(poll.options, arena);
+
   if (SQLITE_OK !=
       (db_err = sqlite3_bind_text(db_insert_poll_stmt, 3,
                                   (const char *)poll_options_encoded.data,
