@@ -21,7 +21,8 @@ typedef enum : uint8_t {
 } PollState;
 
 typedef struct {
-  String id;
+  int64_t db_id;
+  String human_readable_id;
   PollState state;
   String name;
   StringSlice options;
@@ -38,9 +39,10 @@ typedef struct {
     return DB_ERR_INVALID_USE;
   }
 
-  if (SQLITE_OK != (db_err = sqlite3_bind_text(db_insert_poll_stmt, 1,
-                                               (const char *)poll.id.data,
-                                               (int)poll.id.len, nullptr))) {
+  if (SQLITE_OK !=
+      (db_err = sqlite3_bind_text(db_insert_poll_stmt, 1,
+                                  (const char *)poll.human_readable_id.data,
+                                  (int)poll.human_readable_id.len, nullptr))) {
     log(LOG_LEVEL_ERROR, "failed to bind parameter 1", arena,
         L("req.id", req_id), L("error", db_err));
     return DB_ERR_INVALID_USE;
@@ -123,49 +125,34 @@ http_respond_with_unprocessable_entity(String req_id, Arena *arena) {
   return res;
 }
 
-typedef struct {
-  Error err;
-  StringSlice options;
-} DecodeOptionsResult;
-
-[[nodiscard]] static DecodeOptionsResult form_decode_options(String body,
-                                                             Arena *arena) {
-  DecodeOptionsResult res = {0};
-
-  FormDataParseResult form = form_data_parse(body, arena);
-  if (form.err) {
-    res.err = form.err;
-    return res;
-  }
-
-  DynString dyn_options = {0};
-  for (uint64_t i = 0; i < form.form.len; i++) {
-    FormDataKV kv = dyn_at(form.form, i);
-    if (string_eq(kv.key, S("option")) && !slice_is_empty(kv.value)) {
-      *dyn_push(&dyn_options, arena) = kv.value;
-    }
-    // Ignore unknown form data.
-  }
-
-  res.options = dyn_slice(StringSlice, dyn_options);
-
-  return res;
-}
-
 [[nodiscard]] static HttpResponse handle_create_poll(HttpRequest req,
                                                      Arena *arena) {
   HttpResponse res = {0};
 
-  Poll poll = {.state = POLL_STATE_OPEN, .id = make_unique_id(arena)};
+  Poll poll = {.state = POLL_STATE_OPEN,
+               .human_readable_id = make_unique_id(arena)};
 
   {
-    DecodeOptionsResult decode_options = form_decode_options(req.body, arena);
-    if (decode_options.err) {
+    FormDataParseResult form = form_data_parse(req.body, arena);
+    if (form.err) {
       log(LOG_LEVEL_ERROR, "failed to create poll due to invalid options",
           arena, L("req.id", req.id), L("req.body", req.body));
       return http_respond_with_unprocessable_entity(req.id, arena);
     }
-    poll.options = decode_options.options;
+
+    DynString dyn_options = {0};
+    for (uint64_t i = 0; i < form.form.len; i++) {
+      FormDataKV kv = dyn_at(form.form, i);
+
+      if (string_eq(kv.key, S("name"))) {
+        poll.name = kv.value;
+      } else if (string_eq(kv.key, S("option")) && !slice_is_empty(kv.value)) {
+        *dyn_push(&dyn_options, arena) = kv.value;
+      }
+      // Ignore unknown form data.
+    }
+
+    poll.options = dyn_slice(StringSlice, dyn_options);
   }
 
   switch (db_create_poll(req.id, poll, arena)) {
@@ -182,14 +169,14 @@ typedef struct {
   }
 
   log(LOG_LEVEL_INFO, "created poll", arena, L("req.id", req.id),
-      L("poll.options.len", poll.options.len), L("poll.id", poll.id),
-      L("poll.name", poll.name));
+      L("poll.options.len", poll.options.len),
+      L("poll.id", poll.human_readable_id), L("poll.name", poll.name));
 
   res.status = 301;
 
   DynU8 redirect = {0};
   dyn_append_slice(&redirect, S("/poll/"), arena);
-  dyn_append_slice(&redirect, poll.id, arena);
+  dyn_append_slice(&redirect, poll.human_readable_id, arena);
 
   http_push_header(&res.headers, S("Location"), dyn_slice(String, redirect),
                    arena);
@@ -202,14 +189,15 @@ typedef struct {
   Poll poll;
 } DbGetPollResult;
 
-[[nodiscard]] static DbGetPollResult db_get_poll(String req_id, String poll_id,
-                                                 Arena *arena) {
+[[nodiscard]] static DbGetPollResult
+db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
   DbGetPollResult res = {0};
 
   int err = 0;
-  if (SQLITE_OK != (err = sqlite3_bind_text(db_select_poll_stmt, 1,
-                                            (const char *)poll_id.data,
-                                            (int)poll_id.len, nullptr))) {
+  if (SQLITE_OK !=
+      (err = sqlite3_bind_text(db_select_poll_stmt, 1,
+                               (const char *)human_readable_poll_id.data,
+                               (int)human_readable_poll_id.len, nullptr))) {
     log(LOG_LEVEL_ERROR, "failed to bind parameter 1", arena,
         L("req.id", req_id), L("error", res.err));
     res.err = DB_ERR_INVALID_USE;
@@ -229,10 +217,11 @@ typedef struct {
     return res;
   }
 
-  res.poll.name.data = (uint8_t *)sqlite3_column_text(db_select_poll_stmt, 0);
-  res.poll.name.len = (uint64_t)sqlite3_column_bytes(db_select_poll_stmt, 0);
+  res.poll.db_id = sqlite3_column_int64(db_insert_poll_stmt, 0);
+  res.poll.name.data = (uint8_t *)sqlite3_column_text(db_select_poll_stmt, 1);
+  res.poll.name.len = (uint64_t)sqlite3_column_bytes(db_select_poll_stmt, 1);
 
-  int state = sqlite3_column_int(db_select_poll_stmt, 1);
+  int state = sqlite3_column_int(db_select_poll_stmt, 2);
   if (state >= POLL_STATE_MAX) {
     log(LOG_LEVEL_ERROR, "invalid poll state", arena, L("state", state),
         L("req.id", req_id), L("error", err));
@@ -244,9 +233,9 @@ typedef struct {
   // TODO: get options.
   String options_json_encoded = {0};
   options_json_encoded.data =
-      (uint8_t *)sqlite3_column_text(db_select_poll_stmt, 2);
+      (uint8_t *)sqlite3_column_text(db_select_poll_stmt, 3);
   options_json_encoded.len =
-      (uint64_t)sqlite3_column_bytes(db_select_poll_stmt, 2);
+      (uint64_t)sqlite3_column_bytes(db_select_poll_stmt, 3);
 
   JsonParseStringStrResult options_decoded =
       json_decode_string_slice(options_json_encoded, arena);
@@ -326,8 +315,10 @@ typedef struct {
   return res;
 }
 
-[[nodiscard]] static DatabaseError
-db_cast_vote(String req_id, String poll_id, StringSlice options, Arena *arena) {
+[[nodiscard]] static DatabaseError db_cast_vote(String req_id,
+                                                String human_readable_poll_id,
+                                                StringSlice options,
+                                                Arena *arena) {
 
   int err = 0;
   if (SQLITE_OK !=
@@ -337,9 +328,13 @@ db_cast_vote(String req_id, String poll_id, StringSlice options, Arena *arena) {
     return DB_ERR_INVALID_USE;
   }
 
-  if (SQLITE_OK != (err = sqlite3_bind_text(db_insert_vote_stmt, 1,
-                                            (const char *)poll_id.data,
-                                            (int)poll_id.len, nullptr))) {
+  DbGetPollResult get_poll = db_get_poll(req_id, human_readable_poll_id, arena);
+  if (get_poll.err) {
+    return get_poll.err;
+  }
+
+  if (SQLITE_OK !=
+      (err = sqlite3_bind_int64(db_insert_vote_stmt, 1, get_poll.poll.db_id))) {
     log(LOG_LEVEL_ERROR, "failed to bind parameter 1", arena,
         L("req.id", req_id), L("error", err));
     return DB_ERR_INVALID_USE;
@@ -386,13 +381,24 @@ db_cast_vote(String req_id, String poll_id, StringSlice options, Arena *arena) {
 
   StringSlice options = {0};
   {
-    DecodeOptionsResult decode_options = form_decode_options(req.body, arena);
-    if (decode_options.err) {
-      log(LOG_LEVEL_ERROR, "failed to create poll due to invalid options",
+    FormDataParseResult form = form_data_parse(req.body, arena);
+    if (form.err) {
+      log(LOG_LEVEL_ERROR, "failed to create vote due to invalid options",
           arena, L("req.id", req.id), L("req.body", req.body));
       return http_respond_with_unprocessable_entity(req.id, arena);
     }
-    options = decode_options.options;
+
+    DynString dyn_options = {0};
+    for (uint64_t i = 0; i < form.form.len; i++) {
+      FormDataKV kv = dyn_at(form.form, i);
+
+      if (string_eq(kv.key, S("option")) && !slice_is_empty(kv.value)) {
+        *dyn_push(&dyn_options, arena) = kv.value;
+      }
+      // Ignore unknown form data.
+    }
+
+    options = dyn_slice(StringSlice, dyn_options);
   }
 
   switch (db_cast_vote(req.id, poll_id, options, arena)) {
@@ -491,11 +497,12 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
   }
 
   if (SQLITE_OK !=
-      (db_err = sqlite3_exec(db,
-                             "create table if not exists polls (id "
-                             "text primary key, name text, "
-                             "state int, options text) STRICT",
-                             nullptr, nullptr, nullptr))) {
+      (db_err = sqlite3_exec(
+           db,
+           "create table if not exists polls (id "
+           "integer primary key, name text, "
+           "state int, options text, human_readable_id text) STRICT",
+           nullptr, nullptr, nullptr))) {
     log(LOG_LEVEL_ERROR, "failed to create polls table", arena,
         L("error", db_err));
     return DB_ERR_INVALID_USE;
@@ -514,8 +521,8 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
     return DB_ERR_INVALID_USE;
   }
 
-  String db_insert_poll_sql =
-      S("insert into polls (id, name, state, options) values (?, ?, 0, ?)");
+  String db_insert_poll_sql = S("insert into polls (human_readable_id, name, "
+                                "state, options) values (?, ?, 0, ?)");
   if (SQLITE_OK !=
       (db_err = sqlite3_prepare_v2(db, (const char *)db_insert_poll_sql.data,
                                    (int)db_insert_poll_sql.len,
@@ -526,7 +533,8 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
   }
 
   String db_select_poll_sql =
-      S("select name, state, options from polls where id = ? limit 1");
+      S("select id, name, state, options from polls where "
+        "human_readable_id = ? limit 1");
   if (SQLITE_OK !=
       (db_err = sqlite3_prepare_v2(db, (const char *)db_select_poll_sql.data,
                                    (int)db_select_poll_sql.len,
