@@ -121,33 +121,49 @@ http_respond_with_unprocessable_entity(String req_id, Arena *arena) {
   return res;
 }
 
+typedef struct {
+  Error err;
+  StringSlice options;
+} DecodeOptionsResult;
+
+[[nodiscard]] static DecodeOptionsResult form_decode_options(String body,
+                                                             Arena *arena) {
+  DecodeOptionsResult res = {0};
+
+  FormDataParseResult form = form_data_parse(body, arena);
+  if (form.err) {
+    res.err = form.err;
+    return res;
+  }
+
+  DynString dyn_options = {0};
+  for (uint64_t i = 0; i < form.form.len; i++) {
+    FormDataKV kv = dyn_at(form.form, i);
+    if (string_eq(kv.key, S("option")) && !slice_is_empty(kv.value)) {
+      *dyn_push(&dyn_options, arena) = kv.value;
+    }
+    // Ignore unknown form data.
+  }
+
+  res.options = dyn_slice(StringSlice, dyn_options);
+
+  return res;
+}
+
 [[nodiscard]] static HttpResponse handle_create_poll(HttpRequest req,
                                                      Arena *arena) {
   HttpResponse res = {0};
 
-  Poll poll = {
-      .state = POLL_STATE_OPEN,
-      .id = make_unique_id(arena),
-  };
-  // Decode options from the form data.
-  {
-    FormDataParseResult form = form_data_parse(req.body, arena);
-    if (form.err) {
-      res.err = form.err;
-      return res;
-    }
+  Poll poll = {.state = POLL_STATE_OPEN, .id = make_unique_id(arena)};
 
-    DynString options = {0};
-    for (uint64_t i = 0; i < form.form.len; i++) {
-      FormDataKV kv = dyn_at(form.form, i);
-      if (string_eq(kv.key, S("name"))) {
-        poll.name = kv.value;
-      } else if (string_eq(kv.key, S("option")) && !slice_is_empty(kv.value)) {
-        *dyn_push(&options, arena) = kv.value;
-      }
-      // Ignore unknown form data.
+  {
+    DecodeOptionsResult decode_options = form_decode_options(req.body, arena);
+    if (decode_options.err) {
+      log(LOG_LEVEL_ERROR, "failed to create poll due to invalid options",
+          arena, L("req.id", req.id), L("req.body", req.body));
+      return http_respond_with_unprocessable_entity(req.id, arena);
     }
-    poll.options = dyn_slice(StringSlice, options);
+    poll.options = decode_options.options;
   }
 
   switch (db_create_poll(req.id, poll, arena)) {
@@ -327,30 +343,15 @@ db_cast_vote(String req_id, String poll_id, StringSlice options, Arena *arena) {
 
   HttpResponse res = {0};
 
-  // Decode options from the form data.
   StringSlice options = {0};
   {
-    FormDataParseResult form = form_data_parse(req.body, arena);
-    if (form.err) {
-      res.err = form.err;
-      return res;
+    DecodeOptionsResult decode_options = form_decode_options(req.body, arena);
+    if (decode_options.err) {
+      log(LOG_LEVEL_ERROR, "failed to create poll due to invalid options",
+          arena, L("req.id", req.id), L("req.body", req.body));
+      return http_respond_with_unprocessable_entity(req.id, arena);
     }
-
-    DynString dyn_options = {0};
-    for (uint64_t i = 0; i < form.form.len; i++) {
-      FormDataKV kv = dyn_at(form.form, i);
-      if (string_eq(kv.key, S("option")) && !slice_is_empty(kv.value)) {
-        *dyn_push(&dyn_options, arena) = kv.value;
-      }
-      // Ignore unknown form data.
-    }
-    options = dyn_slice(StringSlice, dyn_options);
-  }
-
-  if (slice_is_empty(options)) {
-    res.status = 422;
-    res.body = S("<!DOCTYPE html><html><body>Invalid vote.</body></html>");
-    return res;
+    options = decode_options.options;
   }
 
   switch (db_cast_vote(req.id, poll_id, options, arena)) {

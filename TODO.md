@@ -8,7 +8,7 @@ MVP:
 - [x] Use sqlite properly for multiple processes
 - [x] Clearly split db & html rendering steps
 - [ ] Html builder
-- [ ] Cast a vote (user = `hash(user-agent)`?)
+- [.] Cast a vote (user = `hash(user-agent)`?)
 - [ ] Close a poll (admin role?)
 - [ ] See poll results
 - [ ] Pretty UI
