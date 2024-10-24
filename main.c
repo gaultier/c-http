@@ -80,15 +80,15 @@ typedef struct {
   return DB_ERR_NONE;
 }
 
-[[nodiscard]] static HttpResponse http_respond_with_404() {
+[[nodiscard]] static HttpResponse http_respond_with_not_found() {
   HttpResponse res = {0};
   res.status = 404;
   res.body = S("<!DOCTYPE html><html><body>Not found.</body></html>");
   return res;
 }
 
-[[nodiscard]] static HttpResponse http_respond_with_500(String req_id,
-                                                        Arena *arena) {
+[[nodiscard]] static HttpResponse
+http_respond_with_internal_server_error(String req_id, Arena *arena) {
   HttpResponse res = {0};
   res.status = 500;
 
@@ -104,15 +104,26 @@ typedef struct {
   return res;
 }
 
+[[nodiscard]] static HttpResponse
+http_respond_with_unprocessable_entity(String req_id, Arena *arena) {
+  HttpResponse res = {0};
+  res.status = 422;
+
+  DynU8 body = {0};
+  dyn_append_slice(&body,
+                   S("<!DOCTYPE html><html><body>Unprocessable entity. The "
+                     "data was likely invalid. Request id: "),
+                   arena);
+  dyn_append_slice(&body, req_id, arena);
+  dyn_append_slice(&body, S("</body></html>"), arena);
+  res.body = dyn_slice(String, body);
+
+  return res;
+}
+
 [[nodiscard]] static HttpResponse handle_create_poll(HttpRequest req,
                                                      Arena *arena) {
   HttpResponse res = {0};
-
-  FormDataParseResult form = form_data_parse(req.body, arena);
-  if (form.err) {
-    res.err = form.err;
-    return res;
-  }
 
   Poll poll = {
       .state = POLL_STATE_OPEN,
@@ -120,6 +131,12 @@ typedef struct {
   };
   // Decode options from the form data.
   {
+    FormDataParseResult form = form_data_parse(req.body, arena);
+    if (form.err) {
+      res.err = form.err;
+      return res;
+    }
+
     DynString options = {0};
     for (uint64_t i = 0; i < form.form.len; i++) {
       FormDataKV kv = dyn_at(form.form, i);
@@ -139,9 +156,9 @@ typedef struct {
   case DB_ERR_NOT_FOUND:
     ASSERT(false); // Unreachable.
   case DB_ERR_INVALID_USE:
-    return http_respond_with_404();
+    return http_respond_with_internal_server_error(req.id, arena);
   case DB_ERR_INVALID_DATA:
-    return http_respond_with_500(req.id, arena);
+    return http_respond_with_unprocessable_entity(req.id, arena);
   default:
     ASSERT(false);
   }
@@ -229,6 +246,7 @@ typedef struct {
 
 [[nodiscard]] static HttpResponse handle_get_poll(HttpRequest req,
                                                   Arena *arena) {
+  ASSERT(HM_GET == req.method);
   ASSERT(2 == req.path_components.len);
   String poll_id = dyn_at(req.path_components, 1);
   ASSERT(32 == poll_id.len);
@@ -241,10 +259,11 @@ typedef struct {
   case DB_ERR_NONE:
     break;
   case DB_ERR_NOT_FOUND:
-    return http_respond_with_404();
+    return http_respond_with_not_found();
   case DB_ERR_INVALID_USE:
+    return http_respond_with_internal_server_error(req.id, arena);
   case DB_ERR_INVALID_DATA:
-    return http_respond_with_500(req.id, arena);
+    return http_respond_with_unprocessable_entity(req.id, arena);
   default:
     ASSERT(false);
   }
@@ -289,6 +308,71 @@ typedef struct {
   return res;
 }
 
+[[nodiscard]] static DatabaseError
+db_cast_vote(String req_id, String poll_id, StringSlice options, Arena *arena) {
+  (void)req_id;
+  (void)poll_id;
+  (void)options;
+  (void)arena;
+  // TODO
+  return DB_ERR_NONE;
+}
+
+[[nodiscard]] static HttpResponse handle_cast_vote(HttpRequest req,
+                                                   Arena *arena) {
+  ASSERT(HM_POST == req.method);
+  ASSERT(3 == req.path_components.len);
+  String poll_id = dyn_at(req.path_components, 1);
+  ASSERT(32 == poll_id.len);
+
+  HttpResponse res = {0};
+
+  // Decode options from the form data.
+  StringSlice options = {0};
+  {
+    FormDataParseResult form = form_data_parse(req.body, arena);
+    if (form.err) {
+      res.err = form.err;
+      return res;
+    }
+
+    DynString dyn_options = {0};
+    for (uint64_t i = 0; i < form.form.len; i++) {
+      FormDataKV kv = dyn_at(form.form, i);
+      if (string_eq(kv.key, S("option")) && !slice_is_empty(kv.value)) {
+        *dyn_push(&dyn_options, arena) = kv.value;
+      }
+      // Ignore unknown form data.
+    }
+    options = dyn_slice(StringSlice, dyn_options);
+  }
+
+  if (slice_is_empty(options)) {
+    res.status = 422;
+    res.body = S("<!DOCTYPE html><html><body>Invalid vote.</body></html>");
+    return res;
+  }
+
+  switch (db_cast_vote(req.id, poll_id, options, arena)) {
+  case DB_ERR_NONE:
+    break;
+  case DB_ERR_NOT_FOUND:
+    return http_respond_with_not_found();
+  case DB_ERR_INVALID_USE:
+    return http_respond_with_internal_server_error(req.id, arena);
+  case DB_ERR_INVALID_DATA:
+    return http_respond_with_unprocessable_entity(req.id, arena);
+  default:
+    ASSERT(false);
+  }
+
+  log(LOG_LEVEL_INFO, "vote was cast", arena, L("req.id", req.id),
+      L("poll.id", poll_id));
+
+  res.status = 200;
+  return res;
+}
+
 [[nodiscard]] static HttpResponse
 my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
   ASSERT(0 == req.err);
@@ -302,13 +386,19 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
   if (HM_GET == req.method && ((req.path_components.len == 0) ||
                                ((req.path_components.len == 1) &&
                                 (string_eq(path0, S("index.html")))))) {
+    // `GET /`
+    // `GET /index.html`
+
     HttpResponse res = {0};
     res.status = 200;
     http_push_header(&res.headers, S("Content-Type"), S("text/html"), arena);
     http_response_register_file_for_sending(&res, S("index.html"));
     return res;
   } else if (HM_GET == req.method && 1 == req.path_components.len &&
-             string_eq(path0, S("pure-min.css"))) {
+             string_eq(path0, S("pure-min.css"))) { // TODO: rm.
+
+    // `GET /pure-min.css`
+
     HttpResponse res = {0};
     res.status = 200;
     http_push_header(&res.headers, S("Content-Type"), S("text/css"), arena);
@@ -316,14 +406,21 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
     return res;
   } else if (HM_POST == req.method && 1 == req.path_components.len &&
              string_eq(path0, S("poll"))) {
+    // `POST /poll`
+
     return handle_create_poll(req, arena);
   } else if (HM_GET == req.method && 2 == req.path_components.len &&
              string_eq(path0, S("poll")) && 32 == path1.len) {
+    // `GET /poll/<poll_id>`
+
     return handle_get_poll(req, arena);
-  } else { // TODO: Vote in poll.
-    HttpResponse res = {0};
-    res.status = 404;
-    return res;
+  } else if (HM_POST == req.method && 3 == req.path_components.len &&
+             string_eq(path0, S("poll")) && 32 == path1.len) {
+    // `POST /poll/<poll_id>/vote`
+    // TODO: user id.
+    return handle_cast_vote(req, arena);
+  } else {
+    return http_respond_with_not_found();
   }
   ASSERT(0);
 }
