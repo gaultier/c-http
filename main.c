@@ -66,7 +66,8 @@ typedef struct {
   }
 
   if (SQLITE_DONE != (db_err = sqlite3_step(db_insert_poll_stmt))) {
-    log(LOG_LEVEL_ERROR, "failed to execute the prepared statement", arena,
+    log(LOG_LEVEL_ERROR,
+        "failed to execute the prepared statement to insert a poll", arena,
         L("req.id", req_id), L("error", db_err));
     return DB_ERR_INVALID_USE;
   }
@@ -354,6 +355,13 @@ db_cast_vote(String req_id, String poll_id, StringSlice options, Arena *arena) {
     return DB_ERR_INVALID_USE;
   }
 
+  if (SQLITE_DONE != (db_err = sqlite3_step(db_insert_vote_stmt))) {
+    log(LOG_LEVEL_ERROR,
+        "failed to execute the prepared statement to insert a vote", arena,
+        L("req.id", req_id), L("error", db_err));
+    return DB_ERR_INVALID_USE;
+  }
+
   if (SQLITE_OK !=
       (db_err = sqlite3_exec(db, "COMMIT", nullptr, nullptr, nullptr))) {
     log(LOG_LEVEL_ERROR, "failed to begin transaction", arena,
@@ -491,15 +499,15 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
         L("error", db_err));
     return DB_ERR_INVALID_USE;
   }
-  if (SQLITE_OK !=
-      (db_err = sqlite3_exec(db,
-                             "create table if not exists votes (id "
-                             "int primary key, created_at int, user_id text, "
-                             "poll_id text,"
-                             "options text,"
-                             "foreign key(poll_id) references polls(id)"
-                             ") STRICT",
-                             nullptr, nullptr, nullptr))) {
+  if (SQLITE_OK != (db_err = sqlite3_exec(
+                        db,
+                        "create table if not exists votes (id "
+                        "integer primary key, created_at text, user_id text, "
+                        "poll_id text,"
+                        "options text,"
+                        "foreign key(poll_id) references polls(id)"
+                        ") STRICT",
+                        nullptr, nullptr, nullptr))) {
     log(LOG_LEVEL_ERROR, "failed to create votes table", arena,
         L("error", db_err));
     return DB_ERR_INVALID_USE;
@@ -528,8 +536,8 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
   }
 
   String db_insert_vote_sql =
-      S("insert into votes (id, created_at, user_id, poll_id, options) values "
-        "(NULL, datetime('now'), 'fixme', ?, ?)");
+      S("insert into votes (created_at, user_id, poll_id, options) values "
+        "(datetime('now'), 'fixme', ?, ?)");
   if (SQLITE_OK !=
       (db_err = sqlite3_prepare_v2(db, (const char *)db_insert_vote_sql.data,
                                    (int)db_insert_vote_sql.len,
