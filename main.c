@@ -20,22 +20,86 @@ typedef enum : uint8_t {
 } PollState;
 
 typedef struct {
+  String id;
   PollState state;
   String name;
   StringSlice options;
   // TODO: creation date, etc.
 } Poll;
 
-[[nodiscard]] static String make_unique_id(Arena *arena) {
-  __uint128_t poll_id = 0;
-  // NOTE: It's not idempotent since the client did not provided the id.
-  // But in our case it's fine (random id + optional, non-unique name).
-  arc4random_buf(&poll_id, sizeof(poll_id));
+[[nodiscard]] static DatabaseError db_create_poll(String req_id, Poll poll,
+                                                  Arena *arena) {
+  int db_err = 0;
+  if (SQLITE_OK != (db_err = sqlite3_exec(db, "BEGIN IMMEDIATE", nullptr,
+                                          nullptr, nullptr))) {
+    log(LOG_LEVEL_ERROR, "failed to begin transaction", arena,
+        L("req.id", req_id), L("error", db_err));
+    return DB_ERR_INVALID_USE;
+  }
 
-  DynU8 sb = {0};
-  dynu8_append_u128_hex(&sb, poll_id, arena);
+  if (SQLITE_OK != (db_err = sqlite3_bind_text(db_insert_poll_stmt, 1,
+                                               (const char *)poll.id.data,
+                                               (int)poll.id.len, nullptr))) {
+    log(LOG_LEVEL_ERROR, "failed to bind parameter 1", arena,
+        L("req.id", req_id), L("error", db_err));
+    return DB_ERR_INVALID_USE;
+  }
 
-  return dyn_slice(String, sb);
+  if (SQLITE_OK != (db_err = sqlite3_bind_text(db_insert_poll_stmt, 2,
+                                               (const char *)poll.name.data,
+                                               (int)poll.name.len, nullptr))) {
+    log(LOG_LEVEL_ERROR, "failed to bind parameter 2", arena,
+        L("req.id", req_id), L("error", db_err));
+    return DB_ERR_INVALID_USE;
+  }
+
+  if (SQLITE_OK !=
+      (db_err = sqlite3_bind_text(db_insert_poll_stmt, 3,
+                                  (const char *)poll_options_encoded.data,
+                                  (int)poll_options_encoded.len, nullptr))) {
+    log(LOG_LEVEL_ERROR, "failed to bind parameter 3", arena,
+        L("req.id", req_id), L("error", db_err));
+    return DB_ERR_INVALID_USE;
+  }
+
+  if (SQLITE_DONE != (db_err = sqlite3_step(db_insert_poll_stmt))) {
+    log(LOG_LEVEL_ERROR, "failed to execute the prepared statement", arena,
+        L("req.id", req_id), L("error", db_err));
+    return DB_ERR_INVALID_USE;
+  }
+
+  if (SQLITE_OK !=
+      (db_err = sqlite3_exec(db, "COMMIT", nullptr, nullptr, nullptr))) {
+    log(LOG_LEVEL_ERROR, "failed to begin transaction", arena,
+        L("req.id", req_id), L("error", db_err));
+    return DB_ERR_INVALID_USE;
+  }
+
+  return DB_ERR_NONE;
+}
+
+[[nodiscard]] static HttpResponse http_respond_with_404() {
+  HttpResponse res = {0};
+  res.status = 404;
+  res.body = S("<!DOCTYPE html><html><body>Not found.</body></html>");
+  return res;
+}
+
+[[nodiscard]] static HttpResponse http_respond_with_500(String req_id,
+                                                        Arena *arena) {
+  HttpResponse res = {0};
+  res.status = 500;
+
+  DynU8 body = {0};
+  dyn_append_slice(
+      &body,
+      S("<!DOCTYPE html><html><body>Internal server error. Request id: "),
+      arena);
+  dyn_append_slice(&body, req_id, arena);
+  dyn_append_slice(&body, S("</body></html>"), arena);
+  res.body = dyn_slice(String, body);
+
+  return res;
 }
 
 [[nodiscard]] static HttpResponse handle_create_poll(HttpRequest req,
@@ -48,7 +112,11 @@ typedef struct {
     return res;
   }
 
-  Poll poll = {.state = POLL_STATE_OPEN};
+  Poll poll = {
+      .state = POLL_STATE_OPEN,
+      .id = make_unique_id(arena),
+  };
+  // Decode options from the form data.
   {
     DynString options = {0};
     for (uint64_t i = 0; i < form.form.len; i++) {
@@ -63,70 +131,28 @@ typedef struct {
     poll.options = dyn_slice(StringSlice, options);
   }
 
-  String poll_id = make_unique_id(arena);
-  String poll_options_encoded = json_encode_string_slice(poll.options, arena);
-
-  int db_err = 0;
-  if (SQLITE_OK != (db_err = sqlite3_exec(db, "BEGIN IMMEDIATE", nullptr,
-                                          nullptr, nullptr))) {
-    log(LOG_LEVEL_ERROR, "failed to begin transaction", arena,
-        L("req.id", req.id), L("error", db_err));
-    res.status = 500;
-    return res;
-  }
-
-  if (SQLITE_OK != (db_err = sqlite3_bind_text(db_insert_poll_stmt, 1,
-                                               (const char *)poll_id.data,
-                                               (int)poll_id.len, nullptr))) {
-    log(LOG_LEVEL_ERROR, "failed to bind parameter 1", arena,
-        L("req.id", req.id), L("error", db_err));
-    res.status = 500;
-    return res;
-  }
-
-  if (SQLITE_OK != (db_err = sqlite3_bind_text(db_insert_poll_stmt, 2,
-                                               (const char *)poll.name.data,
-                                               (int)poll.name.len, nullptr))) {
-    log(LOG_LEVEL_ERROR, "failed to bind parameter 2", arena,
-        L("req.id", req.id), L("error", db_err));
-    res.status = 500;
-    return res;
-  }
-
-  if (SQLITE_OK !=
-      (db_err = sqlite3_bind_text(db_insert_poll_stmt, 3,
-                                  (const char *)poll_options_encoded.data,
-                                  (int)poll_options_encoded.len, nullptr))) {
-    log(LOG_LEVEL_ERROR, "failed to bind parameter 3", arena,
-        L("req.id", req.id), L("error", db_err));
-    res.status = 500;
-    return res;
-  }
-
-  if (SQLITE_DONE != (db_err = sqlite3_step(db_insert_poll_stmt))) {
-    log(LOG_LEVEL_ERROR, "failed to execute the prepared statement", arena,
-        L("req.id", req.id), L("error", db_err));
-    res.status = 500;
-    return res;
-  }
-
-  if (SQLITE_OK !=
-      (db_err = sqlite3_exec(db, "COMMIT", nullptr, nullptr, nullptr))) {
-    log(LOG_LEVEL_ERROR, "failed to begin transaction", arena,
-        L("req.id", req.id), L("error", db_err));
-    res.status = 500;
-    return res;
+  switch (db_create_poll(req.id, poll, arena)) {
+  case DB_ERR_NONE:
+    break;
+  case DB_ERR_NOT_FOUND:
+    ASSERT(false); // Unreachable.
+  case DB_ERR_INVALID_USE:
+    return http_respond_with_404();
+  case DB_ERR_INVALID_DATA:
+    return http_respond_with_500(req.id, arena);
+  default:
+    ASSERT(false);
   }
 
   log(LOG_LEVEL_INFO, "created poll", arena, L("req.id", req.id),
-      L("poll.options.len", poll.options.len), L("poll.id", poll_id),
+      L("poll.options.len", poll.options.len), L("poll.id", poll.id),
       L("poll.name", poll.name));
 
   res.status = 301;
 
   DynU8 redirect = {0};
   dyn_append_slice(&redirect, S("/poll/"), arena);
-  dyn_append_slice(&redirect, poll_id, arena);
+  dyn_append_slice(&redirect, poll.id, arena);
 
   http_push_header(&res.headers, S("Location"), dyn_slice(String, redirect),
                    arena);
@@ -195,30 +221,6 @@ typedef struct {
   }
 
   res.poll.options = options_decoded.string_slice;
-
-  return res;
-}
-
-[[nodiscard]] static HttpResponse http_respond_with_404() {
-  HttpResponse res = {0};
-  res.status = 404;
-  res.body = S("<!DOCTYPE html><html><body>Not found.</body></html>");
-  return res;
-}
-
-[[nodiscard]] static HttpResponse http_respond_with_500(String req_id,
-                                                        Arena *arena) {
-  HttpResponse res = {0};
-  res.status = 500;
-
-  DynU8 body = {0};
-  dyn_append_slice(
-      &body,
-      S("<!DOCTYPE html><html><body>Internal server error. Request id: "),
-      arena);
-  dyn_append_slice(&body, req_id, arena);
-  dyn_append_slice(&body, S("</body></html>"), arena);
-  res.body = dyn_slice(String, body);
 
   return res;
 }
