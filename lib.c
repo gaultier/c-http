@@ -815,7 +815,7 @@ typedef enum {
   HS_ERR_INVALID_HTTP_RESPONSE,
   HS_ERR_INVALID_FORM_DATA,
   HS_ERR_INVALID_JSON,
-} HS_ERROR;
+} HS_Error;
 
 [[nodiscard]] static int64_t string_indexof_unescaped_byte(String haystack,
                                                            uint8_t needle) {

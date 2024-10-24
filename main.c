@@ -6,6 +6,13 @@ static sqlite3 *db = nullptr;
 static sqlite3_stmt *db_insert_poll_stmt = nullptr;
 static sqlite3_stmt *db_select_poll_stmt = nullptr;
 
+typedef enum {
+  DB_ERR_NONE,
+  DB_ERR_NOT_FOUND,
+  DB_ERR_INVALID_USE,
+  DB_ERR_INVALID_DATA,
+} DatabaseError;
+
 typedef enum : uint8_t {
   POLL_STATE_OPEN,
   POLL_STATE_CLOSED,
@@ -60,7 +67,6 @@ typedef struct {
   String poll_options_encoded = json_encode_string_slice(poll.options, arena);
 
   int db_err = 0;
-
   if (SQLITE_OK != (db_err = sqlite3_exec(db, "BEGIN IMMEDIATE", nullptr,
                                           nullptr, nullptr))) {
     log(LOG_LEVEL_ERROR, "failed to begin transaction", arena,
@@ -128,50 +134,49 @@ typedef struct {
   return res;
 }
 
-[[nodiscard]] static HttpResponse handle_get_poll(HttpRequest req,
-                                                  Arena *arena) {
-  ASSERT(2 == req.path_components.len);
-  String poll_id = dyn_at(req.path_components, 1);
-  ASSERT(32 == poll_id.len);
+typedef struct {
+  DatabaseError err;
+  Poll poll;
+} DbGetPollResult;
 
-  HttpResponse res = {0};
+[[nodiscard]] static DbGetPollResult db_get_poll(String req_id, String poll_id,
+                                                 Arena *arena) {
+  DbGetPollResult res = {0};
 
-  int db_err = 0;
-  if (SQLITE_OK != (db_err = sqlite3_bind_text(db_select_poll_stmt, 1,
-                                               (const char *)poll_id.data,
-                                               (int)poll_id.len, nullptr))) {
+  int err = 0;
+  if (SQLITE_OK != (err = sqlite3_bind_text(db_select_poll_stmt, 1,
+                                            (const char *)poll_id.data,
+                                            (int)poll_id.len, nullptr))) {
     log(LOG_LEVEL_ERROR, "failed to bind parameter 1", arena,
-        L("req.id", req.id), L("error", db_err));
-    res.status = 500;
+        L("req.id", req_id), L("error", res.err));
+    res.err = DB_ERR_INVALID_USE;
     return res;
   }
 
-  db_err = sqlite3_step(db_select_poll_stmt);
-  if (SQLITE_DONE == db_err) {
-    res.status = 404;
-    res.body = S("<!DOCTYPE html><html><body>Poll not found.</body></html>");
+  err = sqlite3_step(db_select_poll_stmt);
+  if (SQLITE_DONE == err) {
+    res.err = DB_ERR_NOT_FOUND;
     return res;
   }
 
-  if (SQLITE_ROW != db_err) {
+  if (SQLITE_ROW != err) {
     log(LOG_LEVEL_ERROR, "failed to execute the prepared statement", arena,
-        L("req.id", req.id), L("error", db_err));
-    res.status = 500;
+        L("req.id", req_id), L("error", err));
+    res.err = DB_ERR_INVALID_USE;
     return res;
   }
 
-  Poll poll = {0};
-  poll.name.data = (uint8_t *)sqlite3_column_text(db_select_poll_stmt, 0);
-  poll.name.len = (uint64_t)sqlite3_column_bytes(db_select_poll_stmt, 0);
+  res.poll.name.data = (uint8_t *)sqlite3_column_text(db_select_poll_stmt, 0);
+  res.poll.name.len = (uint64_t)sqlite3_column_bytes(db_select_poll_stmt, 0);
 
   int state = sqlite3_column_int(db_select_poll_stmt, 1);
   if (state >= POLL_STATE_MAX) {
     log(LOG_LEVEL_ERROR, "invalid poll state", arena, L("state", state),
-        L("req.id", req.id), L("error", db_err));
-    res.status = 500;
+        L("req.id", req_id), L("error", err));
+    res.err = DB_ERR_INVALID_DATA;
     return res;
   }
-  poll.state = (PollState)state;
+  res.poll.state = (PollState)state;
 
   // TODO: get options.
   String options_json_encoded = {0};
@@ -180,13 +185,64 @@ typedef struct {
   options_json_encoded.len =
       (uint64_t)sqlite3_column_bytes(db_select_poll_stmt, 2);
 
-  JsonParseStringStrResult options_parsed =
+  JsonParseStringStrResult options_decoded =
       json_decode_string_slice(options_json_encoded, arena);
-  if (options_parsed.err) {
-    log(LOG_LEVEL_ERROR, "invalid poll options", arena, L("req.id", req.id),
-        L("options", options_json_encoded), L("error", options_parsed.err));
-    res.status = 500;
+  if (options_decoded.err) {
+    log(LOG_LEVEL_ERROR, "invalid poll options", arena, L("req.id", req_id),
+        L("options", options_json_encoded), L("error", options_decoded.err));
+    res.err = DB_ERR_INVALID_DATA;
     return res;
+  }
+
+  res.poll.options = options_decoded.string_slice;
+
+  return res;
+}
+
+[[nodiscard]] static HttpResponse http_respond_with_404() {
+  HttpResponse res = {0};
+  res.status = 404;
+  res.body = S("<!DOCTYPE html><html><body>Not found.</body></html>");
+  return res;
+}
+
+[[nodiscard]] static HttpResponse http_respond_with_500(String req_id,
+                                                        Arena *arena) {
+  HttpResponse res = {0};
+  res.status = 500;
+
+  DynU8 body = {0};
+  dyn_append_slice(
+      &body,
+      S("<!DOCTYPE html><html><body>Internal server error. Request id: "),
+      arena);
+  dyn_append_slice(&body, req_id, arena);
+  dyn_append_slice(&body, S("</body></html>"), arena);
+  res.body = dyn_slice(String, body);
+
+  return res;
+}
+
+[[nodiscard]] static HttpResponse handle_get_poll(HttpRequest req,
+                                                  Arena *arena) {
+  ASSERT(2 == req.path_components.len);
+  String poll_id = dyn_at(req.path_components, 1);
+  ASSERT(32 == poll_id.len);
+
+  HttpResponse res = {0};
+
+  DbGetPollResult poll = db_get_poll(req.id, poll_id, arena);
+
+  switch (poll.err) {
+  case DB_ERR_NONE:
+    break;
+  case DB_ERR_NOT_FOUND:
+    return http_respond_with_404();
+  case DB_ERR_INVALID_USE:
+  case DB_ERR_INVALID_DATA:
+    return http_respond_with_500(req.id, arena);
+  default:
+    ASSERT(false);
   }
 
   DynU8 resp_body = {0};
@@ -194,10 +250,10 @@ typedef struct {
   dyn_append_slice(&resp_body,
                    S("<!DOCTYPE html><html><body><div id=\"poll\">"), arena);
   dyn_append_slice(&resp_body, S("The poll \""), arena);
-  dyn_append_slice(&resp_body, poll.name, arena);
+  dyn_append_slice(&resp_body, poll.poll.name, arena);
   dyn_append_slice(&resp_body, S("\" "), arena);
 
-  switch (poll.state) {
+  switch (poll.poll.state) {
   case POLL_STATE_OPEN:
     dyn_append_slice(&resp_body, S("is open."), arena);
     break;
@@ -211,8 +267,8 @@ typedef struct {
   }
 
   dyn_append_slice(&resp_body, S("<br>"), arena);
-  for (uint64_t i = 0; i < options_parsed.string_slice.len; i++) {
-    String option = dyn_at(options_parsed.string_slice, i);
+  for (uint64_t i = 0; i < poll.poll.options.len; i++) {
+    String option = dyn_at(poll.poll.options, i);
 
     // TODO: Better HTML.
     dyn_append_slice(&resp_body, S("<span>"), arena);

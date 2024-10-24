@@ -40,7 +40,7 @@ typedef struct {
 } DynHttpHeaders;
 
 typedef struct {
-  __uint128_t id;
+  String id;
   String path_raw;
   DynString path_components;
   HttpMethod method;
@@ -299,10 +299,19 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
   return res;
 }
 
+[[nodiscard]] static String make_id(Arena *arena) {
+  __uint128_t id = 0;
+  arc4random_buf(&id, sizeof(id));
+
+  DynU8 dyn = {0};
+  dynu8_append_u128_hex(&dyn, id, arena);
+
+  return dyn_slice(String, dyn);
+}
+
 [[nodiscard]] static HttpRequest request_parse_status_line(LineRead status_line,
                                                            Arena *arena) {
-  HttpRequest req = {0};
-  arc4random_buf(&req.id, sizeof(req.id));
+  HttpRequest req = {.id = make_id(arena)};
 
   if (!status_line.present) {
     req.err = HS_ERR_INVALID_HTTP_REQUEST;
