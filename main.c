@@ -156,7 +156,7 @@ http_respond_with_unprocessable_entity(String req_id, Arena *arena) {
   HttpResponse res = {0};
 
   Poll poll = {.state = POLL_STATE_OPEN,
-               .human_readable_id = make_unique_id(arena)};
+               .human_readable_id = make_unique_id_u128_string(arena)};
 
   poll.created_by = user_agent(req);
   if (slice_is_empty(poll.created_by)) {

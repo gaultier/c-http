@@ -299,7 +299,7 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
   return res;
 }
 
-[[nodiscard]] static String make_unique_id(Arena *arena) {
+[[nodiscard]] static String make_unique_id_u128_string(Arena *arena) {
   __uint128_t id = 0;
   arc4random_buf(&id, sizeof(id));
 
@@ -311,7 +311,7 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
 
 [[nodiscard]] static HttpRequest request_parse_status_line(LineRead status_line,
                                                            Arena *arena) {
-  HttpRequest req = {.id = make_unique_id(arena)};
+  HttpRequest req = {.id = make_unique_id_u128_string(arena)};
 
   if (!status_line.present) {
     req.err = HS_ERR_INVALID_HTTP_REQUEST;
