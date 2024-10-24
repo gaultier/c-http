@@ -6,19 +6,20 @@ MVP:
 - [x] Improve UX for writing logs
 - [x] Encode/decode to/from db
 - [x] Use sqlite properly for multiple processes
-- [ ] Clearly split db & html rendering steps
+- [x] Clearly split db & html rendering steps
 - [ ] Html builder
 - [ ] Cast a vote (user = `hash(user-agent)`?)
 - [ ] Close a poll (admin role?)
 - [ ] See poll results
-- [ ] Collect logs into clickhouse
-- [ ] Easy request duration stats (from clickhouse or dtrace/strace)
+- [ ] Pretty UI
+- [ ] Collect logs into OLAP db
+- [ ] Easy request duration stats (from OLAP db or dtrace/strace)
 - [ ] Monkey testing/fuzz testing [Last]
 - [ ] Test with non ascii strings
 - [ ] Test with Chrome
 - [ ] Test with max options and long strings
 - [ ] e2e tests
-- [ ] Vendor fdb_c
+- [ ] Vendor & compile db code
 
 QoL:
 - [ ] Live poll timer
