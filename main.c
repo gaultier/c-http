@@ -333,6 +333,31 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
   }
   ASSERT(0 != get_poll.poll.db_id);
 
+  // Check that the options sent match the options for the poll.
+  {
+    if (options.len != get_poll.poll.options.len) {
+      return DB_ERR_INVALID_DATA;
+    }
+
+    for (uint64_t i = 0; i < options.len; i++) {
+      String option = slice_at(options, i);
+
+      bool found = false;
+      for (uint64_t j = 0; j < get_poll.poll.options.len; j++) {
+        String poll_option = slice_at(get_poll.poll.options, j);
+
+        if (string_eq(option, poll_option)) {
+          found = true;
+          break;
+        }
+      }
+
+      if (!found) {
+        return DB_ERR_INVALID_DATA;
+      }
+    }
+  }
+
   if (SQLITE_OK !=
       (err = sqlite3_bind_text(db_insert_vote_stmt, 1, (char *)user_id.data,
                                (int)user_id.len, nullptr))) {
@@ -357,9 +382,6 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
         L("req.id", req_id), L("error", err));
     return DB_ERR_INVALID_USE;
   }
-
-  // TODO: Check that the options sent match the options for the poll.
-  // Or use foreign keys for that :D
 
   if (SQLITE_DONE != (err = sqlite3_step(db_insert_vote_stmt))) {
     log(LOG_LEVEL_ERROR,
