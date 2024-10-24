@@ -5,3 +5,4 @@ a.out
 profile*
 vote.db*
 *.data
+*.log
