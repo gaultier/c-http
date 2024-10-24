@@ -7,9 +7,8 @@ MVP:
 - [x] Encode/decode to/from db
 - [x] Use sqlite properly for multiple processes
 - [x] Clearly split db & html rendering steps
-- [ ] Html builder
 - [.] Cast a vote (user = `hash(user-agent)`?)
-- [ ] Close a poll (admin role?)
+- [ ] Html builder
 - [ ] See poll results
 - [ ] Pretty UI
 - [ ] Collect logs into OLAP db
@@ -23,6 +22,7 @@ MVP:
 - [ ] Benchmark
 
 QoL:
+- [ ] Close a poll (admin role?)
 - [ ] Live poll timer
 - [ ] Poll TTL & GC
 - [ ] Full stacktrace (better assert)

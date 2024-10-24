@@ -231,7 +231,6 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
   }
   res.poll.state = (PollState)state;
 
-  // TODO: get options.
   String options_json_encoded = {0};
   options_json_encoded.data =
       (uint8_t *)sqlite3_column_text(db_select_poll_stmt, 3);
@@ -316,10 +315,9 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
   return res;
 }
 
-[[nodiscard]] static DatabaseError db_cast_vote(String req_id,
-                                                String human_readable_poll_id,
-                                                StringSlice options,
-                                                Arena *arena) {
+[[nodiscard]] static DatabaseError
+db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
+             StringSlice options, Arena *arena) {
 
   int err = 0;
   if (SQLITE_OK !=
@@ -335,21 +333,27 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
   }
   ASSERT(0 != get_poll.poll.db_id);
 
-  // TODO: Update vote if it already exists.
+  if (SQLITE_OK !=
+      (err = sqlite3_bind_text(db_insert_vote_stmt, 1, (char *)user_id.data,
+                               (int)user_id.len, nullptr))) {
+    log(LOG_LEVEL_ERROR, "failed to bind parameter 1", arena,
+        L("req.id", req_id), L("error", err));
+    return DB_ERR_INVALID_USE;
+  }
 
   if (SQLITE_OK !=
-      (err = sqlite3_bind_int64(db_insert_vote_stmt, 1, get_poll.poll.db_id))) {
-    log(LOG_LEVEL_ERROR, "failed to bind parameter 1", arena,
+      (err = sqlite3_bind_int64(db_insert_vote_stmt, 2, get_poll.poll.db_id))) {
+    log(LOG_LEVEL_ERROR, "failed to bind parameter 2", arena,
         L("req.id", req_id), L("error", err));
     return DB_ERR_INVALID_USE;
   }
 
   String poll_options_encoded = json_encode_string_slice(options, arena);
   if (SQLITE_OK !=
-      (err = sqlite3_bind_text(db_insert_vote_stmt, 2,
+      (err = sqlite3_bind_text(db_insert_vote_stmt, 3,
                                (const char *)poll_options_encoded.data,
                                (int)poll_options_encoded.len, nullptr))) {
-    log(LOG_LEVEL_ERROR, "failed to bind parameter 2", arena,
+    log(LOG_LEVEL_ERROR, "failed to bind parameter 3", arena,
         L("req.id", req_id), L("error", err));
     return DB_ERR_INVALID_USE;
   }
@@ -405,7 +409,21 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
     options = dyn_slice(StringSlice, dyn_options);
   }
 
-  switch (db_cast_vote(req.id, poll_id, options, arena)) {
+  String user_id = {0};
+  {
+    for (uint64_t i = 0; i < req.headers.len; i++) {
+      HttpHeader h = slice_at(req.headers, i);
+      if (string_eq(h.key, S("User-Agent")) && !slice_is_empty(h.value)) {
+        user_id = h.value;
+        break;
+      }
+    }
+  }
+  if (slice_is_empty(user_id)) {
+    return http_respond_with_unprocessable_entity(req.id, arena);
+  }
+
+  switch (db_cast_vote(req.id, poll_id, user_id, options, arena)) {
   case DB_ERR_NONE:
     break;
   case DB_ERR_NOT_FOUND:
@@ -469,7 +487,6 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
   } else if (HM_POST == req.method && 3 == req.path_components.len &&
              string_eq(path0, S("poll")) && 32 == path1.len) {
     // `POST /poll/<poll_id>/vote`
-    // TODO: user id.
     return handle_cast_vote(req, arena);
   } else {
     return http_respond_with_not_found();
@@ -511,15 +528,16 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
         L("error", db_err));
     return DB_ERR_INVALID_USE;
   }
-  if (SQLITE_OK != (db_err = sqlite3_exec(
-                        db,
-                        "create table if not exists votes (id "
-                        "integer primary key, created_at text, user_id text, "
-                        "poll_id text,"
-                        "options text,"
-                        "foreign key(poll_id) references polls(id)"
-                        ") STRICT",
-                        nullptr, nullptr, nullptr))) {
+  if (SQLITE_OK !=
+      (db_err = sqlite3_exec(
+           db,
+           "create table if not exists votes (id "
+           "integer primary key, created_at text, user_id text unique, "
+           "poll_id text,"
+           "options text,"
+           "foreign key(poll_id) references polls(id)"
+           ") STRICT",
+           nullptr, nullptr, nullptr))) {
     log(LOG_LEVEL_ERROR, "failed to create votes table", arena,
         L("error", db_err));
     return DB_ERR_INVALID_USE;
@@ -549,9 +567,9 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
     return DB_ERR_INVALID_USE;
   }
 
-  String db_insert_vote_sql =
-      S("insert into votes (created_at, user_id, poll_id, options) values "
-        "(datetime('now'), 'fixme', ?, ?)");
+  String db_insert_vote_sql = S("insert or replace into votes (created_at, "
+                                "user_id, poll_id, options) values "
+                                "(datetime('now'), ?, ?, ?)");
   if (SQLITE_OK !=
       (db_err = sqlite3_prepare_v2(db, (const char *)db_insert_vote_sql.data,
                                    (int)db_insert_vote_sql.len,
