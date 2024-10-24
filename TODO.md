@@ -20,6 +20,7 @@ MVP:
 - [ ] Test with max options and long strings
 - [ ] e2e tests
 - [ ] Vendor & compile db code
+- [ ] Benchmark
 
 QoL:
 - [ ] Live poll timer
@@ -32,7 +33,6 @@ QoL:
 - [ ] TLS
 - [ ] Translations
 - [ ] Button to copy url to clipboard
-- [ ] Use db tenants
 - [ ] Embed static files (if any)
 - [ ] Retake a poll
 - [ ] Poll options (e.g. ???)
