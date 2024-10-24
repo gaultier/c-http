@@ -26,11 +26,28 @@ typedef struct {
   PollState state;
   String name;
   StringSlice options;
-  // TODO: creation date, etc.
+  String created_at;
+  String created_by;
 } Poll;
+
+[[nodiscard]] static String user_agent(HttpRequest req) {
+  String user_agent = {0};
+  {
+    for (uint64_t i = 0; i < req.headers.len; i++) {
+      HttpHeader h = slice_at(req.headers, i);
+      if (string_eq(h.key, S("User-Agent")) && !slice_is_empty(h.value)) {
+        user_agent = h.value;
+        break;
+      }
+    }
+  }
+  return user_agent;
+}
 
 [[nodiscard]] static DatabaseError db_create_poll(String req_id, Poll poll,
                                                   Arena *arena) {
+  ASSERT(!slice_is_empty(poll.created_by));
+
   int db_err = 0;
   if (SQLITE_OK != (db_err = sqlite3_exec(db, "BEGIN IMMEDIATE", nullptr,
                                           nullptr, nullptr))) {
@@ -63,6 +80,15 @@ typedef struct {
                                   (const char *)poll_options_encoded.data,
                                   (int)poll_options_encoded.len, nullptr))) {
     log(LOG_LEVEL_ERROR, "failed to bind parameter 3", arena,
+        L("req.id", req_id), L("error", db_err));
+    return DB_ERR_INVALID_USE;
+  }
+
+  if (SQLITE_OK !=
+      (db_err = sqlite3_bind_text(db_insert_poll_stmt, 4,
+                                  (const char *)poll.created_by.data,
+                                  (int)poll.created_by.len, nullptr))) {
+    log(LOG_LEVEL_ERROR, "failed to bind parameter 4", arena,
         L("req.id", req_id), L("error", db_err));
     return DB_ERR_INVALID_USE;
   }
@@ -131,6 +157,11 @@ http_respond_with_unprocessable_entity(String req_id, Arena *arena) {
 
   Poll poll = {.state = POLL_STATE_OPEN,
                .human_readable_id = make_unique_id(arena)};
+
+  poll.created_by = user_agent(req);
+  if (slice_is_empty(poll.created_by)) {
+    return http_respond_with_unprocessable_entity(req.id, arena);
+  }
 
   {
     FormDataParseResult form = form_data_parse(req.body, arena);
@@ -431,16 +462,7 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
     options = dyn_slice(StringSlice, dyn_options);
   }
 
-  String user_id = {0};
-  {
-    for (uint64_t i = 0; i < req.headers.len; i++) {
-      HttpHeader h = slice_at(req.headers, i);
-      if (string_eq(h.key, S("User-Agent")) && !slice_is_empty(h.value)) {
-        user_id = h.value;
-        break;
-      }
-    }
-  }
+  String user_id = user_agent(req);
   if (slice_is_empty(user_id)) {
     return http_respond_with_unprocessable_entity(req.id, arena);
   }
@@ -545,7 +567,7 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
                              "create table if not exists polls (id "
                              "integer primary key, name text, "
                              "state int, options text, human_readable_id text, "
-                             "created_at text) STRICT",
+                             "created_at text, created_by text) STRICT",
                              nullptr, nullptr, nullptr))) {
     log(LOG_LEVEL_ERROR, "failed to create polls table", arena,
         L("error", db_err));
@@ -566,9 +588,9 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
     return DB_ERR_INVALID_USE;
   }
 
-  String db_insert_poll_sql =
-      S("insert into polls (human_readable_id, name, "
-        "state, options, created_at) values (?, ?, 0, ?, datetime('now'))");
+  String db_insert_poll_sql = S("insert into polls (human_readable_id, name, "
+                                "state, options, created_at, created_by) "
+                                "values (?, ?, 0, ?, datetime('now'), ?)");
   if (SQLITE_OK !=
       (db_err = sqlite3_prepare_v2(db, (const char *)db_insert_poll_sql.data,
                                    (int)db_insert_poll_sql.len,
