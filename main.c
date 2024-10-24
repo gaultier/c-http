@@ -279,6 +279,18 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
 
   res.poll.options = options_decoded.string_slice;
 
+  res.poll.created_at.data =
+      (uint8_t *)sqlite3_column_text(db_select_poll_stmt, 4);
+  res.poll.created_at.len =
+      (uint64_t)sqlite3_column_bytes(db_select_poll_stmt, 4);
+  ASSERT(!slice_is_empty(res.poll.created_at));
+
+  res.poll.created_by.data =
+      (uint8_t *)sqlite3_column_text(db_select_poll_stmt, 5);
+  res.poll.created_by.len =
+      (uint64_t)sqlite3_column_bytes(db_select_poll_stmt, 5);
+  ASSERT(!slice_is_empty(res.poll.created_by));
+
   return res;
 }
 
@@ -291,9 +303,9 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
 
   HttpResponse res = {0};
 
-  DbGetPollResult poll = db_get_poll(req.id, poll_id, arena);
+  DbGetPollResult get_poll = db_get_poll(req.id, poll_id, arena);
 
-  switch (poll.err) {
+  switch (get_poll.err) {
   case DB_ERR_NONE:
     break;
   case DB_ERR_NOT_FOUND:
@@ -311,10 +323,10 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
   dyn_append_slice(&resp_body,
                    S("<!DOCTYPE html><html><body><div id=\"poll\">"), arena);
   dyn_append_slice(&resp_body, S("The poll \""), arena);
-  dyn_append_slice(&resp_body, poll.poll.name, arena);
+  dyn_append_slice(&resp_body, get_poll.poll.name, arena);
   dyn_append_slice(&resp_body, S("\" "), arena);
 
-  switch (poll.poll.state) {
+  switch (get_poll.poll.state) {
   case POLL_STATE_OPEN:
     dyn_append_slice(&resp_body, S("is open."), arena);
     break;
@@ -328,8 +340,8 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
   }
 
   dyn_append_slice(&resp_body, S("<br>"), arena);
-  for (uint64_t i = 0; i < poll.poll.options.len; i++) {
-    String option = dyn_at(poll.poll.options, i);
+  for (uint64_t i = 0; i < get_poll.poll.options.len; i++) {
+    String option = dyn_at(get_poll.poll.options, i);
 
     // TODO: Better HTML.
     dyn_append_slice(&resp_body, S("<span>"), arena);
@@ -337,6 +349,9 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
     dyn_append_slice(&resp_body, S("</span><br>"), arena);
   }
 
+  dyn_append_slice(&resp_body, S("<span>Created at:"), arena);
+  dyn_append_slice(&resp_body, get_poll.poll.created_at, arena);
+  dyn_append_slice(&resp_body, S("</span><br>"), arena);
   dyn_append_slice(&resp_body, S("</div></body></html>"), arena);
 
   res.body = dyn_slice(String, resp_body);
@@ -600,9 +615,9 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
     return DB_ERR_INVALID_USE;
   }
 
-  String db_select_poll_sql =
-      S("select id, name, state, options from polls where "
-        "human_readable_id = ? limit 1");
+  String db_select_poll_sql = S("select id, name, state, options, created_at, "
+                                "created_by from polls where "
+                                "human_readable_id = ? limit 1");
   if (SQLITE_OK !=
       (db_err = sqlite3_prepare_v2(db, (const char *)db_select_poll_sql.data,
                                    (int)db_select_poll_sql.len,
