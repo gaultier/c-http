@@ -711,7 +711,7 @@ typedef struct {
   }
   dyn_append_slice(&sb, S(" "), arena);
 
-  dyn_append_slice(&sb, S("timestamp_ns="), arena);
+  dyn_append_slice(&sb, S("monotonic_ns="), arena);
   dynu8_append_u64(
       &sb, (uint64_t)now.tv_sec * 1000'000'000 + (uint64_t)now.tv_nsec, arena);
   dyn_append_slice(&sb, S(" "), arena);

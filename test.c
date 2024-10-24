@@ -177,7 +177,7 @@ static void test_make_log_line() {
 
   String expected =
       S("message=\"foobar\" num=42 slice=\"hello \\\"world\\\"\"\n");
-  ASSERT(string_starts_with(log_line, S("level=debug timestamp_ns=")));
+  ASSERT(string_starts_with(log_line, S("level=debug monotonic_ns=")));
   ASSERT(string_ends_with(log_line, expected));
 }
 
