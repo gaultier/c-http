@@ -217,7 +217,8 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
     return res;
   }
 
-  res.poll.db_id = sqlite3_column_int64(db_insert_poll_stmt, 0);
+  res.poll.db_id = sqlite3_column_int64(db_select_poll_stmt, 0);
+  ASSERT(0 != res.poll.db_id);
   res.poll.name.data = (uint8_t *)sqlite3_column_text(db_select_poll_stmt, 1);
   res.poll.name.len = (uint64_t)sqlite3_column_bytes(db_select_poll_stmt, 1);
 
@@ -332,6 +333,7 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
   if (get_poll.err) {
     return get_poll.err;
   }
+  ASSERT(0 != get_poll.poll.db_id);
 
   if (SQLITE_OK !=
       (err = sqlite3_bind_int64(db_insert_vote_stmt, 1, get_poll.poll.db_id))) {
