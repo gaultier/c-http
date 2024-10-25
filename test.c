@@ -175,10 +175,11 @@ static void test_make_log_line() {
       make_log_line(LOG_LEVEL_DEBUG, S("foobar"), &arena, 2, L("num", 42),
                     L("slice", S("hello \"world\"")));
 
-  String expected =
-      S("message=\"foobar\" num=42 slice=\"hello \\\"world\\\"\"\n");
-  ASSERT(string_starts_with(log_line, S("level=debug monotonic_ns=")));
-  ASSERT(string_ends_with(log_line, expected));
+  String expected_suffix = S(
+      "\"message\":\"foobar\",\"num\":42,\"slice\":\"hello \\\"world\\\"\"}\n");
+  ASSERT(string_starts_with(log_line,
+                            S("{\"level\":\"debug\",\"monotonic_ns\":")));
+  ASSERT(string_ends_with(log_line, expected_suffix));
 }
 
 static void test_dyn_ensure_cap() {
