@@ -517,7 +517,6 @@ static void dynu8_append_u128_hex(DynU8 *dyn, __uint128_t n, Arena *arena) {
 typedef enum {
   LV_SLICE,
   LV_U64,
-  LV_U128,
 } LogValueKind;
 
 typedef enum {
@@ -573,14 +572,6 @@ typedef struct {
   };
 }
 
-[[nodiscard]] static LogEntry log_entry_u128(String k, __uint128_t v) {
-  return (LogEntry){
-      .key = k,
-      .value.kind = LV_U128,
-      .value.n128 = v,
-  };
-}
-
 [[nodiscard]] static LogEntry log_entry_slice(String k, String v) {
   return (LogEntry){
       .key = k,
@@ -595,7 +586,6 @@ typedef struct {
       uint16_t: log_entry_u16,                                                 \
       uint32_t: log_entry_u32,                                                 \
       uint64_t: log_entry_u64,                                                 \
-      __uint128_t: log_entry_u128,                                             \
       String: log_entry_slice)((S(k)), v))
 
 #define LOG_ARGS_COUNT(...)                                                    \
@@ -737,11 +727,6 @@ typedef struct {
     }
     case LV_U64:
       dynu8_append_u64(&sb, entry.value.n64, arena);
-      break;
-    case LV_U128:
-      dyn_append_slice(&sb, S("\""), arena);
-      dynu8_append_u128_hex(&sb, entry.value.n128, arena);
-      dyn_append_slice(&sb, S("\""), arena);
       break;
     default:
       ASSERT(0 && "invalid LogValueKind");
