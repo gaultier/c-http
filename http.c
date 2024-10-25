@@ -449,13 +449,13 @@ reader_read_headers(Reader *reader, DynHttpHeaders *headers, Arena *arena) {
 }
 
 [[nodiscard]] static ParseNumberResult
-request_parse_content_length_maybe(HttpRequest req) {
+request_parse_content_length_maybe(HttpRequest req, Arena *arena) {
   ASSERT(!req.err);
 
   for (uint64_t i = 0; i < req.headers.len; i++) {
     HttpHeader h = req.headers.data[i];
 
-    if (!string_eq(S("Content-Length"), h.key)) {
+    if (!string_ieq_ascii(S("Content-Length"), h.key, arena)) {
       continue;
     }
 
@@ -498,7 +498,8 @@ request_parse_content_length_maybe(HttpRequest req) {
     return req;
   }
 
-  ParseNumberResult content_length = request_parse_content_length_maybe(req);
+  ParseNumberResult content_length =
+      request_parse_content_length_maybe(req, arena);
   if (content_length.err) {
     req.err = HS_ERR_INVALID_HTTP_REQUEST;
     return req;

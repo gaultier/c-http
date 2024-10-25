@@ -30,12 +30,14 @@ typedef struct {
   String created_by;
 } Poll;
 
-[[nodiscard]] static String user_agent(HttpRequest req) {
+[[nodiscard]] static String user_agent(HttpRequest req, Arena *arena) {
   String user_agent = {0};
   {
     for (uint64_t i = 0; i < req.headers.len; i++) {
       HttpHeader h = slice_at(req.headers, i);
-      if (string_eq(h.key, S("User-Agent")) && !slice_is_empty(h.value)) {
+
+      if (string_ieq_ascii(h.key, S("User-Agent"), arena) &&
+          !slice_is_empty(h.value)) {
         user_agent = h.value;
         break;
       }
@@ -158,8 +160,11 @@ http_respond_with_unprocessable_entity(String req_id, Arena *arena) {
   Poll poll = {.state = POLL_STATE_OPEN,
                .human_readable_id = make_unique_id_u128_string(arena)};
 
-  poll.created_by = user_agent(req);
+  poll.created_by = user_agent(req, arena);
   if (slice_is_empty(poll.created_by)) {
+    log(LOG_LEVEL_ERROR,
+        "failed to create poll due to missing/empty user-agent", arena,
+        L("req.id", req.id));
     return http_respond_with_unprocessable_entity(req.id, arena);
   }
 
@@ -194,6 +199,8 @@ http_respond_with_unprocessable_entity(String req_id, Arena *arena) {
   case DB_ERR_INVALID_USE:
     return http_respond_with_internal_server_error(req.id, arena);
   case DB_ERR_INVALID_DATA:
+    log(LOG_LEVEL_ERROR, "failed to create poll due to invalid db data", arena,
+        L("req.id", req.id), L("req.body", req.body));
     return http_respond_with_unprocessable_entity(req.id, arena);
   default:
     ASSERT(false);
@@ -314,6 +321,8 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
     return http_respond_with_internal_server_error(req.id, arena);
   case DB_ERR_INVALID_DATA:
     return http_respond_with_unprocessable_entity(req.id, arena);
+    log(LOG_LEVEL_ERROR, "failed to get poll due to invalid db data", arena,
+        L("req.id", req.id), L("req.body", req.body));
   default:
     ASSERT(false);
   }
@@ -478,8 +487,11 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
     options = dyn_slice(StringSlice, dyn_options);
   }
 
-  String user_id = user_agent(req);
+  String user_id = user_agent(req, arena);
   if (slice_is_empty(user_id)) {
+    log(LOG_LEVEL_ERROR,
+        "failed to create vote due to missing/empty user-agent", arena,
+        L("req.id", req.id));
     return http_respond_with_unprocessable_entity(req.id, arena);
   }
 
@@ -491,6 +503,8 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
   case DB_ERR_INVALID_USE:
     return http_respond_with_internal_server_error(req.id, arena);
   case DB_ERR_INVALID_DATA:
+    log(LOG_LEVEL_ERROR, "failed to create vote due to invalid db data", arena,
+        L("req.id", req.id), L("req.body", req.body));
     return http_respond_with_unprocessable_entity(req.id, arena);
   default:
     ASSERT(false);

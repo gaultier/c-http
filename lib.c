@@ -937,3 +937,50 @@ json_decode_string_slice(String s, Arena *arena) {
   res.string_slice = dyn_slice(StringSlice, dyn);
   return res;
 }
+
+[[nodiscard]] static String string_clone(String s, Arena *arena) {
+  String res = {.data = arena_alloc(arena, s.len, 1, 1), .len = s.len};
+  if (res.data != nullptr) {
+    memcpy(res.data, s.data, s.len);
+  }
+
+  return res;
+}
+
+static void string_lowercase_ascii_mut(String s) {
+  for (uint64_t i = 0; i < s.len; i++) {
+    uint8_t *c = AT_PTR(s.data, s.len, i);
+    if ('A' <= *c && *c <= 'Z') {
+      *c += 32;
+    }
+  }
+}
+
+[[nodiscard]] static bool string_ieq_ascii(String a, String b, Arena *arena) {
+  if (a.data == nullptr && b.data == nullptr && a.len == b.len) {
+    return true;
+  }
+  if (a.data == nullptr) {
+    return false;
+  }
+  if (b.data == nullptr) {
+    return false;
+  }
+
+  if (a.len != b.len) {
+    return false;
+  }
+
+  ASSERT(a.data != nullptr);
+  ASSERT(b.data != nullptr);
+  ASSERT(a.len == b.len);
+
+  Arena tmp = *arena;
+  String a_clone = string_clone(a, &tmp);
+  String b_clone = string_clone(b, &tmp);
+
+  string_lowercase_ascii_mut(a_clone);
+  string_lowercase_ascii_mut(b_clone);
+
+  return string_eq(a_clone, b_clone);
+}
