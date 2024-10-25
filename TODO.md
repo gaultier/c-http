@@ -37,3 +37,4 @@ QoL:
 - [ ] Embed static files (if any)
 - [ ] Retake a poll
 - [ ] Poll options (e.g. ???)
+- [ ] QR code for link
