@@ -243,14 +243,28 @@ typedef struct {
 }
 
 [[nodiscard]] static bool string_starts_with(String haystack, String needle) {
-  int64_t idx = string_indexof_string(haystack, needle);
-  return idx == 0;
+  if (haystack.len == 0 || haystack.len < needle.len) {
+    return false;
+  }
+  ASSERT(nullptr != haystack.data);
+  ASSERT(nullptr != needle.data);
+
+  String start = slice_range(haystack, 0, needle.len);
+
+  return string_eq(needle, start);
 }
 
 [[maybe_unused]] [[nodiscard]] static bool string_ends_with(String haystack,
                                                             String needle) {
-  int64_t idx = string_indexof_string(haystack, needle);
-  return idx == (int64_t)haystack.len - (int64_t)needle.len;
+  if (haystack.len == 0 || haystack.len < needle.len) {
+    return false;
+  }
+  ASSERT(nullptr != haystack.data);
+  ASSERT(nullptr != needle.data);
+
+  String end = slice_range(haystack, haystack.len - needle.len, 0);
+
+  return string_eq(needle, end);
 }
 
 typedef struct {
@@ -515,7 +529,7 @@ static void dynu8_append_u128_hex(DynU8 *dyn, __uint128_t n, Arena *arena) {
 }
 
 typedef enum {
-  LV_SLICE,
+  LV_STRING,
   LV_U64,
 } LogValueKind;
 
@@ -539,6 +553,21 @@ typedef struct {
   String key;
   LogValue value;
 } LogEntry;
+
+[[nodiscard]] static String log_level_to_string(LogLevel level) {
+  switch (level) {
+  case LOG_LEVEL_DEBUG:
+    return S("debug");
+  case LOG_LEVEL_INFO:
+    return S("info");
+  case LOG_LEVEL_ERROR:
+    return S("error");
+  case LOG_LEVEL_FATAL:
+    return S("fatal");
+  default:
+    ASSERT(false);
+  }
+}
 
 [[nodiscard]] static LogEntry log_entry_int(String k, int v) {
   return (LogEntry){
@@ -575,7 +604,7 @@ typedef struct {
 [[nodiscard]] static LogEntry log_entry_slice(String k, String v) {
   return (LogEntry){
       .key = k,
-      .value.kind = LV_SLICE,
+      .value.kind = LV_STRING,
       .value.s = v,
   };
 }
@@ -674,71 +703,76 @@ typedef struct {
   return dyn_slice(String, sb);
 }
 
+static void dynu8_append_json_object_key_string_value_string(DynU8 *sb,
+                                                             String key,
+                                                             String value,
+                                                             Arena *arena) {
+  String json_key = json_escape_string(key, arena);
+  dyn_append_slice(sb, json_key, arena);
+
+  dyn_append_slice(sb, S(":"), arena);
+
+  String json_value = json_escape_string(value, arena);
+  dyn_append_slice(sb, json_value, arena);
+
+  dyn_append_slice(sb, S(","), arena);
+}
+
+static void dynu8_append_json_object_key_string_value_u64(DynU8 *sb, String key,
+                                                          uint64_t value,
+                                                          Arena *arena) {
+  String json_key = json_escape_string(key, arena);
+  dyn_append_slice(sb, json_key, arena);
+
+  dyn_append_slice(sb, S(":"), arena);
+
+  dynu8_append_u64(sb, value, arena);
+
+  dyn_append_slice(sb, S(","), arena);
+}
+
 [[nodiscard]] static String make_log_line(LogLevel level, String msg,
                                           Arena *arena, int32_t args_count,
                                           ...) {
-  struct timespec now = {0};
-  clock_gettime(CLOCK_MONOTONIC, &now);
+  struct timespec monotonic = {0};
+  clock_gettime(CLOCK_MONOTONIC, &monotonic);
+  uint64_t monotonic_ns =
+      (uint64_t)monotonic.tv_sec * 1000'000'000 + (uint64_t)monotonic.tv_nsec;
 
   DynU8 sb = {0};
+  *dyn_push(&sb, arena) = '{';
 
-  dyn_append_slice(&sb, S("level="), arena);
-  switch (level) {
-  case LOG_LEVEL_DEBUG:
-    dyn_append_slice(&sb, S("debug"), arena);
-    break;
-  case LOG_LEVEL_INFO:
-    dyn_append_slice(&sb, S("info"), arena);
-    break;
-  case LOG_LEVEL_ERROR:
-    dyn_append_slice(&sb, S("error"), arena);
-    break;
-  case LOG_LEVEL_FATAL:
-    dyn_append_slice(&sb, S("fatal"), arena);
-    break;
-  default:
-    ASSERT(false);
-  }
-  dyn_append_slice(&sb, S(" "), arena);
-
-  dyn_append_slice(&sb, S("monotonic_ns="), arena);
-  dynu8_append_u64(
-      &sb, (uint64_t)now.tv_sec * 1000'000'000 + (uint64_t)now.tv_nsec, arena);
-  dyn_append_slice(&sb, S(" "), arena);
-
-  dyn_append_slice(&sb, S("message="), arena);
-  String message_quoted = json_escape_string(msg, arena);
-  dyn_append_slice(&sb, message_quoted, arena);
-  dyn_append_slice(&sb, S(" "), arena);
+  dynu8_append_json_object_key_string_value_string(
+      &sb, S("level"), log_level_to_string(level), arena);
+  dynu8_append_json_object_key_string_value_u64(&sb, S("monotonic_ns"),
+                                                monotonic_ns, arena);
+  dynu8_append_json_object_key_string_value_string(&sb, S("message"), msg,
+                                                   arena);
 
   va_list argp = {0};
   va_start(argp, args_count);
   for (int32_t i = 0; i < args_count; i++) {
     LogEntry entry = va_arg(argp, LogEntry);
 
-    dyn_append_slice(&sb, entry.key, arena);
-    dyn_append_slice(&sb, S("="), arena);
-
     switch (entry.value.kind) {
-    case LV_SLICE: {
-      String value = json_escape_string(entry.value.s, arena);
-      dyn_append_slice(&sb, value, arena);
+    case LV_STRING: {
+      dynu8_append_json_object_key_string_value_string(&sb, entry.key,
+                                                       entry.value.s, arena);
       break;
     }
     case LV_U64:
-      dynu8_append_u64(&sb, entry.value.n64, arena);
+      dynu8_append_json_object_key_string_value_u64(&sb, entry.key,
+                                                    entry.value.n64, arena);
       break;
     default:
       ASSERT(0 && "invalid LogValueKind");
     }
-
-    dyn_append_slice(&sb, S(" "), arena);
   }
   va_end(argp);
 
-  ASSERT(' ' == *dyn_last_ptr(&sb));
+  ASSERT(string_ends_with(dyn_slice(String, sb), S(",")));
   dyn_pop(&sb);
-  dyn_append_slice(&sb, S("\n"), arena);
+  dyn_append_slice(&sb, S("}\n"), arena);
 
   return dyn_slice(String, sb);
 }
