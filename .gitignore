@@ -6,3 +6,4 @@ profile*
 vote.db*
 *.data
 *.log
+logs.*
