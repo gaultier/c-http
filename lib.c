@@ -741,15 +741,16 @@ static void dynu8_append_json_object_key_string_value_u64(DynU8 *sb, String key,
 
   struct timespec now = {0};
   clock_gettime(CLOCK_REALTIME, &now);
-  uint64_t now_ns = (uint64_t)now.tv_sec * 1000'000'000 + (uint64_t)now.tv_nsec;
+  uint64_t timestamp_ns =
+      (uint64_t)now.tv_sec * 1000'000'000 + (uint64_t)now.tv_nsec;
 
   DynU8 sb = {0};
   *dyn_push(&sb, arena) = '{';
 
   dynu8_append_json_object_key_string_value_string(
       &sb, S("level"), log_level_to_string(level), arena);
-  dynu8_append_json_object_key_string_value_u64(&sb, S("timestamp_ns"), now_ns,
-                                                arena);
+  dynu8_append_json_object_key_string_value_u64(&sb, S("timestamp_ns"),
+                                                timestamp_ns, arena);
   dynu8_append_json_object_key_string_value_u64(&sb, S("monotonic_ns"),
                                                 monotonic_ns, arena);
   dynu8_append_json_object_key_string_value_string(&sb, S("message"), msg,

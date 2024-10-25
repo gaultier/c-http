@@ -12,8 +12,8 @@ MVP:
 - [ ] Cast a vote UI
 - [ ] See poll results
 - [ ] Pretty UI
-- [x] Collect logs into OLAP db
-- [ ] Easy request duration stats (from OLAP db or dtrace/strace)
+- [x] Collect logs into OLAP db => sqlite/duckdb
+- [x] Easy request duration stats (from OLAP db or dtrace/strace) => sqlite/duckdb/utop
 - [ ] Monkey testing/fuzz testing [Last]
 - [ ] Test with non ascii strings
 - [ ] Test with Chrome
