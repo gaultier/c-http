@@ -12,7 +12,7 @@ MVP:
 - [ ] Cast a vote UI
 - [ ] See poll results
 - [ ] Pretty UI
-- [ ] Collect logs into OLAP db
+- [x] Collect logs into OLAP db
 - [ ] Easy request duration stats (from OLAP db or dtrace/strace)
 - [ ] Monkey testing/fuzz testing [Last]
 - [ ] Test with non ascii strings
