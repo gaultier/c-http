@@ -947,20 +947,25 @@ struct HtmlElement {
 [[nodiscard]] static DynHtml html_make(Arena *arena) {
   DynHtml res = {0};
   *dyn_push(&res, arena) = (HtmlElement){.kind = HTML_DOCTYPE};
+
   HtmlElement html = {.kind = HTML_HTML};
+  {
 
-  HtmlElement head = {.kind = HTML_HEAD};
-  HtmlElement body = {.kind = HTML_BODY};
-  HtmlElement div = {.kind = HTML_DIV};
-  *dyn_push(&div.children, arena) =
-      (HtmlElement){.kind = HTML_TEXT, .text = S("hello")};
-  *dyn_push(&body.children, arena) = div;
-  *dyn_push(&body.children, arena) = (HtmlElement){.kind = HTML_DIV};
+    HtmlElement head = {.kind = HTML_HEAD};
+    *dyn_push(&html.children, arena) = head;
 
-  *dyn_push(&html.children, arena) = head;
-  *dyn_push(&html.children, arena) = body;
-
+    HtmlElement body = {.kind = HTML_BODY};
+    {
+      HtmlElement div = {.kind = HTML_DIV};
+      *dyn_push(&div.children, arena) =
+          (HtmlElement){.kind = HTML_TEXT, .text = S("hello")};
+      *dyn_push(&body.children, arena) = div;
+      *dyn_push(&body.children, arena) = (HtmlElement){.kind = HTML_DIV};
+    }
+    *dyn_push(&html.children, arena) = body;
+  }
   *dyn_push(&res, arena) = html;
+
   return res;
 }
 
