@@ -919,3 +919,86 @@ form_data_kv_parse_element(String in, uint8_t ch_terminator, Arena *arena) {
   }
   return res;
 }
+
+typedef enum {
+  HTML_NONE,
+  HTML_DOCTYPE,
+  HTML_HTML,
+  HTML_HEAD,
+  HTML_BODY,
+  HTML_DIV,
+  HTML_TEXT,
+} HtmlKind;
+
+typedef struct HtmlElement HtmlElement;
+typedef struct {
+  HtmlElement *data;
+  uint64_t len, cap;
+} DynHtml;
+
+struct HtmlElement {
+  HtmlKind kind;
+  union {
+    DynHtml children;
+    String text;
+  };
+};
+
+[[nodiscard]] static DynHtml html_make(Arena *arena) {
+  DynHtml res = {0};
+  *dyn_push(&res, arena) = (HtmlElement){.kind = HTML_DOCTYPE};
+  HtmlElement html = {.kind = HTML_HTML};
+
+  HtmlElement head = {.kind = HTML_HEAD};
+  HtmlElement body = {.kind = HTML_BODY};
+  HtmlElement div = {.kind = HTML_DIV};
+  *dyn_push(&div.children, arena) =
+      (HtmlElement){.kind = HTML_TEXT, .text = S("hello")};
+  *dyn_push(&body.children, arena) = div;
+  *dyn_push(&body.children, arena) = (HtmlElement){.kind = HTML_DIV};
+
+  *dyn_push(&html.children, arena) = head;
+  *dyn_push(&html.children, arena) = body;
+
+  *dyn_push(&res, arena) = html;
+  return res;
+}
+
+static void html_to_string(DynHtml html, DynU8 *sb, Arena *arena) {
+  for (uint64_t i = 0; i < html.len; i++) {
+    HtmlElement e = dyn_at(html, i);
+
+    switch (e.kind) {
+    case HTML_NONE:
+      ASSERT(0);
+    case HTML_HTML:
+      dyn_append_slice(sb, S("<html>"), arena);
+      html_to_string(e.children, sb, arena);
+      dyn_append_slice(sb, S("</html>"), arena);
+      break;
+    case HTML_DOCTYPE:
+      dyn_append_slice(sb, S("<!DOCTYPE html>"), arena);
+      break;
+    case HTML_HEAD:
+      dyn_append_slice(sb, S("<head>"), arena);
+      html_to_string(e.children, sb, arena);
+      dyn_append_slice(sb, S("</head>"), arena);
+      break;
+    case HTML_BODY:
+      dyn_append_slice(sb, S("<body>"), arena);
+      html_to_string(e.children, sb, arena);
+      dyn_append_slice(sb, S("</body>"), arena);
+      break;
+    case HTML_DIV:
+      dyn_append_slice(sb, S("<div>"), arena);
+      html_to_string(e.children, sb, arena);
+      dyn_append_slice(sb, S("</div>"), arena);
+      break;
+    case HTML_TEXT:
+      dyn_append_slice(sb, e.text, arena);
+      break;
+    default:
+      ASSERT(0);
+    }
+  }
+}

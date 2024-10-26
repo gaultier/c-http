@@ -671,6 +671,13 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
 int main() {
   Arena arena = arena_make_from_virtual_mem(4096);
 
+  {
+    DynHtml html = html_make(&arena);
+    DynU8 sb = {0};
+    html_to_string(html, &sb, &arena);
+    printf("%.*s\n", (int)sb.len, sb.data);
+  }
+
   if (DB_ERR_NONE != db_setup(&arena)) {
     exit(EINVAL);
   }
