@@ -987,9 +987,9 @@ static void html_attributes_to_string(DynAttribute attributes, DynU8 *sb,
                                       Arena *arena) {
   for (uint64_t i = 0; i < attributes.len; i++) {
     Attribute attr = dyn_at(attributes, i);
+    ASSERT(-1 == string_indexof_string(attr.key, S("\"")));
 
     *dyn_push(sb, arena) = ' ';
-    // TODO: escape string.
     dyn_append_slice(sb, attr.key, arena);
     *dyn_push(sb, arena) = '=';
     *dyn_push(sb, arena) = '"';
