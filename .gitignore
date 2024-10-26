@@ -7,4 +7,3 @@ vote.db*
 *.data
 *.log
 logs.*
-sqlite3.*
