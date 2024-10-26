@@ -8,19 +8,19 @@ MVP:
 - [x] Use sqlite properly for multiple processes
 - [x] Clearly split db & html rendering steps
 - [x] Cast a vote API (user = `hash(user-agent)`?)
+- [x] Collect logs into OLAP db => sqlite/duckdb
+- [x] Easy request duration stats (from OLAP db or dtrace/strace) => sqlite/duckdb/utop
+- [x] Vendor & compile db code
 - [ ] Html builder
 - [ ] Sanitize user input in html
 - [ ] Cast a vote UI
 - [ ] See poll results
 - [ ] Pretty UI
-- [x] Collect logs into OLAP db => sqlite/duckdb
-- [x] Easy request duration stats (from OLAP db or dtrace/strace) => sqlite/duckdb/utop
 - [ ] Monkey testing/fuzz testing [Last]
 - [ ] Test with non ascii strings
 - [ ] Test with Chrome
 - [ ] Test with max options and long strings
 - [ ] e2e tests
-- [ ] Vendor & compile db code
 - [ ] Benchmark
 
 QoL:
