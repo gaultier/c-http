@@ -6,7 +6,7 @@ CFLAGS="${CFLAGS}"
 EXTRA_FLAGS=""
 CC="${CC:-clang}"
 WARNINGS="$(tr -s '\n' ' ' < compile_flags.txt)"
-SQLITE_OPTIONS="$(cat sqlite_options.txt)"
+SQLITE_OPTIONS="$(tr -s '\n' ' ' < sqlite_options.txt)"
 
 error() {
 	printf "ERROR: %s\n" "$1"
@@ -30,7 +30,7 @@ case $1 in
 esac
 
 # shellcheck disable=SC2086
-"$CC" $WARNINGS -g3 main.c sqlite3.o -o main.bin $EXTRA_FLAGS $CFLAGS $SQLITE_OPTIONS
+"$CC" $WARNINGS -g3 main.c sqlite3.o -o main.bin $EXTRA_FLAGS $CFLAGS $SQLITE_OPTIONS -Wl,--gc-sections
 }
 
 if [ $# -eq 0 ]; then
