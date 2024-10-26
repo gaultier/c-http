@@ -673,6 +673,19 @@ int main() {
 
   {
     DynHtml html = html_make(&arena);
+    HtmlElement *body = html_body_ptr(&html);
+    {
+      HtmlElement div = {.kind = HTML_DIV};
+      {
+        *dyn_push(&div.children, &arena) =
+            (HtmlElement){.kind = HTML_TEXT, .text = S("hello")};
+        *dyn_push(&div.attributes, &arena) =
+            (Attribute){.key = S("class"), .value = S("some-class")};
+      }
+      *dyn_push(&body->children, &arena) = div;
+      *dyn_push(&body->children, &arena) = (HtmlElement){.kind = HTML_DIV};
+    }
+
     DynU8 sb = {0};
     html_to_string(html, &sb, &arena);
     printf("%.*s\n", (int)sb.len, sb.data);

@@ -967,22 +967,25 @@ struct HtmlElement {
     *dyn_push(&html.children, arena) = head;
 
     HtmlElement body = {.kind = HTML_BODY};
-    {
-      HtmlElement div = {.kind = HTML_DIV};
-      {
-        *dyn_push(&div.children, arena) =
-            (HtmlElement){.kind = HTML_TEXT, .text = S("hello")};
-        *dyn_push(&div.attributes, arena) =
-            (Attribute){.key = S("class"), .value = S("some-class")};
-      }
-      *dyn_push(&body.children, arena) = div;
-      *dyn_push(&body.children, arena) = (HtmlElement){.kind = HTML_DIV};
-    }
     *dyn_push(&html.children, arena) = body;
   }
   *dyn_push(&res, arena) = html;
 
   return res;
+}
+
+[[nodiscard]] static HtmlElement *html_body_ptr(DynHtml *root) {
+  HtmlElement *html = dyn_at_ptr(root, 1);
+  ASSERT(HTML_HTML == html->kind);
+
+  for (uint64_t i = 0; i < html->children.len; i++) {
+    HtmlElement *e = dyn_at_ptr(&html->children, i);
+    if (HTML_BODY == e->kind) {
+      return e;
+    }
+  }
+
+  ASSERT(0);
 }
 
 static void html_attributes_to_string(DynAttribute attributes, DynU8 *sb,
