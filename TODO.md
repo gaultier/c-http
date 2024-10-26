@@ -9,6 +9,7 @@ MVP:
 - [x] Clearly split db & html rendering steps
 - [x] Cast a vote API (user = `hash(user-agent)`?)
 - [ ] Html builder
+- [ ] Sanitize user input in html
 - [ ] Cast a vote UI
 - [ ] See poll results
 - [ ] Pretty UI

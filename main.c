@@ -1,5 +1,5 @@
+#include "./sqlite3.h"
 #include "http.c"
-#include <sqlite3.h>
 #include <stdckdint.h>
 
 static sqlite3 *db = nullptr;
@@ -571,6 +571,12 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
 
 [[nodiscard]] static DatabaseError db_setup(Arena *arena) {
   int db_err = 0;
+  if (SQLITE_OK != (db_err = sqlite3_initialize())) {
+    log(LOG_LEVEL_ERROR, "failed to initialize sqlite", arena,
+        L("error", db_err));
+    return DB_ERR_INVALID_USE;
+  }
+
   if (SQLITE_OK != (db_err = sqlite3_open("vote.db", &db))) {
     log(LOG_LEVEL_ERROR, "failed to open db", arena, L("error", db_err));
     return DB_ERR_INVALID_USE;
