@@ -928,6 +928,8 @@ typedef enum {
   HTML_BODY,
   HTML_DIV,
   HTML_TEXT,
+  HTML_SCRIPT,
+  HTML_STYLE,
 } HtmlKind;
 
 typedef struct HtmlElement HtmlElement;
@@ -1021,6 +1023,30 @@ static void html_to_string(DynHtml html, DynU8 *sb, Arena *arena) {
       dyn_append_slice(sb, S("<head>"), arena);
       html_to_string(e.children, sb, arena);
       dyn_append_slice(sb, S("</head>"), arena);
+      break;
+    case HTML_SCRIPT:
+      ASSERT(0 == e.attributes.len);
+      dyn_append_slice(sb, S("<script>"), arena);
+
+      ASSERT(0 == e.children.len || 1 == e.children.len);
+      if (1 == e.children.len) {
+        ASSERT(HTML_TEXT == dyn_at(e.children, 0).kind);
+      }
+      html_to_string(e.children, sb, arena);
+
+      dyn_append_slice(sb, S("</script>"), arena);
+      break;
+    case HTML_STYLE:
+      ASSERT(0 == e.attributes.len);
+      dyn_append_slice(sb, S("<style>"), arena);
+
+      ASSERT(0 == e.children.len || 1 == e.children.len);
+      if (1 == e.children.len) {
+        ASSERT(HTML_TEXT == dyn_at(e.children, 0).kind);
+      }
+      html_to_string(e.children, sb, arena);
+
+      dyn_append_slice(sb, S("</style>"), arena);
       break;
     case HTML_BODY:
       ASSERT(0 == e.attributes.len);
