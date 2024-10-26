@@ -936,8 +936,18 @@ typedef struct {
   uint64_t len, cap;
 } DynHtml;
 
+typedef struct {
+  String key, value;
+} Attribute;
+
+typedef struct {
+  Attribute *data;
+  uint64_t len, cap;
+} DynAttribute;
+
 struct HtmlElement {
   HtmlKind kind;
+  DynAttribute attributes;
   union {
     DynHtml children;
     String text;
@@ -957,8 +967,12 @@ struct HtmlElement {
     HtmlElement body = {.kind = HTML_BODY};
     {
       HtmlElement div = {.kind = HTML_DIV};
-      *dyn_push(&div.children, arena) =
-          (HtmlElement){.kind = HTML_TEXT, .text = S("hello")};
+      {
+        *dyn_push(&div.children, arena) =
+            (HtmlElement){.kind = HTML_TEXT, .text = S("hello")};
+        *dyn_push(&div.attributes, arena) =
+            (Attribute){.key = S("class"), .value = S("some-class")};
+      }
       *dyn_push(&body.children, arena) = div;
       *dyn_push(&body.children, arena) = (HtmlElement){.kind = HTML_DIV};
     }
@@ -969,6 +983,22 @@ struct HtmlElement {
   return res;
 }
 
+static void html_attributes_to_string(DynAttribute attributes, DynU8 *sb,
+                                      Arena *arena) {
+  for (uint64_t i = 0; i < attributes.len; i++) {
+    Attribute attr = dyn_at(attributes, i);
+
+    *dyn_push(sb, arena) = ' ';
+    // TODO: escape string.
+    dyn_append_slice(sb, attr.key, arena);
+    *dyn_push(sb, arena) = '=';
+    *dyn_push(sb, arena) = '"';
+    // TODO: escape string.
+    dyn_append_slice(sb, attr.value, arena);
+    *dyn_push(sb, arena) = '"';
+  }
+}
+
 static void html_to_string(DynHtml html, DynU8 *sb, Arena *arena) {
   for (uint64_t i = 0; i < html.len; i++) {
     HtmlElement e = dyn_at(html, i);
@@ -977,29 +1007,36 @@ static void html_to_string(DynHtml html, DynU8 *sb, Arena *arena) {
     case HTML_NONE:
       ASSERT(0);
     case HTML_HTML:
+      ASSERT(0 == e.attributes.len);
       dyn_append_slice(sb, S("<html>"), arena);
       html_to_string(e.children, sb, arena);
       dyn_append_slice(sb, S("</html>"), arena);
       break;
     case HTML_DOCTYPE:
+      ASSERT(0 == e.attributes.len);
       dyn_append_slice(sb, S("<!DOCTYPE html>"), arena);
       break;
     case HTML_HEAD:
+      ASSERT(0 == e.attributes.len);
       dyn_append_slice(sb, S("<head>"), arena);
       html_to_string(e.children, sb, arena);
       dyn_append_slice(sb, S("</head>"), arena);
       break;
     case HTML_BODY:
+      ASSERT(0 == e.attributes.len);
       dyn_append_slice(sb, S("<body>"), arena);
       html_to_string(e.children, sb, arena);
       dyn_append_slice(sb, S("</body>"), arena);
       break;
     case HTML_DIV:
-      dyn_append_slice(sb, S("<div>"), arena);
+      dyn_append_slice(sb, S("<div"), arena);
+      html_attributes_to_string(e.attributes, sb, arena);
+      *dyn_push(sb, arena) = '>';
       html_to_string(e.children, sb, arena);
       dyn_append_slice(sb, S("</div>"), arena);
       break;
     case HTML_TEXT:
+      ASSERT(0 == e.attributes.len);
       dyn_append_slice(sb, e.text, arena);
       break;
     default:
