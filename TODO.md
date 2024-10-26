@@ -29,13 +29,11 @@ QoL:
 - [ ] Poll TTL & GC
 - [ ] Full stacktrace (better assert)
 - [ ] Shorter urls:
-    - Use the first N bytes of the poll id
-    - Use one indirection level
     - Use readable english words
 - [ ] TLS
 - [ ] Translations
 - [ ] Button to copy url to clipboard
 - [ ] Embed static files (if any)
 - [ ] Retake a poll
-- [ ] Poll options (e.g. ???)
+- [ ] Poll options (e.g. any user can add options to the poll)
 - [ ] QR code for link
