@@ -493,6 +493,26 @@ static void test_slice_range() {
   ASSERT(string_eq(slice_at(slice, 2), slice_at(range, 1)));
 }
 
+static void test_html_to_string() {
+  Arena arena = arena_make_from_virtual_mem(4096);
+
+  DynHtml root = html_make(&arena);
+  HtmlElement *body = html_body_ptr(&root);
+  *dyn_push(&body->children, &arena) = (HtmlElement){
+      .kind = HTML_TEXT,
+      .text = S("hello world"),
+  };
+
+  DynU8 sb = {0};
+  html_to_string(root, &sb, &arena);
+  String s = dyn_slice(String, sb);
+
+  String expected =
+      S("<!DOCTYPE html><html><head><meta "
+        "charset=\"utf-8\"></head><body>hello world</body></html>");
+  ASSERT(string_eq(expected, s));
+}
+
 int main() {
   test_string_indexof_slice();
   test_string_trim();
@@ -507,4 +527,5 @@ int main() {
   test_form_data_parse();
   test_json_encode_decode_string_slice();
   test_slice_range();
+  test_html_to_string();
 }
