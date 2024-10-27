@@ -496,20 +496,19 @@ static void test_slice_range() {
 static void test_html_to_string() {
   Arena arena = arena_make_from_virtual_mem(4096);
 
-  DynHtmlElements root = html_make(&arena);
-  HtmlElement *body = html_body_ptr(&root);
-  *dyn_push(&body->children, &arena) = (HtmlElement){
+  HtmlDocument document = html_make(S("There and back again"), &arena);
+  *dyn_push(&document.body.children, &arena) = (HtmlElement){
       .kind = HTML_TEXT,
       .text = S("hello world"),
   };
 
   DynU8 sb = {0};
-  html_tag_to_string(root, &sb, &arena);
+  html_document_to_string(document, &sb, &arena);
   String s = dyn_slice(String, sb);
 
-  String expected =
-      S("<!DOCTYPE html><html><head><meta "
-        "charset=\"utf-8\"></head><body>hello world</body></html>");
+  String expected = S("<!DOCTYPE html><html><head><meta "
+                      "charset=\"utf-8\"><title>There and back "
+                      "again</title></head><body>hello world</body></html>");
   ASSERT(string_eq(expected, s));
 }
 
