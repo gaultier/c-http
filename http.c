@@ -923,6 +923,7 @@ form_data_kv_parse_element(String in, uint8_t ch_terminator, Arena *arena) {
 typedef enum {
   HTML_NONE,
   HTML_TITLE,
+  HTML_LINK,
   HTML_META,
   HTML_HEAD,
   HTML_BODY,
@@ -1026,6 +1027,11 @@ static void html_tag_to_string(HtmlElement e, DynU8 *sb, Arena *arena) {
     dyn_append_slice(sb, S("<title>"), arena);
     dyn_append_slice(sb, e.text, arena);
     dyn_append_slice(sb, S("</title>"), arena);
+    break;
+  case HTML_LINK:
+    dyn_append_slice(sb, S("<link"), arena);
+    html_attributes_to_string(e.attributes, sb, arena);
+    dyn_append_slice(sb, S(">"), arena);
     break;
   case HTML_META:
     ASSERT(0 == e.children.len);

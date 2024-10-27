@@ -306,6 +306,18 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
 [[nodiscard]] static String make_get_poll_html(Poll poll, Arena *arena) {
   DynU8 resp_body = {0};
   HtmlDocument document = html_make(S("Poll"), arena);
+  HtmlElement tag_link_css = {.kind = HTML_LINK};
+  {
+    *dyn_push(&tag_link_css.attributes, arena) = (KeyValue){
+        .key = S("rel"),
+        .value = S("stylesheet"),
+    };
+    *dyn_push(&tag_link_css.attributes, arena) = (KeyValue){
+        .key = S("href"),
+        .value = S("main.css"),
+    };
+  }
+  *dyn_push(&document.head.children, arena) = tag_link_css;
 
   {
     HtmlElement body_div = {.kind = HTML_DIV};
@@ -550,6 +562,18 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
 [[nodiscard]] static String make_home_html(Arena *arena) {
   DynU8 resp_body = {0};
   HtmlDocument document = html_make(S("Create a poll"), arena);
+  HtmlElement tag_link_css = {.kind = HTML_LINK};
+  {
+    *dyn_push(&tag_link_css.attributes, arena) = (KeyValue){
+        .key = S("rel"),
+        .value = S("stylesheet"),
+    };
+    *dyn_push(&tag_link_css.attributes, arena) = (KeyValue){
+        .key = S("href"),
+        .value = S("main.css"),
+    };
+  }
+  *dyn_push(&document.head.children, arena) = tag_link_css;
 
   {
     HtmlElement body_div = {.kind = HTML_DIV};
