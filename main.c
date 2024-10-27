@@ -328,45 +328,64 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
   }
 
   DynU8 resp_body = {0};
-  // TODO: html for submitting a vote.
-  // TODO: Use html builder.
-  dyn_append_slice(&resp_body,
-                   S("<!DOCTYPE html><html><body><div id=\"poll\">"), arena);
-  dyn_append_slice(&resp_body, S("The poll \""), arena);
-  dyn_append_slice(&resp_body, get_poll.poll.name, arena);
-  dyn_append_slice(&resp_body, S("\" "), arena);
+  {
+    DynHtml html = html_make(arena);
+    HtmlElement *body = html_body_ptr(&html);
+    {
+      HtmlElement body_div = {.kind = HTML_DIV};
+      {
+        {
+          DynU8 text = {0};
+          dyn_append_slice(&text, S("The poll \""), arena);
+          dyn_append_slice(&text, get_poll.poll.name, arena);
+          dyn_append_slice(&text, S("\" "), arena);
 
-  switch (get_poll.poll.state) {
-  case POLL_STATE_OPEN:
-    dyn_append_slice(&resp_body, S("is open."), arena);
-    break;
-  case POLL_STATE_CLOSED:
-    dyn_append_slice(&resp_body, S("is closed."), arena);
-    break;
-  case POLL_STATE_MAX:
-    [[fallthrough]];
-  default:
-    ASSERT(0);
+          switch (get_poll.poll.state) {
+          case POLL_STATE_OPEN:
+            dyn_append_slice(&text, S("is open."), arena);
+            break;
+          case POLL_STATE_CLOSED:
+            dyn_append_slice(&text, S("is closed."), arena);
+            break;
+          case POLL_STATE_MAX:
+            [[fallthrough]];
+          default:
+            ASSERT(0);
+          }
+
+          *dyn_push(&body_div.children, arena) =
+              (HtmlElement){.kind = HTML_TEXT, .text = dyn_slice(String, text)};
+        }
+
+        {
+          for (uint64_t i = 0; i < get_poll.poll.options.len; i++) {
+            String option = dyn_at(get_poll.poll.options, i);
+
+            HtmlElement option_div = {.kind = HTML_DIV};
+            *dyn_push(&option_div.children, arena) =
+                (HtmlElement){.kind = HTML_TEXT, .text = option};
+            *dyn_push(&body_div.children, arena) = option_div;
+          }
+        }
+        {
+          HtmlElement created_at_div = {.kind = HTML_DIV};
+          DynU8 created_at_text = {0};
+          dyn_append_slice(&created_at_text, S("Created at:"), arena);
+          dyn_append_slice(&created_at_text, get_poll.poll.created_at, arena);
+
+          *dyn_push(&body_div.children, arena) = created_at_div;
+        }
+        *dyn_push(&body->children, arena) = body_div;
+        *dyn_push(&body->children, arena) = (HtmlElement){.kind = HTML_DIV};
+      }
+
+      html_to_string(html, &resp_body, arena);
+    }
+
+    res.body = dyn_slice(String, resp_body);
+    res.status = 200;
+    http_push_header(&res.headers, S("Content-Type"), S("text/html"), arena);
   }
-
-  dyn_append_slice(&resp_body, S("<br>"), arena);
-  for (uint64_t i = 0; i < get_poll.poll.options.len; i++) {
-    String option = dyn_at(get_poll.poll.options, i);
-
-    // TODO: Better HTML.
-    dyn_append_slice(&resp_body, S("<span>"), arena);
-    dyn_append_slice(&resp_body, option, arena);
-    dyn_append_slice(&resp_body, S("</span><br>"), arena);
-  }
-
-  dyn_append_slice(&resp_body, S("<span>Created at:"), arena);
-  dyn_append_slice(&resp_body, get_poll.poll.created_at, arena);
-  dyn_append_slice(&resp_body, S("</span><br>"), arena);
-  dyn_append_slice(&resp_body, S("</div></body></html>"), arena);
-
-  res.body = dyn_slice(String, resp_body);
-  res.status = 200;
-  http_push_header(&res.headers, S("Content-Type"), S("text/html"), arena);
 
   return res;
 }
@@ -670,26 +689,6 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
 
 int main() {
   Arena arena = arena_make_from_virtual_mem(4096);
-
-  {
-    DynHtml html = html_make(&arena);
-    HtmlElement *body = html_body_ptr(&html);
-    {
-      HtmlElement div = {.kind = HTML_DIV};
-      {
-        *dyn_push(&div.children, &arena) =
-            (HtmlElement){.kind = HTML_TEXT, .text = S("hello")};
-        *dyn_push(&div.attributes, &arena) =
-            (Attribute){.key = S("class"), .value = S("some-class")};
-      }
-      *dyn_push(&body->children, &arena) = div;
-      *dyn_push(&body->children, &arena) = (HtmlElement){.kind = HTML_DIV};
-    }
-
-    DynU8 sb = {0};
-    html_to_string(html, &sb, &arena);
-    printf("%.*s\n", (int)sb.len, sb.data);
-  }
 
   if (DB_ERR_NONE != db_setup(&arena)) {
     exit(EINVAL);
