@@ -598,6 +598,13 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
         {
           HtmlElement tag_fieldset = {.kind = HTML_FIELDSET};
 
+          {
+            HtmlElement tag_label = {.kind = HTML_LABEL};
+            HtmlElement text = {.kind = HTML_TEXT, .text = S("Name: ")};
+            *dyn_push(&tag_label.children, arena) = text;
+            *dyn_push(&tag_fieldset.children, arena) = tag_label;
+          }
+
           *dyn_push(&tag_form.children, arena) = tag_fieldset;
         }
         *dyn_push(&tag_body_div.children, arena) = tag_form;
