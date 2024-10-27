@@ -618,12 +618,13 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
   }
 
   if (SQLITE_OK !=
-      (db_err = sqlite3_exec(db,
-                             "create table if not exists polls (id "
-                             "integer primary key, name text, "
-                             "state int, options text, human_readable_id text, "
-                             "created_at text, created_by text) STRICT",
-                             nullptr, nullptr, nullptr))) {
+      (db_err = sqlite3_exec(
+           db,
+           "create table if not exists polls (id "
+           "integer primary key, name text, "
+           "state int, options text, human_readable_id text unique, "
+           "created_at text, created_by text) STRICT",
+           nullptr, nullptr, nullptr))) {
     log(LOG_LEVEL_ERROR, "failed to create polls table", arena,
         L("error", db_err));
     return DB_ERR_INVALID_USE;
