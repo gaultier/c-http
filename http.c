@@ -924,6 +924,7 @@ typedef enum {
   HTML_NONE,
   HTML_TITLE,
   HTML_SPAN,
+  HTML_INPUT,
   HTML_LINK,
   HTML_META,
   HTML_HEAD,
@@ -1107,6 +1108,13 @@ static void html_tag_to_string(HtmlElement e, DynU8 *sb, Arena *arena) {
     *dyn_push(sb, arena) = '>';
     html_tags_to_string(e.children, sb, arena);
     dyn_append_slice(sb, S("</label>"), arena);
+    break;
+  case HTML_INPUT:
+    dyn_append_slice(sb, S("<input"), arena);
+    html_attributes_to_string(e.attributes, sb, arena);
+    *dyn_push(sb, arena) = '>';
+    html_tags_to_string(e.children, sb, arena);
+    dyn_append_slice(sb, S("</input>"), arena);
     break;
   case HTML_SPAN:
     dyn_append_slice(sb, S("<span"), arena);
