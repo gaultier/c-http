@@ -305,9 +305,8 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
 
 [[nodiscard]] static String make_get_poll_html(Poll poll, Arena *arena) {
   DynU8 resp_body = {0};
-  DynHtml root = html_make(arena);
+  HtmlDocument document = html_make(S("Poll"), arena);
 
-  HtmlElement *body = html_body_ptr(&root);
   {
     HtmlElement body_div = {.kind = HTML_DIV};
     {
@@ -356,11 +355,12 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
         };
         *dyn_push(&body_div.children, arena) = created_at_div;
       }
-      *dyn_push(&body->children, arena) = body_div;
-      *dyn_push(&body->children, arena) = (HtmlElement){.kind = HTML_DIV};
+      *dyn_push(&document.body.children, arena) = body_div;
+      *dyn_push(&document.body.children, arena) =
+          (HtmlElement){.kind = HTML_DIV};
     }
 
-    html_to_string(root, &resp_body, arena);
+    html_document_to_string(document, &resp_body, arena);
   }
 
   return dyn_slice(String, resp_body);
@@ -549,14 +549,13 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
 
 [[nodiscard]] static String make_home_html(Arena *arena) {
   DynU8 resp_body = {0};
-  DynHtml root = html_make(arena);
+  HtmlDocument document = html_make(S("Create a poll"), arena);
 
-  HtmlElement *body = html_body_ptr(&root);
   {
     HtmlElement body_div = {.kind = HTML_DIV};
-    *dyn_push(&body->children, arena) = body_div;
+    *dyn_push(&document.body.children, arena) = body_div;
 
-    html_to_string(root, &resp_body, arena);
+    html_document_to_string(document, &resp_body, arena);
   }
 
   return dyn_slice(String, resp_body);

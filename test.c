@@ -496,7 +496,7 @@ static void test_slice_range() {
 static void test_html_to_string() {
   Arena arena = arena_make_from_virtual_mem(4096);
 
-  DynHtml root = html_make(&arena);
+  DynHtmlElements root = html_make(&arena);
   HtmlElement *body = html_body_ptr(&root);
   *dyn_push(&body->children, &arena) = (HtmlElement){
       .kind = HTML_TEXT,
@@ -504,7 +504,7 @@ static void test_html_to_string() {
   };
 
   DynU8 sb = {0};
-  html_to_string(root, &sb, &arena);
+  html_tag_to_string(root, &sb, &arena);
   String s = dyn_slice(String, sb);
 
   String expected =

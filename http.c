@@ -922,8 +922,7 @@ form_data_kv_parse_element(String in, uint8_t ch_terminator, Arena *arena) {
 
 typedef enum {
   HTML_NONE,
-  HTML_DOCTYPE,
-  HTML_HTML,
+  HTML_TITLE,
   HTML_META,
   HTML_HEAD,
   HTML_BODY,
@@ -937,56 +936,48 @@ typedef struct HtmlElement HtmlElement;
 typedef struct {
   HtmlElement *data;
   uint64_t len, cap;
-} DynHtml;
+} DynHtmlElements;
 
 struct HtmlElement {
   HtmlKind kind;
   DynKeyValue attributes;
   union {
-    DynHtml children;
+    DynHtmlElements children;
     String text;
   };
 };
 
-[[nodiscard]] static DynHtml html_make(Arena *arena) {
-  DynHtml res = {0};
-  *dyn_push(&res, arena) = (HtmlElement){.kind = HTML_DOCTYPE};
+typedef struct {
+  HtmlElement body;
+  HtmlElement head;
+} HtmlDocument;
 
-  HtmlElement html = {.kind = HTML_HTML};
+[[nodiscard]] static HtmlDocument html_make(String title, Arena *arena) {
+  HtmlDocument res = {0};
+
   {
 
-    HtmlElement head = {.kind = HTML_HEAD};
+    HtmlElement tag_head = {.kind = HTML_HEAD};
     {
-      HtmlElement meta = {.kind = HTML_META};
+      HtmlElement tag_meta = {.kind = HTML_META};
       {
-        *dyn_push(&meta.attributes, arena) =
+        *dyn_push(&tag_meta.attributes, arena) =
             (KeyValue){.key = S("charset"), .value = S("utf-8")};
       }
-      *dyn_push(&head.children, arena) = meta;
+      *dyn_push(&tag_head.children, arena) = tag_meta;
+    }
+    {
+      HtmlElement tag_title = {.kind = HTML_TITLE, .text = title};
+      *dyn_push(&tag_head.children, arena) = tag_title;
     }
 
-    *dyn_push(&html.children, arena) = head;
+    res.head = tag_head;
 
-    HtmlElement body = {.kind = HTML_BODY};
-    *dyn_push(&html.children, arena) = body;
+    HtmlElement tag_body = {.kind = HTML_BODY};
+    res.body = tag_body;
   }
-  *dyn_push(&res, arena) = html;
 
   return res;
-}
-
-[[nodiscard]] static HtmlElement *html_body_ptr(DynHtml *root) {
-  HtmlElement *html = dyn_at_ptr(root, 1);
-  ASSERT(HTML_HTML == html->kind);
-
-  for (uint64_t i = 0; i < html->children.len; i++) {
-    HtmlElement *e = dyn_at_ptr(&html->children, i);
-    if (HTML_BODY == e->kind) {
-      return e;
-    }
-  }
-
-  ASSERT(0);
 }
 
 static void html_attributes_to_string(DynKeyValue attributes, DynU8 *sb,
@@ -1005,79 +996,92 @@ static void html_attributes_to_string(DynKeyValue attributes, DynU8 *sb,
   }
 }
 
-static void html_to_string(DynHtml html, DynU8 *sb, Arena *arena) {
-  for (uint64_t i = 0; i < html.len; i++) {
-    HtmlElement e = dyn_at(html, i);
+static void html_tags_to_string(DynHtmlElements elements, DynU8 *sb,
+                                Arena *arena);
+static void html_tag_to_string(HtmlElement e, DynU8 *sb, Arena *arena);
 
-    switch (e.kind) {
-    case HTML_NONE:
-      ASSERT(0);
-    case HTML_META:
-      ASSERT(0 == e.children.len);
-      dyn_append_slice(sb, S("<meta"), arena);
-      html_attributes_to_string(e.attributes, sb, arena);
-      *dyn_push(sb, arena) = '>';
-      break;
-    case HTML_HTML:
-      ASSERT(0 == e.attributes.len);
-      dyn_append_slice(sb, S("<html>"), arena);
-      html_to_string(e.children, sb, arena);
-      dyn_append_slice(sb, S("</html>"), arena);
-      break;
-    case HTML_DOCTYPE:
-      ASSERT(0 == e.attributes.len);
-      dyn_append_slice(sb, S("<!DOCTYPE html>"), arena);
-      break;
-    case HTML_HEAD:
-      ASSERT(0 == e.attributes.len);
-      dyn_append_slice(sb, S("<head>"), arena);
-      html_to_string(e.children, sb, arena);
-      dyn_append_slice(sb, S("</head>"), arena);
-      break;
-    case HTML_SCRIPT:
-      ASSERT(0 == e.attributes.len);
-      dyn_append_slice(sb, S("<script>"), arena);
+static void html_tags_to_string(DynHtmlElements elements, DynU8 *sb,
+                                Arena *arena) {
+  for (uint64_t i = 0; i < elements.len; i++) {
+    HtmlElement e = dyn_at(elements, i);
+    html_tag_to_string(e, sb, arena);
+  }
+}
 
-      ASSERT(0 == e.children.len || 1 == e.children.len);
-      if (1 == e.children.len) {
-        ASSERT(HTML_TEXT == dyn_at(e.children, 0).kind);
-      }
-      html_to_string(e.children, sb, arena);
+static void html_document_to_string(HtmlDocument doc, DynU8 *sb, Arena *arena) {
+  dyn_append_slice(sb, S("<!DOCTYPE html>"), arena);
 
-      dyn_append_slice(sb, S("</script>"), arena);
-      break;
-    case HTML_STYLE:
-      ASSERT(0 == e.attributes.len);
-      dyn_append_slice(sb, S("<style>"), arena);
+  dyn_append_slice(sb, S("<html>"), arena);
+  html_tag_to_string(doc.head, sb, arena);
+  html_tag_to_string(doc.body, sb, arena);
+  dyn_append_slice(sb, S("</html>"), arena);
+}
 
-      ASSERT(0 == e.children.len || 1 == e.children.len);
-      if (1 == e.children.len) {
-        ASSERT(HTML_TEXT == dyn_at(e.children, 0).kind);
-      }
-      html_to_string(e.children, sb, arena);
+static void html_tag_to_string(HtmlElement e, DynU8 *sb, Arena *arena) {
+  switch (e.kind) {
+  case HTML_NONE:
+    ASSERT(0);
+  case HTML_TITLE:
+    ASSERT(0 == e.attributes.len);
+    dyn_append_slice(sb, S("<title>"), arena);
+    dyn_append_slice(sb, e.text, arena);
+    dyn_append_slice(sb, S("</title>"), arena);
+    break;
+  case HTML_META:
+    ASSERT(0 == e.children.len);
+    dyn_append_slice(sb, S("<meta"), arena);
+    html_attributes_to_string(e.attributes, sb, arena);
+    *dyn_push(sb, arena) = '>';
+    break;
+  case HTML_HEAD:
+    ASSERT(0 == e.attributes.len);
+    dyn_append_slice(sb, S("<head>"), arena);
+    html_tags_to_string(e.children, sb, arena);
+    dyn_append_slice(sb, S("</head>"), arena);
+    break;
+  case HTML_SCRIPT:
+    ASSERT(0 == e.attributes.len);
+    dyn_append_slice(sb, S("<script>"), arena);
 
-      dyn_append_slice(sb, S("</style>"), arena);
-      break;
-    case HTML_BODY:
-      dyn_append_slice(sb, S("<body"), arena);
-      html_attributes_to_string(e.attributes, sb, arena);
-      *dyn_push(sb, arena) = '>';
-      html_to_string(e.children, sb, arena);
-      dyn_append_slice(sb, S("</body>"), arena);
-      break;
-    case HTML_DIV:
-      dyn_append_slice(sb, S("<div"), arena);
-      html_attributes_to_string(e.attributes, sb, arena);
-      *dyn_push(sb, arena) = '>';
-      html_to_string(e.children, sb, arena);
-      dyn_append_slice(sb, S("</div>"), arena);
-      break;
-    case HTML_TEXT:
-      ASSERT(0 == e.attributes.len);
-      dyn_append_slice(sb, e.text, arena);
-      break;
-    default:
-      ASSERT(0);
+    ASSERT(0 == e.children.len || 1 == e.children.len);
+    if (1 == e.children.len) {
+      ASSERT(HTML_TEXT == dyn_at(e.children, 0).kind);
     }
+    html_tags_to_string(e.children, sb, arena);
+
+    dyn_append_slice(sb, S("</script>"), arena);
+    break;
+  case HTML_STYLE:
+    ASSERT(0 == e.attributes.len);
+    dyn_append_slice(sb, S("<style>"), arena);
+
+    ASSERT(0 == e.children.len || 1 == e.children.len);
+    if (1 == e.children.len) {
+      ASSERT(HTML_TEXT == dyn_at(e.children, 0).kind);
+    }
+    html_tags_to_string(e.children, sb, arena);
+
+    dyn_append_slice(sb, S("</style>"), arena);
+    break;
+  case HTML_BODY:
+    dyn_append_slice(sb, S("<body"), arena);
+    html_attributes_to_string(e.attributes, sb, arena);
+    *dyn_push(sb, arena) = '>';
+    html_tags_to_string(e.children, sb, arena);
+    dyn_append_slice(sb, S("</body>"), arena);
+    break;
+  case HTML_DIV:
+    dyn_append_slice(sb, S("<div"), arena);
+    html_attributes_to_string(e.attributes, sb, arena);
+    *dyn_push(sb, arena) = '>';
+    html_tags_to_string(e.children, sb, arena);
+    dyn_append_slice(sb, S("</div>"), arena);
+    break;
+  case HTML_TEXT:
+    ASSERT(0 == e.attributes.len);
+    dyn_append_slice(sb, e.text, arena);
+    break;
+  default:
+    ASSERT(0);
   }
 }
