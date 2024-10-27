@@ -540,14 +540,14 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
     http_response_register_file_for_sending(&res, S("index.html"));
     return res;
   } else if (HM_GET == req.method && 1 == req.path_components.len &&
-             string_eq(path0, S("pure-min.css"))) { // TODO: rm.
+             string_eq(path0, S("main.css"))) { // TODO: rm.
 
-    // `GET /pure-min.css`
+    // `GET /main.css`
 
     HttpResponse res = {0};
     res.status = 200;
     http_push_header(&res.headers, S("Content-Type"), S("text/css"), arena);
-    http_response_register_file_for_sending(&res, S("pure-min.css"));
+    http_response_register_file_for_sending(&res, S("main.css"));
     return res;
   } else if (HM_POST == req.method && 1 == req.path_components.len &&
              string_eq(path0, S("poll"))) {
