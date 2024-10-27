@@ -249,8 +249,8 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
   }
 
   if (SQLITE_ROW != err) {
-    log(LOG_LEVEL_ERROR, "failed to execute the prepared statement", arena,
-        L("req.id", req_id), L("error", err));
+    log(LOG_LEVEL_ERROR, "failed to execute the prepared statement to get poll",
+        arena, L("req.id", req_id), L("error", err));
     res.err = DB_ERR_INVALID_USE;
     return res;
   }
