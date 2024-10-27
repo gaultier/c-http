@@ -303,7 +303,7 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
   return res;
 }
 
-[[nodiscard]] static String get_poll_html(Poll poll, Arena *arena) {
+[[nodiscard]] static String make_get_poll_html(Poll poll, Arena *arena) {
   DynU8 resp_body = {0};
   DynHtml root = html_make(arena);
 
@@ -392,7 +392,7 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
     ASSERT(false);
   }
 
-  res.body = dyn_slice(String, get_poll_html(get_poll.poll, arena));
+  res.body = dyn_slice(String, make_get_poll_html(get_poll.poll, arena));
   res.status = 200;
   http_push_header(&res.headers, S("Content-Type"), S("text/html"), arena);
 
@@ -547,6 +547,21 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
   return res;
 }
 
+[[nodiscard]] static String make_home_html(Arena *arena) {
+  DynU8 resp_body = {0};
+  DynHtml root = html_make(arena);
+
+  HtmlElement *body = html_body_ptr(&root);
+  {
+    HtmlElement body_div = {.kind = HTML_DIV};
+    *dyn_push(&body->children, arena) = body_div;
+
+    html_to_string(root, &resp_body, arena);
+  }
+
+  return dyn_slice(String, resp_body);
+}
+
 [[nodiscard]] static HttpResponse
 my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
   ASSERT(0 == req.err);
@@ -565,8 +580,8 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
 
     HttpResponse res = {0};
     res.status = 200;
+    res.body = make_home_html(arena);
     http_push_header(&res.headers, S("Content-Type"), S("text/html"), arena);
-    http_response_register_file_for_sending(&res, S("index.html"));
     return res;
   } else if (HM_GET == req.method && 1 == req.path_components.len &&
              string_eq(path0, S("main.css"))) {

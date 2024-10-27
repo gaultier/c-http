@@ -924,6 +924,7 @@ typedef enum {
   HTML_NONE,
   HTML_DOCTYPE,
   HTML_HTML,
+  HTML_META,
   HTML_HEAD,
   HTML_BODY,
   HTML_DIV,
@@ -964,6 +965,15 @@ struct HtmlElement {
   {
 
     HtmlElement head = {.kind = HTML_HEAD};
+    {
+      HtmlElement meta = {.kind = HTML_META};
+      {
+        *dyn_push(&meta.attributes, arena) =
+            (Attribute){.key = S("charset"), .value = S("utf-8")};
+      }
+      *dyn_push(&head.children, arena) = meta;
+    }
+
     *dyn_push(&html.children, arena) = head;
 
     HtmlElement body = {.kind = HTML_BODY};
@@ -1011,6 +1021,12 @@ static void html_to_string(DynHtml html, DynU8 *sb, Arena *arena) {
     switch (e.kind) {
     case HTML_NONE:
       ASSERT(0);
+    case HTML_META:
+      ASSERT(0 == e.children.len);
+      dyn_append_slice(sb, S("<meta"), arena);
+      html_attributes_to_string(e.attributes, sb, arena);
+      *dyn_push(sb, arena) = '>';
+      break;
     case HTML_HTML:
       ASSERT(0 == e.attributes.len);
       dyn_append_slice(sb, S("<html>"), arena);
@@ -1052,8 +1068,9 @@ static void html_to_string(DynHtml html, DynU8 *sb, Arena *arena) {
       dyn_append_slice(sb, S("</style>"), arena);
       break;
     case HTML_BODY:
-      ASSERT(0 == e.attributes.len);
-      dyn_append_slice(sb, S("<body>"), arena);
+      dyn_append_slice(sb, S("<body"), arena);
+      html_attributes_to_string(e.attributes, sb, arena);
+      *dyn_push(sb, arena) = '>';
       html_to_string(e.children, sb, arena);
       dyn_append_slice(sb, S("</body>"), arena);
       break;
