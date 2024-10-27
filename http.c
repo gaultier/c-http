@@ -925,6 +925,7 @@ typedef enum {
   HTML_TITLE,
   HTML_SPAN,
   HTML_INPUT,
+  HTML_BUTTON,
   HTML_LINK,
   HTML_META,
   HTML_HEAD,
@@ -1122,6 +1123,13 @@ static void html_tag_to_string(HtmlElement e, DynU8 *sb, Arena *arena) {
     *dyn_push(sb, arena) = '>';
     html_tags_to_string(e.children, sb, arena);
     dyn_append_slice(sb, S("</span>"), arena);
+    break;
+  case HTML_BUTTON:
+    dyn_append_slice(sb, S("<button"), arena);
+    html_attributes_to_string(e.attributes, sb, arena);
+    *dyn_push(sb, arena) = '>';
+    html_tags_to_string(e.children, sb, arena);
+    dyn_append_slice(sb, S("</button>"), arena);
     break;
   case HTML_TEXT:
     ASSERT(0 == e.attributes.len);

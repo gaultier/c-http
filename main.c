@@ -613,6 +613,14 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
 
           *dyn_push(&tag_form.children, arena) = tag_fieldset;
         }
+        {
+          HtmlElement tag_button = {.kind = HTML_BUTTON};
+          *dyn_push(&tag_button.attributes, arena) =
+              (KeyValue){.key = S("id"), .value = S("add-poll-option")};
+          *dyn_push(&tag_button.children, arena) =
+              (HtmlElement){.kind = HTML_TEXT, .text = S("+")};
+          *dyn_push(&tag_form.children, arena) = tag_button;
+        }
         *dyn_push(&tag_body_div.children, arena) = tag_form;
       }
     }
