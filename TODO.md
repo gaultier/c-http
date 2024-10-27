@@ -12,6 +12,7 @@ MVP:
 - [x] Easy request duration stats (from OLAP db or dtrace/strace) => sqlite/duckdb/utop
 - [x] Vendor & compile db code
 - [.] Html builder
+- [ ] Hash user id to have a static size & not store PII
 - [ ] Sanitize user input in html
 - [ ] Cast a vote UI
 - [ ] See poll results
@@ -22,6 +23,7 @@ MVP:
 - [ ] Test with max options and long strings
 - [ ] e2e tests
 - [ ] Benchmark
+- [ ] License
 
 QoL:
 - [ ] Close a poll (admin role?)
