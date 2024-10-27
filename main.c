@@ -542,6 +542,7 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
       L("poll.id", poll_id));
 
   res.status = 200;
+  // FIXME
   res.body = S("<!DOCTYPE html><html><body>Voted!</body></html>");
   return res;
 }
