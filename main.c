@@ -115,6 +115,7 @@ typedef struct {
 [[nodiscard]] static HttpResponse http_respond_with_not_found() {
   HttpResponse res = {0};
   res.status = 404;
+  // TODO: Use the same style as the rest of the app?
   res.body = S("<!DOCTYPE html><html><body>Not found.</body></html>");
   return res;
 }
@@ -125,6 +126,7 @@ http_respond_with_internal_server_error(String req_id, Arena *arena) {
   res.status = 500;
 
   DynU8 body = {0};
+  // TODO: Use the same style as the rest of the app?
   dyn_append_slice(
       &body,
       S("<!DOCTYPE html><html><body>Internal server error. Request id: "),
@@ -563,8 +565,7 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
     http_response_register_file_for_sending(&res, S("index.html"));
     return res;
   } else if (HM_GET == req.method && 1 == req.path_components.len &&
-             string_eq(path0, S("main.css"))) { // TODO: rm.
-
+             string_eq(path0, S("main.css"))) {
     // `GET /main.css`
 
     HttpResponse res = {0};
