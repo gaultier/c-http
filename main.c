@@ -560,7 +560,7 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
 }
 
 [[nodiscard]] static String make_home_html(Arena *arena) {
-  DynU8 resp_body = {0};
+  DynU8 res = {0};
   HtmlDocument document = html_make(S("Create a poll"), arena);
   HtmlElement tag_link_css = {.kind = HTML_LINK};
   {
@@ -578,6 +578,7 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
   {
     HtmlElement tag_body_div = {.kind = HTML_DIV};
     {
+
       HtmlElement tag_span = {.kind = HTML_SPAN};
       {
         *dyn_push(&tag_span.children, arena) = (HtmlElement){
@@ -586,13 +587,23 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
         };
       }
       *dyn_push(&tag_body_div.children, arena) = tag_span;
+
+      {
+        HtmlElement tag_form = {.kind = HTML_FORM};
+        {
+          HtmlElement tag_fieldset = {.kind = HTML_FIELDSET};
+
+          *dyn_push(&tag_form.children, arena) = tag_fieldset;
+        }
+        *dyn_push(&tag_body_div.children, arena) = tag_form;
+      }
     }
     *dyn_push(&document.body.children, arena) = tag_body_div;
-
-    html_document_to_string(document, &resp_body, arena);
   }
 
-  return dyn_slice(String, resp_body);
+  html_document_to_string(document, &res, arena);
+
+  return dyn_slice(String, res);
 }
 
 [[nodiscard]] static HttpResponse
