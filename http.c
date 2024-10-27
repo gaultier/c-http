@@ -32,26 +32,26 @@ String static http_method_to_s(HttpMethod m) {
 
 typedef struct {
   String key, value;
-} HttpHeader;
+} KeyValue;
 
 typedef struct {
-  HttpHeader *data;
+  KeyValue *data;
   uint64_t len, cap;
-} DynHttpHeaders;
+} DynKeyValue;
 
 typedef struct {
   String id;
   String path_raw;
   DynString path_components;
   HttpMethod method;
-  DynHttpHeaders headers;
+  DynKeyValue headers;
   String body;
   Error err;
 } HttpRequest;
 
 typedef struct {
   uint16_t status;
-  DynHttpHeaders headers;
+  DynKeyValue headers;
   Error err;
 
   // TODO: union{file_path,body}?
@@ -380,7 +380,7 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
 }
 
 [[nodiscard]] static Error
-reader_read_headers(Reader *reader, DynHttpHeaders *headers, Arena *arena) {
+reader_read_headers(Reader *reader, DynKeyValue *headers, Arena *arena) {
   dyn_ensure_cap(headers, 30, arena);
 
   for (uint64_t _i = 0; _i < HTTP_REQUEST_LINES_MAX_COUNT; _i++) {
@@ -405,7 +405,7 @@ reader_read_headers(Reader *reader, DynHttpHeaders *headers, Arena *arena) {
     String value = it.slice; // Remainder.
     String value_trimmed = string_trim(value, ' ');
 
-    HttpHeader header = {.key = key_trimmed, .value = value_trimmed};
+    KeyValue header = {.key = key_trimmed, .value = value_trimmed};
     *dyn_push(headers, arena) = header;
   }
   return 0;
@@ -453,7 +453,7 @@ request_parse_content_length_maybe(HttpRequest req, Arena *arena) {
   ASSERT(!req.err);
 
   for (uint64_t i = 0; i < req.headers.len; i++) {
-    HttpHeader h = req.headers.data[i];
+    KeyValue h = req.headers.data[i];
 
     if (!string_ieq_ascii(S("Content-Length"), h.key, arena)) {
       continue;
@@ -524,7 +524,7 @@ request_parse_content_length_maybe(HttpRequest req, Arena *arena) {
   dyn_append_slice(&sb, S("\r\n"), arena);
 
   for (uint64_t i = 0; i < res.headers.len; i++) {
-    HttpHeader header = dyn_at(res.headers, i);
+    KeyValue header = dyn_at(res.headers, i);
     dyn_append_slice(&sb, header.key, arena);
     dyn_append_slice(&sb, S(": "), arena);
     dyn_append_slice(&sb, header.value, arena);
@@ -566,9 +566,9 @@ request_parse_content_length_maybe(HttpRequest req, Arena *arena) {
   return 0;
 }
 
-static void http_push_header(DynHttpHeaders *headers, String key, String value,
+static void http_push_header(DynKeyValue *headers, String key, String value,
                              Arena *arena) {
-  *dyn_push(headers, arena) = (HttpHeader){.key = key, .value = value};
+  *dyn_push(headers, arena) = (KeyValue){.key = key, .value = value};
 }
 
 static void http_response_register_file_for_sending(HttpResponse *res,
@@ -733,7 +733,7 @@ http_client_request(struct sockaddr *addr, uint32_t addr_sizeof,
   dyn_append_slice(&sb, S("\r\n"), arena);
 
   for (uint64_t i = 0; i < req.headers.len; i++) {
-    HttpHeader header = dyn_at(req.headers, i);
+    KeyValue header = dyn_at(req.headers, i);
     dyn_append_slice(&sb, header.key, arena);
     dyn_append_slice(&sb, S(": "), arena);
     dyn_append_slice(&sb, header.value, arena);
@@ -939,18 +939,9 @@ typedef struct {
   uint64_t len, cap;
 } DynHtml;
 
-typedef struct {
-  String key, value;
-} Attribute;
-
-typedef struct {
-  Attribute *data;
-  uint64_t len, cap;
-} DynAttribute;
-
 struct HtmlElement {
   HtmlKind kind;
-  DynAttribute attributes;
+  DynKeyValue attributes;
   union {
     DynHtml children;
     String text;
@@ -969,7 +960,7 @@ struct HtmlElement {
       HtmlElement meta = {.kind = HTML_META};
       {
         *dyn_push(&meta.attributes, arena) =
-            (Attribute){.key = S("charset"), .value = S("utf-8")};
+            (KeyValue){.key = S("charset"), .value = S("utf-8")};
       }
       *dyn_push(&head.children, arena) = meta;
     }
@@ -998,10 +989,10 @@ struct HtmlElement {
   ASSERT(0);
 }
 
-static void html_attributes_to_string(DynAttribute attributes, DynU8 *sb,
+static void html_attributes_to_string(DynKeyValue attributes, DynU8 *sb,
                                       Arena *arena) {
   for (uint64_t i = 0; i < attributes.len; i++) {
-    Attribute attr = dyn_at(attributes, i);
+    KeyValue attr = dyn_at(attributes, i);
     ASSERT(-1 == string_indexof_string(attr.key, S("\"")));
 
     *dyn_push(sb, arena) = ' ';

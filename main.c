@@ -34,7 +34,7 @@ typedef struct {
   String user_agent = {0};
   {
     for (uint64_t i = 0; i < req.headers.len; i++) {
-      HttpHeader h = slice_at(req.headers, i);
+      KeyValue h = slice_at(req.headers, i);
 
       if (string_ieq_ascii(h.key, S("User-Agent"), arena) &&
           !slice_is_empty(h.value)) {

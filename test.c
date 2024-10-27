@@ -309,11 +309,11 @@ static void test_http_server_post() {
         ASSERT(string_eq(S("hello world!"), resp.body));
         ASSERT(2 == resp.headers.len);
 
-        HttpHeader h1 = dyn_at(resp.headers, 0);
+        KeyValue h1 = dyn_at(resp.headers, 0);
         ASSERT(string_eq(S("Content-Type"), h1.key));
         ASSERT(string_eq(S("text/plain"), h1.value));
 
-        HttpHeader h2 = dyn_at(resp.headers, 1);
+        KeyValue h2 = dyn_at(resp.headers, 1);
         ASSERT(string_eq(S("Connection"), h2.key));
         ASSERT(string_eq(S("close"), h2.value));
 
@@ -386,11 +386,11 @@ static void test_http_server_serve_file() {
 
         ASSERT(2 == resp.headers.len);
 
-        HttpHeader h1 = dyn_at(resp.headers, 0);
+        KeyValue h1 = dyn_at(resp.headers, 0);
         ASSERT(string_eq(S("Content-Type"), h1.key));
         ASSERT(string_eq(S("text/html"), h1.value));
 
-        HttpHeader h2 = dyn_at(resp.headers, 1);
+        KeyValue h2 = dyn_at(resp.headers, 1);
         ASSERT(string_eq(S("Connection"), h2.key));
         ASSERT(string_eq(S("close"), h2.value));
 
