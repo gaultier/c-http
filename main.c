@@ -370,9 +370,13 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
         {
           HtmlElement created_at_div = {.kind = HTML_DIV};
           DynU8 created_at_text = {0};
-          dyn_append_slice(&created_at_text, S("Created at:"), arena);
+          dyn_append_slice(&created_at_text, S("Created at: "), arena);
           dyn_append_slice(&created_at_text, get_poll.poll.created_at, arena);
 
+          *dyn_push(&created_at_div.children, arena) = (HtmlElement){
+              .kind = HTML_TEXT,
+              .text = dyn_slice(String, created_at_text),
+          };
           *dyn_push(&body_div.children, arena) = created_at_div;
         }
         *dyn_push(&body->children, arena) = body_div;
