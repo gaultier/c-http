@@ -576,8 +576,18 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
   *dyn_push(&document.head.children, arena) = tag_link_css;
 
   {
-    HtmlElement body_div = {.kind = HTML_DIV};
-    *dyn_push(&document.body.children, arena) = body_div;
+    HtmlElement tag_body_div = {.kind = HTML_DIV};
+    {
+      HtmlElement tag_span = {.kind = HTML_SPAN};
+      {
+        *dyn_push(&tag_span.children, arena) = (HtmlElement){
+            .kind = HTML_TEXT,
+            .text = S("New poll"),
+        };
+      }
+      *dyn_push(&tag_body_div.children, arena) = tag_span;
+    }
+    *dyn_push(&document.body.children, arena) = tag_body_div;
 
     html_document_to_string(document, &resp_body, arena);
   }
