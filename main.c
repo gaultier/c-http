@@ -590,6 +590,11 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
 
       {
         HtmlElement tag_form = {.kind = HTML_FORM};
+        *dyn_push(&tag_form.attributes, arena) = (KeyValue){
+            .key = S("action"),
+            .value = S("/poll"),
+        };
+
         {
           HtmlElement tag_fieldset = {.kind = HTML_FIELDSET};
 
