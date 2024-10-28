@@ -621,6 +621,14 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
               (HtmlElement){.kind = HTML_TEXT, .text = S("+")};
           *dyn_push(&tag_form.children, arena) = tag_button;
         }
+        {
+          HtmlElement tag_input = {.kind = HTML_INPUT};
+          *dyn_push(&tag_input.attributes, arena) =
+              (KeyValue){.key = S("type"), .value = S("submit")};
+          *dyn_push(&tag_input.attributes, arena) =
+              (KeyValue){.key = S("value"), .value = S("Create")};
+          *dyn_push(&tag_form.children, arena) = tag_input;
+        }
         *dyn_push(&tag_body_div.children, arena) = tag_form;
       }
     }
