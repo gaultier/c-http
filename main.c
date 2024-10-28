@@ -647,20 +647,21 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
       }
 
       {
-        HtmlElement tag_button = {.kind = HTML_BUTTON};
+        HtmlElement tag_button = {
+            .kind = HTML_BUTTON,
+            .text = S("+"),
+        };
         *dyn_push(&tag_button.attributes, arena) =
             (KeyValue){.key = S("id"), .value = S("add-poll-option")};
-        *dyn_push(&tag_button.children, arena) =
-            (HtmlElement){.kind = HTML_TEXT, .text = S("+")};
         *dyn_push(&tag_fieldset.children, arena) = tag_button;
       }
       {
-        HtmlElement tag_button = {.kind = HTML_BUTTON};
+        HtmlElement tag_button = {
+            .kind = HTML_BUTTON,
+            .text = S("Create"),
+        };
         *dyn_push(&tag_button.attributes, arena) =
             (KeyValue){.key = S("type"), .value = S("submit")};
-
-        *dyn_push(&tag_button.children, arena) =
-            (HtmlElement){.kind = HTML_TEXT, .text = S("Create")};
         *dyn_push(&tag_fieldset.children, arena) = tag_button;
       }
       *dyn_push(&tag_form.children, arena) = tag_fieldset;

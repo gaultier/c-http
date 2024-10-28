@@ -953,7 +953,7 @@ struct HtmlElement {
   union {
     DynHtmlElements children;
     String text; // Only for `HTML_TEXT`, `HTML_LEGEND`, `HTML_TITLE`,
-                 // `HTML_SCRIPT`, `HTML_STYLE`.
+                 // `HTML_SCRIPT`, `HTML_STYLE`, `HTML_BUTTON`.
   };
 };
 
@@ -1070,13 +1070,13 @@ static void html_tag_to_string(HtmlElement e, DynU8 *sb, Arena *arena) {
     [[fallthrough]];
   case HTML_SPAN:
     [[fallthrough]];
-  case HTML_BUTTON:
-    [[fallthrough]];
   case HTML_BODY:
     html_tags_to_string(e.children, sb, arena);
     break;
 
   // Only cases where `.text` is valid.
+  case HTML_BUTTON:
+    [[fallthrough]];
   case HTML_SCRIPT:
     [[fallthrough]];
   case HTML_STYLE:
@@ -1086,7 +1086,6 @@ static void html_tag_to_string(HtmlElement e, DynU8 *sb, Arena *arena) {
   case HTML_TITLE:
     [[fallthrough]];
   case HTML_TEXT:
-    ASSERT(0 == e.attributes.len);
     dyn_append_slice(sb, e.text, arena);
     break;
 
