@@ -562,18 +562,30 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
 [[nodiscard]] static String make_home_html(Arena *arena) {
   DynU8 res = {0};
   HtmlDocument document = html_make(S("Create a poll"), arena);
-  HtmlElement tag_link_css = {.kind = HTML_LINK};
   {
-    *dyn_push(&tag_link_css.attributes, arena) = (KeyValue){
-        .key = S("rel"),
-        .value = S("stylesheet"),
-    };
-    *dyn_push(&tag_link_css.attributes, arena) = (KeyValue){
-        .key = S("href"),
-        .value = S("main.css"),
-    };
+    HtmlElement tag_link_css = {.kind = HTML_LINK};
+    {
+      *dyn_push(&tag_link_css.attributes, arena) = (KeyValue){
+          .key = S("rel"),
+          .value = S("stylesheet"),
+      };
+      *dyn_push(&tag_link_css.attributes, arena) = (KeyValue){
+          .key = S("href"),
+          .value = S("main.css"),
+      };
+    }
+    *dyn_push(&document.head.children, arena) = tag_link_css;
   }
-  *dyn_push(&document.head.children, arena) = tag_link_css;
+  {
+    HtmlElement tag_script = {.kind = HTML_SCRIPT};
+    {
+      *dyn_push(&tag_script.attributes, arena) = (KeyValue){
+          .key = S("src"),
+          .value = S("main.js"),
+      };
+    }
+    *dyn_push(&document.head.children, arena) = tag_script;
+  }
 
   {
     HtmlElement tag_form = {.kind = HTML_FORM};
@@ -588,6 +600,11 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
 
     {
       HtmlElement tag_fieldset = {.kind = HTML_FIELDSET};
+      *dyn_push(&tag_fieldset.attributes, arena) = (KeyValue){
+          .key = S("id"),
+          .value = S("poll-form-fieldset"),
+      };
+
       {
         HtmlElement tag_legend = {.kind = HTML_LEGEND, .text = S("New poll")};
         *dyn_push(&tag_fieldset.children, arena) = tag_legend;
@@ -710,6 +727,16 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
     res.status = 200;
     http_push_header(&res.headers, S("Content-Type"), S("text/css"), arena);
     http_response_register_file_for_sending(&res, S("main.css"));
+    return res;
+  } else if (HM_GET == req.method && 1 == req.path_components.len &&
+             string_eq(path0, S("main.js"))) {
+    // `GET /main.js`
+
+    HttpResponse res = {0};
+    res.status = 200;
+    http_push_header(&res.headers, S("Content-Type"),
+                     S("application/javascript"), arena);
+    http_response_register_file_for_sending(&res, S("main.js"));
     return res;
   } else if (HM_POST == req.method && 1 == req.path_components.len &&
              string_eq(path0, S("poll"))) {
