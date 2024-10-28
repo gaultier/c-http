@@ -1,4 +1,4 @@
-var option_count = 4;
+var option_count = 3;
 var max_option_count = 32;
 
 document.addEventListener('DOMContentLoaded', function(){
@@ -19,7 +19,7 @@ function add_candidate() {
     ': </label>' +
     '<input type="text" name="option"/>' +
     '</div>';
-  parent.append(candidate_input);
+  parent.insertBefore(candidate_input, parent.childNodes[2 + option_count]);
 
   option_count += 1;
 }
