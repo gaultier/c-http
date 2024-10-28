@@ -1,10 +1,3 @@
-body {
-}
-
-fieldset {
-  border: none;
-}
-
 button {
   background-color: black;
   color: white;
@@ -18,11 +11,18 @@ button:hover {
 
 input {
   border-radius: 0;
-  border: solid;
-  border-color: black;
+  border: 1px solid gray;
+  min-width: 30%;
 }
 
 form {
-  border: solid;
   padding: 1rem;
+}
+
+legend {
+  padding: 0 .5rem;
+}
+
+fieldset {
+  border: 2px solid black;
 }

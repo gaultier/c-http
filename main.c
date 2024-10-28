@@ -579,66 +579,63 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
     HtmlElement tag_body_div = {.kind = HTML_DIV};
     {
 
-      HtmlElement tag_span = {.kind = HTML_SPAN};
+        {HtmlElement tag_form = {.kind = HTML_FORM};
+    *dyn_push(&tag_form.attributes, arena) = (KeyValue){
+        .key = S("action"),
+        .value = S("/poll"),
+    };
+
+    {
+      HtmlElement tag_fieldset = {.kind = HTML_FIELDSET};
       {
-        *dyn_push(&tag_span.children, arena) = (HtmlElement){
-            .kind = HTML_TEXT,
-            .text = S("New poll"),
-        };
+        HtmlElement tag_legend = {.kind = HTML_LEGEND, .text = S("New poll")};
+        *dyn_push(&tag_fieldset.children, arena) = tag_legend;
       }
-      *dyn_push(&tag_body_div.children, arena) = tag_span;
-
       {
-        HtmlElement tag_form = {.kind = HTML_FORM};
-        *dyn_push(&tag_form.attributes, arena) = (KeyValue){
-            .key = S("action"),
-            .value = S("/poll"),
-        };
+        HtmlElement tag_label = {.kind = HTML_LABEL};
+        HtmlElement text = {.kind = HTML_TEXT, .text = S("Name: ")};
+        *dyn_push(&tag_label.children, arena) = text;
+        *dyn_push(&tag_fieldset.children, arena) = tag_label;
+      }
+      {
+        HtmlElement tag_input = {.kind = HTML_INPUT};
+        *dyn_push(&tag_input.attributes, arena) =
+            (KeyValue){.key = S("name"), .value = S("name")};
+        *dyn_push(&tag_input.attributes, arena) =
+            (KeyValue){.key = S("placeholder"),
+                       .value = S("What movie will we watch tonight?")};
+        *dyn_push(&tag_fieldset.children, arena) = tag_input;
+      }
 
-        {
-          HtmlElement tag_fieldset = {.kind = HTML_FIELDSET};
+      *dyn_push(&tag_form.children, arena) = tag_fieldset;
+      {
+        HtmlElement tag_button = {.kind = HTML_BUTTON};
+        *dyn_push(&tag_button.attributes, arena) =
+            (KeyValue){.key = S("id"), .value = S("add-poll-option")};
+        *dyn_push(&tag_button.children, arena) =
+            (HtmlElement){.kind = HTML_TEXT, .text = S("+")};
+        *dyn_push(&tag_fieldset.children, arena) = tag_button;
+      }
+      {
+        HtmlElement tag_button = {.kind = HTML_BUTTON};
+        *dyn_push(&tag_button.attributes, arena) =
+            (KeyValue){.key = S("type"), .value = S("submit")};
 
-          {
-            HtmlElement tag_label = {.kind = HTML_LABEL};
-            HtmlElement text = {.kind = HTML_TEXT, .text = S("Name: ")};
-            *dyn_push(&tag_label.children, arena) = text;
-            *dyn_push(&tag_fieldset.children, arena) = tag_label;
-          }
-          {
-            HtmlElement tag_input = {.kind = HTML_INPUT};
-            *dyn_push(&tag_input.attributes, arena) =
-                (KeyValue){.key = S("name"), .value = S("name")};
-            *dyn_push(&tag_fieldset.children, arena) = tag_input;
-          }
-
-          *dyn_push(&tag_form.children, arena) = tag_fieldset;
-        }
-        {
-          HtmlElement tag_button = {.kind = HTML_BUTTON};
-          *dyn_push(&tag_button.attributes, arena) =
-              (KeyValue){.key = S("id"), .value = S("add-poll-option")};
-          *dyn_push(&tag_button.children, arena) =
-              (HtmlElement){.kind = HTML_TEXT, .text = S("+")};
-          *dyn_push(&tag_form.children, arena) = tag_button;
-        }
-        {
-          HtmlElement tag_button = {.kind = HTML_BUTTON};
-          *dyn_push(&tag_button.attributes, arena) =
-              (KeyValue){.key = S("type"), .value = S("submit")};
-
-          *dyn_push(&tag_button.children, arena) =
-              (HtmlElement){.kind = HTML_TEXT, .text = S("Create")};
-          *dyn_push(&tag_form.children, arena) = tag_button;
-        }
-        *dyn_push(&tag_body_div.children, arena) = tag_form;
+        *dyn_push(&tag_button.children, arena) =
+            (HtmlElement){.kind = HTML_TEXT, .text = S("Create")};
+        *dyn_push(&tag_fieldset.children, arena) = tag_button;
       }
     }
-    *dyn_push(&document.body.children, arena) = tag_body_div;
+
+    *dyn_push(&tag_body_div.children, arena) = tag_form;
   }
+}
+*dyn_push(&document.body.children, arena) = tag_body_div;
+}
 
-  html_document_to_string(document, &res, arena);
+html_document_to_string(document, &res, arena);
 
-  return dyn_slice(String, res);
+return dyn_slice(String, res);
 }
 
 [[nodiscard]] static HttpResponse
