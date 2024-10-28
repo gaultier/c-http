@@ -937,6 +937,8 @@ typedef enum {
   HTML_LABEL,
   HTML_SCRIPT,
   HTML_STYLE,
+  HTML_LEGEND,
+  HTML_MAX, // Pseudo.
 } HtmlKind;
 
 typedef struct HtmlElement HtmlElement;
@@ -950,7 +952,8 @@ struct HtmlElement {
   DynKeyValue attributes;
   union {
     DynHtmlElements children;
-    String text;
+    String text; // Only for `HTML_TEXT`, `HTML_LEGEND`, `HTML_TITLE`,
+                 // `HTML_SCRIPT`, `HTML_STYLE`.
   };
 };
 
@@ -1025,117 +1028,78 @@ static void html_document_to_string(HtmlDocument doc, DynU8 *sb, Arena *arena) {
 }
 
 static void html_tag_to_string(HtmlElement e, DynU8 *sb, Arena *arena) {
+  static const String tag_to_string[HTML_MAX] = {
+      [HTML_NONE] = S("FIXME"),        [HTML_TITLE] = S("title"),
+      [HTML_SPAN] = S("span"),         [HTML_INPUT] = S("input"),
+      [HTML_BUTTON] = S("button"),     [HTML_LINK] = S("link"),
+      [HTML_META] = S("meta"),         [HTML_HEAD] = S("head"),
+      [HTML_BODY] = S("body"),         [HTML_DIV] = S("div"),
+      [HTML_TEXT] = S("text"),         [HTML_FORM] = S("form"),
+      [HTML_FIELDSET] = S("fieldset"), [HTML_LABEL] = S("label"),
+      [HTML_SCRIPT] = S("script"),     [HTML_STYLE] = S("style"),
+      [HTML_LEGEND] = S("legend"),
+  };
+
+  ASSERT(!(HTML_NONE == e.kind || HTML_MAX == e.kind));
+
+  *dyn_push(sb, arena) = '<';
+  dyn_append_slice(sb, tag_to_string[e.kind], arena);
+  html_attributes_to_string(e.attributes, sb, arena);
+  *dyn_push(sb, arena) = '>';
+
   switch (e.kind) {
-  case HTML_NONE:
-    ASSERT(0);
-  case HTML_TITLE:
-    ASSERT(0 == e.attributes.len);
-    dyn_append_slice(sb, S("<title>"), arena);
-    dyn_append_slice(sb, e.text, arena);
-    dyn_append_slice(sb, S("</title>"), arena);
-    break;
+  // Cases of tag without any children and no closing tag.
   case HTML_LINK:
-    dyn_append_slice(sb, S("<link"), arena);
-    html_attributes_to_string(e.attributes, sb, arena);
-    dyn_append_slice(sb, S(">"), arena);
-    break;
+    [[fallthrough]];
   case HTML_META:
     ASSERT(0 == e.children.len);
-    dyn_append_slice(sb, S("<meta"), arena);
-    html_attributes_to_string(e.attributes, sb, arena);
-    *dyn_push(sb, arena) = '>';
-    break;
+    return;
+
+  // 'Normal' tags.
   case HTML_HEAD:
-    ASSERT(0 == e.attributes.len);
-    dyn_append_slice(sb, S("<head>"), arena);
-    html_tags_to_string(e.children, sb, arena);
-    dyn_append_slice(sb, S("</head>"), arena);
-    break;
-  case HTML_SCRIPT:
-    ASSERT(0 == e.attributes.len);
-    dyn_append_slice(sb, S("<script>"), arena);
-
-    ASSERT(0 == e.children.len || 1 == e.children.len);
-    if (1 == e.children.len) {
-      ASSERT(HTML_TEXT == dyn_at(e.children, 0).kind);
-    }
-    html_tags_to_string(e.children, sb, arena);
-
-    dyn_append_slice(sb, S("</script>"), arena);
-    break;
-  case HTML_STYLE:
-    ASSERT(0 == e.attributes.len);
-    dyn_append_slice(sb, S("<style>"), arena);
-
-    ASSERT(0 == e.children.len || 1 == e.children.len);
-    if (1 == e.children.len) {
-      ASSERT(HTML_TEXT == dyn_at(e.children, 0).kind);
-    }
-    html_tags_to_string(e.children, sb, arena);
-
-    dyn_append_slice(sb, S("</style>"), arena);
-    break;
-  case HTML_BODY:
-    dyn_append_slice(sb, S("<body"), arena);
-    html_attributes_to_string(e.attributes, sb, arena);
-    *dyn_push(sb, arena) = '>';
-    html_tags_to_string(e.children, sb, arena);
-    dyn_append_slice(sb, S("</body>"), arena);
-    break;
+    [[fallthrough]];
   case HTML_DIV:
-    dyn_append_slice(sb, S("<div"), arena);
-    html_attributes_to_string(e.attributes, sb, arena);
-    *dyn_push(sb, arena) = '>';
-    html_tags_to_string(e.children, sb, arena);
-    dyn_append_slice(sb, S("</div>"), arena);
-    break;
+    [[fallthrough]];
   case HTML_FORM:
-    dyn_append_slice(sb, S("<form"), arena);
-    html_attributes_to_string(e.attributes, sb, arena);
-    *dyn_push(sb, arena) = '>';
-    html_tags_to_string(e.children, sb, arena);
-    dyn_append_slice(sb, S("</form>"), arena);
-    break;
+    [[fallthrough]];
   case HTML_FIELDSET:
-    dyn_append_slice(sb, S("<fieldset"), arena);
-    html_attributes_to_string(e.attributes, sb, arena);
-    *dyn_push(sb, arena) = '>';
-    html_tags_to_string(e.children, sb, arena);
-    dyn_append_slice(sb, S("</fieldset>"), arena);
-    break;
+    [[fallthrough]];
   case HTML_LABEL:
-    dyn_append_slice(sb, S("<label"), arena);
-    html_attributes_to_string(e.attributes, sb, arena);
-    *dyn_push(sb, arena) = '>';
-    html_tags_to_string(e.children, sb, arena);
-    dyn_append_slice(sb, S("</label>"), arena);
-    break;
+    [[fallthrough]];
   case HTML_INPUT:
-    dyn_append_slice(sb, S("<input"), arena);
-    html_attributes_to_string(e.attributes, sb, arena);
-    *dyn_push(sb, arena) = '>';
-    html_tags_to_string(e.children, sb, arena);
-    dyn_append_slice(sb, S("</input>"), arena);
-    break;
+    [[fallthrough]];
   case HTML_SPAN:
-    dyn_append_slice(sb, S("<span"), arena);
-    html_attributes_to_string(e.attributes, sb, arena);
-    *dyn_push(sb, arena) = '>';
-    html_tags_to_string(e.children, sb, arena);
-    dyn_append_slice(sb, S("</span>"), arena);
-    break;
+    [[fallthrough]];
   case HTML_BUTTON:
-    dyn_append_slice(sb, S("<button"), arena);
-    html_attributes_to_string(e.attributes, sb, arena);
-    *dyn_push(sb, arena) = '>';
+    [[fallthrough]];
+  case HTML_BODY:
     html_tags_to_string(e.children, sb, arena);
-    dyn_append_slice(sb, S("</button>"), arena);
     break;
+
+  // Only cases where `.text` is valid.
+  case HTML_SCRIPT:
+    [[fallthrough]];
+  case HTML_STYLE:
+    [[fallthrough]];
+  case HTML_LEGEND:
+    [[fallthrough]];
+  case HTML_TITLE:
+    [[fallthrough]];
   case HTML_TEXT:
     ASSERT(0 == e.attributes.len);
     dyn_append_slice(sb, e.text, arena);
     break;
+
+  // Invalid cases.
+  case HTML_NONE:
+    [[fallthrough]];
+  case HTML_MAX:
+    [[fallthrough]];
   default:
     ASSERT(0);
   }
+
+  dyn_append_slice(sb, S("</"), arena);
+  dyn_append_slice(sb, tag_to_string[e.kind], arena);
+  *dyn_push(sb, arena) = '>';
 }
