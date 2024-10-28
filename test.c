@@ -341,16 +341,16 @@ static HttpResponse handle_request_file(HttpRequest req, void *ctx,
 
   ASSERT(HM_GET == req.method);
   ASSERT(slice_is_empty(req.body));
-  ASSERT(string_eq(S("/index.html"), req.path_raw) ||
-         string_eq(S("/index.html/"), req.path_raw));
+  ASSERT(string_eq(S("/main.css"), req.path_raw) ||
+         string_eq(S("/main.css/"), req.path_raw));
   ASSERT(1 == req.path_components.len);
   String path0 = dyn_at(req.path_components, 0);
-  ASSERT(string_eq(path0, S("index.html")));
+  ASSERT(string_eq(path0, S("main.css")));
 
   HttpResponse res = {0};
   res.status = 200;
-  http_response_register_file_for_sending(&res, S("index.html"));
-  http_push_header(&res.headers, S("Content-Type"), S("text/html"), arena);
+  http_response_register_file_for_sending(&res, S("main.css"));
+  http_push_header(&res.headers, S("Content-Type"), S("text/css"), arena);
 
   return res;
 }
@@ -377,7 +377,7 @@ static void test_http_server_serve_file() {
       HttpRequest req = {
           .method = HM_GET,
       };
-      *dyn_push(&req.path_components, &arena) = S("index.html");
+      *dyn_push(&req.path_components, &arena) = S("main.css");
       HttpResponse resp = http_client_request((struct sockaddr *)&addr,
                                               sizeof(addr), req, &arena);
 
@@ -388,16 +388,16 @@ static void test_http_server_serve_file() {
 
         KeyValue h1 = dyn_at(resp.headers, 0);
         ASSERT(string_eq(S("Content-Type"), h1.key));
-        ASSERT(string_eq(S("text/html"), h1.value));
+        ASSERT(string_eq(S("text/css"), h1.value));
 
         KeyValue h2 = dyn_at(resp.headers, 1);
         ASSERT(string_eq(S("Connection"), h2.key));
         ASSERT(string_eq(S("close"), h2.value));
 
-        int file = open("index.html", O_RDONLY);
+        int file = open("main.css", O_RDONLY);
         ASSERT(-1 != file);
         struct stat st = {0};
-        ASSERT(-1 != stat("index.html", &st));
+        ASSERT(-1 != stat("main.css", &st));
 
         ASSERT(st.st_size >= 0);
         ASSERT((uint64_t)st.st_size == resp.body.len);
@@ -498,7 +498,7 @@ static void test_html_to_string() {
 
   HtmlDocument document = html_make(S("There and back again"), &arena);
   *dyn_push(&document.body.children, &arena) = (HtmlElement){
-      .kind = HTML_TEXT,
+      .kind = HTML_LEGEND,
       .text = S("hello world"),
   };
 
@@ -506,9 +506,10 @@ static void test_html_to_string() {
   html_document_to_string(document, &sb, &arena);
   String s = dyn_slice(String, sb);
 
-  String expected = S("<!DOCTYPE html><html><head><meta "
-                      "charset=\"utf-8\"><title>There and back "
-                      "again</title></head><body>hello world</body></html>");
+  String expected =
+      S("<!DOCTYPE html><html><head><meta "
+        "charset=\"utf-8\"><title>There and back "
+        "again</title></head><body><legend>hello world</legend></body></html>");
   ASSERT(string_eq(expected, s));
 }
 

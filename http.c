@@ -1034,7 +1034,7 @@ static void html_tag_to_string(HtmlElement e, DynU8 *sb, Arena *arena) {
       [HTML_BUTTON] = S("button"),     [HTML_LINK] = S("link"),
       [HTML_META] = S("meta"),         [HTML_HEAD] = S("head"),
       [HTML_BODY] = S("body"),         [HTML_DIV] = S("div"),
-      [HTML_TEXT] = S("text"),         [HTML_FORM] = S("form"),
+      [HTML_TEXT] = S("span"),         [HTML_FORM] = S("form"),
       [HTML_FIELDSET] = S("fieldset"), [HTML_LABEL] = S("label"),
       [HTML_SCRIPT] = S("script"),     [HTML_STYLE] = S("style"),
       [HTML_LEGEND] = S("legend"),
