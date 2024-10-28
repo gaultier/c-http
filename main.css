@@ -28,3 +28,7 @@ fieldset {
   display: flex;
   flex-flow: column wrap;
 }
+
+#add-poll-option {
+  width: 3rem;
+}
