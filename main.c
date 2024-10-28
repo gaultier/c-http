@@ -627,42 +627,6 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
       }
       *dyn_push(&tag_fieldset.children, arena) = tag_div_name;
 
-      String placeholders[] = {
-          S("Jaws"),
-          S("Star Wars"),
-          S("Lord of the Rings"),
-      };
-
-      for (uint64_t i = 0; i < static_array_len(placeholders); i++) {
-        HtmlElement tag_div_option = {.kind = HTML_DIV};
-        {
-          HtmlElement tag_label = {.kind = HTML_LABEL};
-          DynU8 label_text = {0};
-          dyn_append_slice(&label_text, S("Option "), arena);
-          dynu8_append_u64(&label_text, i + 1, arena);
-          dyn_append_slice(&label_text, S(": "), arena);
-
-          HtmlElement text = {
-              .kind = HTML_TEXT,
-              .text = dyn_slice(String, label_text),
-          };
-
-          *dyn_push(&tag_label.children, arena) = text;
-          *dyn_push(&tag_div_option.children, arena) = tag_label;
-        }
-        {
-          HtmlElement tag_input = {.kind = HTML_INPUT};
-          *dyn_push(&tag_input.attributes, arena) =
-              (KeyValue){.key = S("name"), .value = S("option")};
-          *dyn_push(&tag_input.attributes, arena) = (KeyValue){
-              .key = S("placeholder"),
-              .value = AT(placeholders, static_array_len(placeholders), i),
-          };
-          *dyn_push(&tag_div_option.children, arena) = tag_input;
-        }
-        *dyn_push(&tag_fieldset.children, arena) = tag_div_option;
-      }
-
       {
         HtmlElement tag_button = {
             .kind = HTML_BUTTON,
