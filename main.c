@@ -576,13 +576,14 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
   *dyn_push(&document.head.children, arena) = tag_link_css;
 
   {
-    HtmlElement tag_body_div = {.kind = HTML_DIV};
-    {
-
-        {HtmlElement tag_form = {.kind = HTML_FORM};
+    HtmlElement tag_form = {.kind = HTML_FORM};
     *dyn_push(&tag_form.attributes, arena) = (KeyValue){
         .key = S("action"),
         .value = S("/poll"),
+    };
+    *dyn_push(&tag_form.attributes, arena) = (KeyValue){
+        .key = S("method"),
+        .value = S("post"),
     };
 
     {
@@ -591,11 +592,12 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
         HtmlElement tag_legend = {.kind = HTML_LEGEND, .text = S("New poll")};
         *dyn_push(&tag_fieldset.children, arena) = tag_legend;
       }
+      HtmlElement tag_div_name = {.kind = HTML_DIV};
       {
         HtmlElement tag_label = {.kind = HTML_LABEL};
         HtmlElement text = {.kind = HTML_TEXT, .text = S("Name: ")};
         *dyn_push(&tag_label.children, arena) = text;
-        *dyn_push(&tag_fieldset.children, arena) = tag_label;
+        *dyn_push(&tag_div_name.children, arena) = tag_label;
       }
       {
         HtmlElement tag_input = {.kind = HTML_INPUT};
@@ -604,8 +606,9 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
         *dyn_push(&tag_input.attributes, arena) =
             (KeyValue){.key = S("placeholder"),
                        .value = S("What movie will we watch tonight?")};
-        *dyn_push(&tag_fieldset.children, arena) = tag_input;
+        *dyn_push(&tag_div_name.children, arena) = tag_input;
       }
+      *dyn_push(&tag_fieldset.children, arena) = tag_div_name;
 
       String placeholders[] = {
           S("Jaws"),
@@ -613,7 +616,8 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
           S("Lord of the Rings"),
       };
 
-      for (uint64_t i = 0; i < 2; i++) {
+      for (uint64_t i = 0; i < static_array_len(placeholders); i++) {
+        HtmlElement tag_div_option = {.kind = HTML_DIV};
         {
           HtmlElement tag_label = {.kind = HTML_LABEL};
           DynU8 label_text = {0};
@@ -627,7 +631,7 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
           };
 
           *dyn_push(&tag_label.children, arena) = text;
-          *dyn_push(&tag_fieldset.children, arena) = tag_label;
+          *dyn_push(&tag_div_option.children, arena) = tag_label;
         }
         {
           HtmlElement tag_input = {.kind = HTML_INPUT};
@@ -635,14 +639,13 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
               (KeyValue){.key = S("name"), .value = S("option")};
           *dyn_push(&tag_input.attributes, arena) = (KeyValue){
               .key = S("placeholder"),
-              .value = AT(placeholders,
-                          sizeof(placeholders) / sizeof(placeholders[0]), i),
+              .value = AT(placeholders, static_array_len(placeholders), i),
           };
-          *dyn_push(&tag_fieldset.children, arena) = tag_input;
+          *dyn_push(&tag_div_option.children, arena) = tag_input;
         }
+        *dyn_push(&tag_fieldset.children, arena) = tag_div_option;
       }
 
-      *dyn_push(&tag_form.children, arena) = tag_fieldset;
       {
         HtmlElement tag_button = {.kind = HTML_BUTTON};
         *dyn_push(&tag_button.attributes, arena) =
@@ -660,17 +663,15 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
             (HtmlElement){.kind = HTML_TEXT, .text = S("Create")};
         *dyn_push(&tag_fieldset.children, arena) = tag_button;
       }
+      *dyn_push(&tag_form.children, arena) = tag_fieldset;
     }
 
-    *dyn_push(&tag_body_div.children, arena) = tag_form;
+    *dyn_push(&document.body.children, arena) = tag_form;
   }
-}
-*dyn_push(&document.body.children, arena) = tag_body_div;
-}
 
-html_document_to_string(document, &res, arena);
+  html_document_to_string(document, &res, arena);
 
-return dyn_slice(String, res);
+  return dyn_slice(String, res);
 }
 
 [[nodiscard]] static HttpResponse
