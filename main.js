@@ -32,9 +32,9 @@ function add_candidate() {
 
   candidate_input.innerHTML = '<label for="poll">Option: </label>' +
     '<input type="text" name="option" placeholder="' +
-placeholders[option_count] +
+(placeholders[option_count] || '') +
     '"/></div>';
-  parent.insertBefore(candidate_input, parent.childNodes[2]);
+  parent.insertBefore(candidate_input, parent.childNodes[2 + option_count]);
 
   option_count += 1;
 }
