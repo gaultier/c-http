@@ -19,6 +19,10 @@ form {
   padding: 1rem;
 }
 
+fieldset > div {
+  margin: 0.2rem;
+}
+
 legend {
   padding: 0 .5rem;
 }

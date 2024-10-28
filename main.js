@@ -1,5 +1,17 @@
-var option_count = 3;
+var option_count = 0;
 var max_option_count = 32;
+
+var placeholders=[
+  "New York",
+  "Paris",
+  "London",
+  "Tokyo",
+  "Jakarta",
+  "Berlin",
+  "Munich",
+  "Montreal",
+  // TODO: more
+];
 
 document.addEventListener('DOMContentLoaded', function(){
   var button = document.getElementById('add-poll-option');
@@ -19,8 +31,9 @@ function add_candidate() {
   var candidate_input = document.createElement('div');
 
   candidate_input.innerHTML = '<label for="poll">Option: </label>' +
-    '<input type="text" name="option"/>' +
-    '</div>';
+    '<input type="text" name="option" placeholder="' +
+placeholders[option_count] +
+    '"/></div>';
   parent.insertBefore(candidate_input, parent.childNodes[2]);
 
   option_count += 1;

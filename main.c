@@ -620,9 +620,8 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
         HtmlElement tag_input = {.kind = HTML_INPUT};
         *dyn_push(&tag_input.attributes, arena) =
             (KeyValue){.key = S("name"), .value = S("name")};
-        *dyn_push(&tag_input.attributes, arena) =
-            (KeyValue){.key = S("placeholder"),
-                       .value = S("What movie will we watch tonight?")};
+        *dyn_push(&tag_input.attributes, arena) = (KeyValue){
+            .key = S("placeholder"), .value = S("Where do we go on vacation?")};
         *dyn_push(&tag_div_name.children, arena) = tag_input;
       }
       *dyn_push(&tag_fieldset.children, arena) = tag_div_name;
