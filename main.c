@@ -7,6 +7,8 @@ static sqlite3_stmt *db_insert_poll_stmt = nullptr;
 static sqlite3_stmt *db_select_poll_stmt = nullptr;
 static sqlite3_stmt *db_insert_vote_stmt = nullptr;
 
+static const String user_id_cookie_name = S("__Secure-user_id");
+
 typedef enum {
   DB_ERR_NONE,
   DB_ERR_NOT_FOUND,
@@ -44,15 +46,26 @@ typedef struct {
         continue;
       }
 
-      SplitIterator it = string_split(h.value, '=');
-      SplitResult left = string_split_next(&it);
-      if (!left.ok) {
-        continue;
+      SplitIterator it_semicolon = string_split(h.value, ';');
+      for (uint64_t j = 0; j < h.value.len; j++) {
+        SplitResult split_semicolon = string_split_next(&it_semicolon);
+        if (!split_semicolon.ok) {
+          break;
+        }
+
+        SplitIterator it_equals = string_split(split_semicolon.s, '=');
+        SplitResult split_equals_left = string_split_next(&it_equals);
+        if (!split_equals_left.ok) {
+          break;
+        }
+        if (!string_eq(split_equals_left.s, user_id_cookie_name)) {
+          break;
+        }
+        SplitResult split_equals_right = string_split_next(&it_equals);
+        if (!slice_is_empty(split_equals_right.s)) {
+          return split_equals_right.s;
+        }
       }
-      if (!string_eq(left.s, S("user_id"))) {
-        continue;
-      }
-      SplitResult right = string_split_next(&it);
     }
   }
   return res;
@@ -176,10 +189,21 @@ http_respond_with_unprocessable_entity(String req_id, Arena *arena) {
 
   poll.created_by = extract_user_id_cookie(req, arena);
   if (slice_is_empty(poll.created_by)) {
-    log(LOG_LEVEL_ERROR,
-        "failed to create poll due to missing/empty user-agent", arena,
-        L("req.id", req.id));
-    return http_respond_with_unprocessable_entity(req.id, arena);
+    poll.created_by = make_unique_id_u128_string(arena);
+    log(LOG_LEVEL_INFO, "generating new user id", arena, L("req.id", req.id),
+        L("user_id", poll.created_by));
+
+    DynU8 cookie_value = {0};
+    dyn_append_slice(&cookie_value, S("__Secure-"), arena);
+    dyn_append_slice(&cookie_value, user_id_cookie_name, arena);
+    dyn_append_slice(&cookie_value, S("="), arena);
+    dyn_append_slice(&cookie_value, poll.created_by, arena);
+    dyn_append_slice(&cookie_value, S("; Secure"), arena);
+
+    *dyn_push(&res.headers, arena) = (KeyValue){
+        .key = S("Set-Cookie"),
+        .value = dyn_slice(String, cookie_value),
+    };
   }
 
   {
