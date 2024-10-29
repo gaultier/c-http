@@ -12,7 +12,7 @@ MVP:
 - [x] Easy request duration stats (from OLAP db or dtrace/strace) => sqlite/duckdb/utop
 - [x] Vendor & compile db code
 - [x] Html builder
-- [.] Use cookie for user id
+- [x] Use cookie for user id
 - [ ] Sanitize user input in html
 - [ ] Cast a vote UI
 - [ ] See poll results
