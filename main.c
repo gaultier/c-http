@@ -323,6 +323,16 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
     };
   }
   *dyn_push(&document.head.children, arena) = tag_link_css;
+  {
+    HtmlElement tag_script = {.kind = HTML_SCRIPT};
+    {
+      *dyn_push(&tag_script.attributes, arena) = (KeyValue){
+          .key = S("src"),
+          .value = S("/main.js"),
+      };
+    }
+    *dyn_push(&document.head.children, arena) = tag_script;
+  }
 
   {
     HtmlElement body_div = {.kind = HTML_DIV};
@@ -364,11 +374,19 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
               .kind = HTML_BUTTON,
               .text = S("↑"),
           };
+          *dyn_push(&tag_button_up.attributes, arena) = (KeyValue){
+              .key = S("onclick"),
+              .value = S("raise_option(this)"),
+          };
           *dyn_push(&tag_li.children, arena) = tag_button_up;
 
           HtmlElement tag_button_down = {
               .kind = HTML_BUTTON,
               .text = S("↓"),
+          };
+          *dyn_push(&tag_button_down.attributes, arena) = (KeyValue){
+              .key = S("onclick"),
+              .value = S("lower_option(this)"),
           };
           *dyn_push(&tag_li.children, arena) = tag_button_down;
 

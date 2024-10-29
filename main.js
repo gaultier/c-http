@@ -15,6 +15,9 @@ var placeholders=[
 
 document.addEventListener('DOMContentLoaded', function(){
   var button = document.getElementById('add-poll-option');
+  if (!button) {
+    return; 
+  }
   button.addEventListener('click', add_candidate);
 
  add_candidate(); 
@@ -37,4 +40,12 @@ function add_candidate() {
   parent.insertBefore(candidate_input, parent.childNodes[2 + option_count]);
 
   option_count += 1;
+}
+
+function raise_option(elem){
+  console.log("raise", elem);
+}
+
+function lower_option(elem){
+  console.log("lower", elem);
 }
