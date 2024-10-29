@@ -73,7 +73,7 @@ typedef struct {
   ReadFn read_fn;
 } Reader;
 
-#define READER_IO_BUF_LEN 4096
+#define READER_IO_BUF_LEN (4 * KiB)
 
 [[nodiscard]] static IoOperationResult
 reader_read_from_socket(void *ctx, void *buf, size_t buf_len) {

@@ -72,7 +72,7 @@ static void test_read_http_request_without_body() {
                        "localhost:12345\r\nAccept: */*\r\n\r\n");
   MemReadContext ctx = {.s = req_slice};
   Reader reader = reader_make_from_slice(&ctx);
-  Arena arena = arena_make_from_virtual_mem(4096);
+  Arena arena = arena_make_from_virtual_mem(4 * KiB);
   const HttpRequest req = request_read(&reader, &arena);
 
   ASSERT(reader.buf_idx == req_slice.len); // Read all.
@@ -92,7 +92,7 @@ static void test_read_http_request_with_body() {
         "localhost:12345\r\nAccept: */*\r\n\r\nhello\r\nworld!");
   MemReadContext ctx = {.s = req_slice};
   Reader reader = reader_make_from_slice(&ctx);
-  Arena arena = arena_make_from_virtual_mem(4096);
+  Arena arena = arena_make_from_virtual_mem(4 * KiB);
   const HttpRequest req = request_read(&reader, &arena);
 
   ASSERT(reader.buf_idx == req_slice.len); // Read all.
@@ -143,7 +143,7 @@ static void test_string_split() {
 }
 
 static void test_log_entry_quote_value() {
-  Arena arena = arena_make_from_virtual_mem(4096);
+  Arena arena = arena_make_from_virtual_mem(4 * KiB);
   // Nothing to escape.
   {
     String s = S("hello");
@@ -169,7 +169,7 @@ static void test_log_entry_quote_value() {
 }
 
 static void test_make_log_line() {
-  Arena arena = arena_make_from_virtual_mem(4096);
+  Arena arena = arena_make_from_virtual_mem(4 * KiB);
 
   String log_line = make_log_line(LOG_LEVEL_DEBUG, S("foobar"), &arena, 2,
                                   L("num", 42), L("s", S("hello \"world\"")));
@@ -182,7 +182,7 @@ static void test_make_log_line() {
 }
 
 static void test_dyn_ensure_cap() {
-  uint64_t arena_cap = 4096;
+  uint64_t arena_cap = 4 * KiB;
 
   // Trigger the optimization when the last allocation in the arena gets
   // extended.
@@ -273,7 +273,7 @@ static uint16_t random_port() {
 }
 
 static void test_http_server_post() {
-  Arena arena = arena_make_from_virtual_mem(4096);
+  Arena arena = arena_make_from_virtual_mem(4 * KiB);
 
   // The http server runs in its own child process.
   // The parent process acts as a HTTP client contacting the server.
@@ -428,7 +428,7 @@ static void test_http_server_serve_file() {
 }
 
 static void test_form_data_parse() {
-  Arena arena = arena_make_from_virtual_mem(4096);
+  Arena arena = arena_make_from_virtual_mem(4 * KiB);
 
   String form_data_raw =
       S("foo=bar&name=hello+world&option=%E6%97%A5&option=!");
@@ -455,7 +455,7 @@ static void test_form_data_parse() {
 }
 
 static void test_json_encode_decode_string_slice() {
-  Arena arena = arena_make_from_virtual_mem(4096);
+  Arena arena = arena_make_from_virtual_mem(4 * KiB);
 
   DynString dyn = {0};
   *dyn_push(&dyn, &arena) = S("hello \"world\n\"!");
@@ -474,7 +474,7 @@ static void test_json_encode_decode_string_slice() {
 }
 
 static void test_slice_range() {
-  Arena arena = arena_make_from_virtual_mem(4096);
+  Arena arena = arena_make_from_virtual_mem(4 * KiB);
 
   DynString dyn = {0};
   // Works on empty slices.
@@ -493,7 +493,7 @@ static void test_slice_range() {
 }
 
 static void test_html_to_string() {
-  Arena arena = arena_make_from_virtual_mem(4096);
+  Arena arena = arena_make_from_virtual_mem(4 * KiB);
 
   HtmlDocument document = html_make(S("There and back again"), &arena);
   *dyn_push(&document.body.children, &arena) = (HtmlElement){
@@ -513,7 +513,7 @@ static void test_html_to_string() {
 }
 
 static void test_extract_user_id_cookie() {
-  Arena arena = arena_make_from_virtual_mem(4096);
+  Arena arena = arena_make_from_virtual_mem(4 * KiB);
 
   // No `Cookie` header.
   {
@@ -575,7 +575,7 @@ static void test_extract_user_id_cookie() {
 }
 
 static void test_html_sanitize() {
-  Arena arena = arena_make_from_virtual_mem(4096);
+  Arena arena = arena_make_from_virtual_mem(4 * KiB);
   String s =
       S("<pre onclick=\"alert('hello')\"><code>int main() {}</code></pre>");
   String sanitized = html_sanitize(s, &arena);

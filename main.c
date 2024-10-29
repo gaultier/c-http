@@ -853,7 +853,7 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
 }
 
 int main() {
-  Arena arena = arena_make_from_virtual_mem(4096);
+  Arena arena = arena_make_from_virtual_mem(4 * KiB);
 
   if (DB_ERR_NONE != db_setup(&arena)) {
     exit(EINVAL);
