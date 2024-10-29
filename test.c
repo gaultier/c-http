@@ -515,6 +515,7 @@ static void test_html_to_string() {
 static void test_extract_user_id_cookie() {
   Arena arena = arena_make_from_virtual_mem(4096);
 
+  // No `Cookie` header.
   {
     HttpRequest req = {0};
     *dyn_push(&req.headers, &arena) = (KeyValue){
@@ -524,6 +525,52 @@ static void test_extract_user_id_cookie() {
 
     String value = http_req_extract_cookie_with_name(req, S("foo"), &arena);
     ASSERT(string_eq(S(""), value));
+  }
+  // `Cookie` header present but with different name.
+  {
+    HttpRequest req = {0};
+    *dyn_push(&req.headers, &arena) = (KeyValue){
+        .key = S("Host"),
+        .value = S("google.com"),
+    };
+    *dyn_push(&req.headers, &arena) = (KeyValue){
+        .key = S("Cookie"),
+        .value = S("bar=foo"),
+    };
+
+    String value = http_req_extract_cookie_with_name(req, S("foo"), &arena);
+    ASSERT(string_eq(S(""), value));
+  }
+  // `Cookie` header present with matching name but value is empty.
+  {
+    HttpRequest req = {0};
+    *dyn_push(&req.headers, &arena) = (KeyValue){
+        .key = S("Host"),
+        .value = S("google.com"),
+    };
+    *dyn_push(&req.headers, &arena) = (KeyValue){
+        .key = S("Cookie"),
+        .value = S("foo="),
+    };
+
+    String value = http_req_extract_cookie_with_name(req, S("foo"), &arena);
+    ASSERT(string_eq(S(""), value));
+  }
+  // `Cookie` header present with matching name and value has multiple
+  // components.
+  {
+    HttpRequest req = {0};
+    *dyn_push(&req.headers, &arena) = (KeyValue){
+        .key = S("Host"),
+        .value = S("google.com"),
+    };
+    *dyn_push(&req.headers, &arena) = (KeyValue){
+        .key = S("Cookie"),
+        .value = S("foo=bar; SameSite=Strict; Secure"),
+    };
+
+    String value = http_req_extract_cookie_with_name(req, S("foo"), &arena);
+    ASSERT(string_eq(S("bar"), value));
   }
 }
 
