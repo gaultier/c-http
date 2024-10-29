@@ -15,6 +15,7 @@ MVP:
 - [x] Use cookie for user id
 - [ ] Sanitize user input in html
 - [ ] Cast a vote UI
+- [ ] Content security policy
 - [ ] See poll results
 - [ ] Pretty UI
 - [ ] Monkey testing/fuzz testing [Last]

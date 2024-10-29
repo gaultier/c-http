@@ -42,6 +42,7 @@ http_response_add_user_id_cookie(HttpResponse resp, String user_id,
   dyn_append_slice(&cookie_value, S("="), arena);
   dyn_append_slice(&cookie_value, user_id, arena);
   dyn_append_slice(&cookie_value, S("; Secure"), arena);
+  dyn_append_slice(&cookie_value, S("; HttpOnly"), arena);
 
   *dyn_push(&res.headers, arena) = (KeyValue){
       .key = S("Set-Cookie"),
