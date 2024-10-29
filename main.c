@@ -359,6 +359,19 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
           HtmlElement tag_li = {.kind = HTML_LI};
           *dyn_push(&tag_li.children, arena) =
               (HtmlElement){.kind = HTML_TEXT, .text = option};
+
+          HtmlElement tag_button_up = {
+              .kind = HTML_BUTTON,
+              .text = S("↑"),
+          };
+          *dyn_push(&tag_li.children, arena) = tag_button_up;
+
+          HtmlElement tag_button_down = {
+              .kind = HTML_BUTTON,
+              .text = S("↓"),
+          };
+          *dyn_push(&tag_li.children, arena) = tag_button_down;
+
           *dyn_push(&tag_ol.children, arena) = tag_li;
         }
         *dyn_push(&body_div.children, arena) = tag_ol;
