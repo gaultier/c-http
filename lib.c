@@ -26,6 +26,15 @@
 #define GiB (1024ULL * Mi)
 #define TiB (1024ULL * Gi)
 
+typedef uint8_t u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
+typedef int8_t i8;
+typedef int16_t i16;
+typedef int32_t i32;
+typedef int64_t i64;
+
 #define static_array_len(a) (sizeof(a) / sizeof((a)[0]))
 
 #define CLAMP(n, min, max)                                                     \
