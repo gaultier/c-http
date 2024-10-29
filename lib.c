@@ -294,7 +294,7 @@ typedef struct {
   ParseNumberResult res = {0};
 
   for (u64 i = 0; i < trimmed.len; i++) {
-    u8 c = AT(trimmed.data, trimmed.len, i);
+    u8 c = slice_at(trimmed, i);
 
     if (!('0' <= c && c <= '9')) { // Error.
       res.err = true;
@@ -302,7 +302,7 @@ typedef struct {
     }
 
     res.n *= 10;
-    res.n += (u8)AT(trimmed.data, trimmed.len, i) - '0';
+    res.n += (u8)slice_at(trimmed, i) - '0';
   }
   res.present = true;
   return res;
@@ -437,7 +437,7 @@ typedef struct {
   do {                                                                         \
     dyn_ensure_cap(dst, (dst)->len + (src).len, arena);                        \
     for (u64 _iii = 0; _iii < src.len; _iii++) {                               \
-      *dyn_push(dst, arena) = AT(src.data, src.len, _iii);                     \
+      *dyn_push(dst, arena) = slice_at(src, _iii);                             \
     }                                                                          \
   } while (0)
 
@@ -643,7 +643,7 @@ typedef struct {
   *dyn_push(&sb, arena) = '"';
 
   for (u64 i = 0; i < entry.len; i++) {
-    u8 c = AT(entry.data, entry.len, i);
+    u8 c = slice_at(entry, i);
     if ('"' == c) {
       *dyn_push(&sb, arena) = '\\';
       *dyn_push(&sb, arena) = '"';
@@ -678,8 +678,8 @@ typedef struct {
   DynU8 sb = {0};
 
   for (u64 i = 0; i < entry.len; i++) {
-    u8 c = AT(entry.data, entry.len, i);
-    u8 next = i + 1 < entry.len ? AT(entry.data, entry.len, i + 1) : 0;
+    u8 c = slice_at(entry, i);
+    u8 next = i + 1 < entry.len ? slice_at(entry, i + 1) : 0;
 
     if ('\\' == c) {
       if ('"' == next) {
@@ -854,7 +854,7 @@ typedef enum {
 [[nodiscard]] static i64 string_indexof_unescaped_byte(String haystack,
                                                        u8 needle) {
   for (u64 i = 0; i < haystack.len; i++) {
-    u8 c = AT(haystack.data, haystack.len, i);
+    u8 c = slice_at(haystack, i);
 
     if (c != needle) {
       continue;
@@ -864,7 +864,7 @@ typedef enum {
       return (i64)i;
     }
 
-    u8 previous = AT(haystack.data, haystack.len, i - 1);
+    u8 previous = slice_at(haystack, i - 1);
     if ('\\' != previous) {
       return (i64)i;
     }
@@ -878,7 +878,7 @@ static u64 skip_over_whitespace(String s, u64 idx_start) {
 
   u64 idx = idx_start;
   for (; idx < s.len; idx++) {
-    u8 c = AT(s.data, s.len, idx);
+    u8 c = slice_at(s, idx);
     if (' ' != c) {
       return idx;
     }
@@ -894,7 +894,7 @@ json_decode_string_slice(String s, Arena *arena) {
     res.err = HS_ERR_INVALID_JSON;
     return res;
   }
-  if ('[' != AT(s.data, s.len, 0)) {
+  if ('[' != slice_at(s, 0)) {
     res.err = HS_ERR_INVALID_JSON;
     return res;
   }
@@ -903,7 +903,7 @@ json_decode_string_slice(String s, Arena *arena) {
   for (u64 i = 1; i < s.len - 2;) {
     i = skip_over_whitespace(s, i);
 
-    u8 c = AT(s.data, s.len, i);
+    u8 c = slice_at(s, i);
     if ('"' != c) { // Opening quote.
       res.err = HS_ERR_INVALID_JSON;
       return res;
@@ -936,7 +936,7 @@ json_decode_string_slice(String s, Arena *arena) {
       break;
     }
 
-    c = AT(s.data, s.len, i);
+    c = slice_at(s, i);
     if (',' != c) {
       res.err = HS_ERR_INVALID_JSON;
       return res;
@@ -944,7 +944,7 @@ json_decode_string_slice(String s, Arena *arena) {
     i += 1;
   }
 
-  if (']' != AT(s.data, s.len, s.len - 1)) {
+  if (']' != slice_at(s, s.len - 1)) {
     res.err = HS_ERR_INVALID_JSON;
     return res;
   }
