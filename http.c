@@ -10,9 +10,9 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-static const uint64_t HTTP_REQUEST_LINES_MAX_COUNT = 512;
-static const uint64_t HTTP_SERVER_HANDLER_MEM_LEN = 12 * KiB;
-static const uint16_t HTTP_SERVER_DEFAULT_PORT = 12345;
+static const u64 HTTP_REQUEST_LINES_MAX_COUNT = 512;
+static const u64 HTTP_SERVER_HANDLER_MEM_LEN = 12 * KiB;
+static const u16 HTTP_SERVER_DEFAULT_PORT = 12345;
 static const int TCP_LISTEN_BACKLOG = 16384;
 
 typedef enum { HM_UNKNOWN, HM_GET, HM_POST } HttpMethod;
@@ -36,7 +36,7 @@ typedef struct {
 
 typedef struct {
   KeyValue *data;
-  uint64_t len, cap;
+  u64 len, cap;
 } DynKeyValue;
 
 typedef struct {
@@ -50,7 +50,7 @@ typedef struct {
 } HttpRequest;
 
 typedef struct {
-  uint16_t status;
+  u16 status;
   DynKeyValue headers;
   Error err;
 
@@ -67,7 +67,7 @@ typedef struct {
 typedef IoOperationResult (*ReadFn)(void *ctx, void *buf, size_t buf_len);
 
 typedef struct {
-  uint64_t buf_idx;
+  u64 buf_idx;
   DynU8 buf;
   void *ctx;
   ReadFn read_fn;
@@ -77,18 +77,18 @@ typedef struct {
 
 [[nodiscard]] static IoOperationResult
 reader_read_from_socket(void *ctx, void *buf, size_t buf_len) {
-  const ssize_t n_read = recv((int)(uint64_t)ctx, buf, buf_len, 0);
+  const ssize_t n_read = recv((int)(u64)ctx, buf, buf_len, 0);
   if (n_read == -1) {
     return (IoOperationResult){.err = (Error)errno};
   }
   ASSERT(n_read >= 0);
 
-  return (IoOperationResult){.s.data = buf, .s.len = (uint64_t)n_read};
+  return (IoOperationResult){.s.data = buf, .s.len = (u64)n_read};
 }
 
 [[nodiscard]] static Reader reader_make_from_socket(int socket) {
   return (Reader){
-      .ctx = (void *)(uint64_t)socket,
+      .ctx = (void *)(u64)socket,
       .read_fn = reader_read_from_socket,
   };
 }
@@ -102,25 +102,24 @@ typedef struct {
 
 [[nodiscard]] static IoOperationResult
 writer_write_from_socket(void *ctx, void *buf, size_t buf_len) {
-  const ssize_t n_written = send((int)(uint64_t)ctx, buf, buf_len, 0);
+  const ssize_t n_written = send((int)(u64)ctx, buf, buf_len, 0);
   if (n_written == -1) {
     return (IoOperationResult){.err = (Error)errno};
   }
   ASSERT(n_written >= 0);
 
-  return (IoOperationResult){.s.data = (uint8_t *)buf,
-                             .s.len = (uint64_t)n_written};
+  return (IoOperationResult){.s.data = (u8 *)buf, .s.len = (u64)n_written};
 }
 
 [[nodiscard]] static Writer writer_make_from_socket(int socket) {
   return (Writer){
-      .ctx = (void *)(uint64_t)socket,
+      .ctx = (void *)(u64)socket,
       .write = writer_write_from_socket,
   };
 }
 
 [[nodiscard]] static Error writer_write_all(Writer writer, String s) {
-  for (uint64_t idx = 0; idx < s.len;) {
+  for (u64 idx = 0; idx < s.len;) {
     const String to_write = slice_range(s, idx, 0);
     const IoOperationResult write_res =
         writer.write(writer.ctx, to_write.data, to_write.len);
@@ -162,7 +161,7 @@ typedef struct {
                                                             Arena *arena) {
   ASSERT(reader->buf.len >= reader->buf_idx);
 
-  uint8_t tmp[READER_IO_BUF_LEN] = {0};
+  u8 tmp[READER_IO_BUF_LEN] = {0};
   IoOperationResult res = reader->read_fn(reader->ctx, tmp, sizeof(tmp));
   if (res.err) {
     return res;
@@ -173,7 +172,7 @@ typedef struct {
 
   String s = {.data = tmp, .len = res.s.len};
 
-  uint64_t reader_buf_len_prev = reader->buf.len;
+  u64 reader_buf_len_prev = reader->buf.len;
   dyn_append_slice(&reader->buf, s, arena);
 
   res.s.data = dyn_at_ptr(&reader->buf, reader_buf_len_prev);
@@ -204,14 +203,14 @@ reader_read_until_slice(Reader *reader, String needle, Arena *arena) {
 
   IoOperationResult io = {0};
 
-  for (uint64_t i = 0; i < 128; i++) // FIXME
+  for (u64 i = 0; i < 128; i++) // FIXME
   {
     io = reader_read(reader, arena);
     if (io.err) {
       return io;
     }
 
-    int64_t idx = string_indexof_string(io.s, needle);
+    i64 idx = string_indexof_string(io.s, needle);
     // Not found, continue reading.
     if (idx == -1) {
       continue;
@@ -219,10 +218,10 @@ reader_read_until_slice(Reader *reader, String needle, Arena *arena) {
     ASSERT(idx >= 0);
 
     // Found but maybe read some in excess, need to rewind a bit.
-    uint64_t excess_read = io.s.len - ((uint64_t)idx + needle.len);
+    u64 excess_read = io.s.len - ((u64)idx + needle.len);
     ASSERT(reader->buf_idx >= excess_read);
     reader->buf_idx -= excess_read;
-    io.s.len = (uint64_t)idx;
+    io.s.len = (u64)idx;
     return io;
   }
 
@@ -231,13 +230,13 @@ reader_read_until_slice(Reader *reader, String needle, Arena *arena) {
 }
 
 [[nodiscard]] static IoOperationResult
-reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
-  uint64_t remaining_to_read = content_length;
+reader_read_exactly(Reader *reader, u64 content_length, Arena *arena) {
+  u64 remaining_to_read = content_length;
 
   dyn_ensure_cap(&reader->buf, content_length, arena);
   IoOperationResult res = {0};
 
-  for (uint64_t i = 0; i < content_length; i++) {
+  for (u64 i = 0; i < content_length; i++) {
     if (0 == remaining_to_read) {
       ASSERT(res.s.len == content_length);
       return res;
@@ -283,7 +282,7 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
   String work = string_split_next(&split_it_question).s;
 
   SplitIterator split_it_slash = string_split(work, '/');
-  for (uint64_t i = 0; i < s.len; i++) { // Bound.
+  for (u64 i = 0; i < s.len; i++) { // Bound.
     SplitResult split = string_split_next(&split_it_slash);
     if (!split.ok) {
       break;
@@ -300,7 +299,7 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
 }
 
 [[nodiscard]] static String make_unique_id_u128_string(Arena *arena) {
-  __uint128_t id = 0;
+  u128 id = 0;
   arc4random_buf(&id, sizeof(id));
 
   DynU8 dyn = {0};
@@ -383,7 +382,7 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
 reader_read_headers(Reader *reader, DynKeyValue *headers, Arena *arena) {
   dyn_ensure_cap(headers, 30, arena);
 
-  for (uint64_t _i = 0; _i < HTTP_REQUEST_LINES_MAX_COUNT; _i++) {
+  for (u64 _i = 0; _i < HTTP_REQUEST_LINES_MAX_COUNT; _i++) {
     const LineRead line = reader_read_line(reader, arena);
 
     if (line.err) {
@@ -415,7 +414,7 @@ reader_read_headers(Reader *reader, DynKeyValue *headers, Arena *arena) {
                                                              Arena *arena) {
   IoOperationResult res = {0};
 
-  uint64_t reader_initial_idx = reader->buf_idx;
+  u64 reader_initial_idx = reader->buf_idx;
 
   for (;;) { // TODO: Bound?
     IoOperationResult io = reader_read(reader, arena);
@@ -452,7 +451,7 @@ reader_read_headers(Reader *reader, DynKeyValue *headers, Arena *arena) {
 request_parse_content_length_maybe(HttpRequest req, Arena *arena) {
   ASSERT(!req.err);
 
-  for (uint64_t i = 0; i < req.headers.len; i++) {
+  for (u64 i = 0; i < req.headers.len; i++) {
     KeyValue h = req.headers.data[i];
 
     if (!string_ieq_ascii(S("Content-Length"), h.key, arena)) {
@@ -466,7 +465,7 @@ request_parse_content_length_maybe(HttpRequest req, Arena *arena) {
 
 [[nodiscard]] static HttpRequest request_read_body(HttpRequest req,
                                                    Reader *reader,
-                                                   uint64_t content_length,
+                                                   u64 content_length,
                                                    Arena *arena) {
   ASSERT(!req.err);
   HttpRequest res = req;
@@ -523,7 +522,7 @@ request_parse_content_length_maybe(HttpRequest req, Arena *arena) {
   dynu8_append_u64(&sb, res.status, arena);
   dyn_append_slice(&sb, S("\r\n"), arena);
 
-  for (uint64_t i = 0; i < res.headers.len; i++) {
+  for (u64 i = 0; i < res.headers.len; i++) {
     KeyValue header = dyn_at(res.headers, i);
     dyn_append_slice(&sb, header.key, arena);
     dyn_append_slice(&sb, S(": "), arena);
@@ -557,7 +556,7 @@ request_parse_content_length_maybe(HttpRequest req, Arena *arena) {
 
     ASSERT(st.st_size >= 0);
 
-    err = os_sendfile(file_fd, (int)(uint64_t)writer.ctx, (uint64_t)st.st_size);
+    err = os_sendfile(file_fd, (int)(u64)writer.ctx, (u64)st.st_size);
     if (err) {
       return err;
     }
@@ -607,8 +606,8 @@ static void handle_client(int socket, HttpRequestHandleFn handle, void *ctx) {
 
   ASSERT(arena.end >= arena.start);
 
-  const uint64_t mem_use = HTTP_SERVER_HANDLER_MEM_LEN -
-                           ((uint64_t)arena.end - (uint64_t)arena.start);
+  const u64 mem_use =
+      HTTP_SERVER_HANDLER_MEM_LEN - ((u64)arena.end - (u64)arena.start);
   log(LOG_LEVEL_INFO, "http request end", &arena, L("arena_use", mem_use),
       L("req.path", req.path_raw), L("req.headers.len", req.headers.len),
       L("res.headers.len", res.headers.len), L("status", res.status),
@@ -619,7 +618,7 @@ static void handle_client(int socket, HttpRequestHandleFn handle, void *ctx) {
   close(socket);
 }
 
-static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
+static Error http_server_run(u16 port, HttpRequestHandleFn request_handler,
                              void *ctx, Arena *arena) {
 
   struct sigaction sa = {.sa_flags = SA_NOCLDWAIT};
@@ -672,7 +671,7 @@ static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
     const int conn_fd = accept(sock_fd, nullptr, 0);
     if (conn_fd == -1) {
       log(LOG_LEVEL_ERROR, "accept(2)", arena, L("err", errno),
-          L("arena.available", (uint64_t)arena->end - (uint64_t)arena->start));
+          L("arena.available", (u64)arena->end - (u64)arena->start));
       if (EINTR == errno) {
         continue;
       }
@@ -693,8 +692,8 @@ static Error http_server_run(uint16_t port, HttpRequestHandleFn request_handler,
 }
 
 [[maybe_unused]] [[nodiscard]] static HttpResponse
-http_client_request(struct sockaddr *addr, uint32_t addr_sizeof,
-                    HttpRequest req, Arena *arena) {
+http_client_request(struct sockaddr *addr, u32 addr_sizeof, HttpRequest req,
+                    Arena *arena) {
   HttpResponse res = {0};
 
   if (!slice_is_empty(req.path_raw)) {
@@ -723,7 +722,7 @@ http_client_request(struct sockaddr *addr, uint32_t addr_sizeof,
   dyn_append_slice(&sb, http_method_to_s(req.method), arena);
   dyn_append_slice(&sb, S(" /"), arena);
 
-  for (uint64_t i = 0; i < req.path_components.len; i++) {
+  for (u64 i = 0; i < req.path_components.len; i++) {
     String path_component = dyn_at(req.path_components, i);
     // TODO: Need to url encode?
     dyn_append_slice(&sb, path_component, arena);
@@ -732,7 +731,7 @@ http_client_request(struct sockaddr *addr, uint32_t addr_sizeof,
   dyn_append_slice(&sb, S(" HTTP/1.1"), arena);
   dyn_append_slice(&sb, S("\r\n"), arena);
 
-  for (uint64_t i = 0; i < req.headers.len; i++) {
+  for (u64 i = 0; i < req.headers.len; i++) {
     KeyValue header = dyn_at(req.headers, i);
     dyn_append_slice(&sb, header.key, arena);
     dyn_append_slice(&sb, S(": "), arena);
@@ -742,7 +741,7 @@ http_client_request(struct sockaddr *addr, uint32_t addr_sizeof,
   dyn_append_slice(&sb, S("\r\n"), arena);
   dyn_append_slice(&sb, req.body, arena);
 
-  ASSERT(send(client, sb.data, sb.len, 0) == (int64_t)sb.len);
+  ASSERT(send(client, sb.data, sb.len, 0) == (i64)sb.len);
 
   Reader reader = reader_make_from_socket(client);
 
@@ -779,7 +778,7 @@ http_client_request(struct sockaddr *addr, uint32_t addr_sizeof,
       goto end;
     }
 
-    res.status = (uint16_t)status_parsed.n;
+    res.status = (u16)status_parsed.n;
   }
 
   res.err = reader_read_headers(&reader, &res.headers, arena);
@@ -807,7 +806,7 @@ typedef struct {
 
 typedef struct {
   FormDataKV *data;
-  uint64_t len, cap;
+  u64 len, cap;
 } DynFormData;
 
 typedef struct {
@@ -829,13 +828,13 @@ typedef struct {
 } FormDataKVElementParseResult;
 
 [[nodiscard]] static FormDataKVElementParseResult
-form_data_kv_parse_element(String in, uint8_t ch_terminator, Arena *arena) {
+form_data_kv_parse_element(String in, u8 ch_terminator, Arena *arena) {
   FormDataKVElementParseResult res = {0};
   DynU8 data = {0};
 
-  uint64_t i = 0;
+  u64 i = 0;
   for (; i < in.len; i++) {
-    uint8_t c = in.data[i];
+    u8 c = in.data[i];
 
     if ('+' == c) {
       *dyn_push(&data, arena) = ' ';
@@ -844,15 +843,15 @@ form_data_kv_parse_element(String in, uint8_t ch_terminator, Arena *arena) {
         res.err = HS_ERR_INVALID_FORM_DATA;
         return res;
       }
-      uint8_t c1 = in.data[i + 1];
-      uint8_t c2 = in.data[i + 2];
+      u8 c1 = in.data[i + 1];
+      u8 c2 = in.data[i + 2];
 
       if (!(ch_is_hex_digit(c1) && ch_is_hex_digit(c2))) {
         res.err = HS_ERR_INVALID_FORM_DATA;
         return res;
       }
 
-      uint8_t utf8_character = ch_from_hex(c1) * 16 + ch_from_hex(c2);
+      u8 utf8_character = ch_from_hex(c1) * 16 + ch_from_hex(c2);
       *dyn_push(&data, arena) = utf8_character;
       i += 2; // Consume 2 characters.
     } else if (ch_terminator == c) {
@@ -902,7 +901,7 @@ form_data_kv_parse_element(String in, uint8_t ch_terminator, Arena *arena) {
 
   String remaining = in;
 
-  for (uint64_t i = 0; i < in.len; i++) { // Bound.
+  for (u64 i = 0; i < in.len; i++) { // Bound.
     if (slice_is_empty(remaining)) {
       break;
     }
@@ -944,7 +943,7 @@ typedef enum {
 typedef struct HtmlElement HtmlElement;
 typedef struct {
   HtmlElement *data;
-  uint64_t len, cap;
+  u64 len, cap;
 } DynHtmlElements;
 
 struct HtmlElement {
@@ -992,7 +991,7 @@ typedef struct {
 
 static void html_attributes_to_string(DynKeyValue attributes, DynU8 *sb,
                                       Arena *arena) {
-  for (uint64_t i = 0; i < attributes.len; i++) {
+  for (u64 i = 0; i < attributes.len; i++) {
     KeyValue attr = dyn_at(attributes, i);
     ASSERT(-1 == string_indexof_string(attr.key, S("\"")));
 
@@ -1012,7 +1011,7 @@ static void html_tag_to_string(HtmlElement e, DynU8 *sb, Arena *arena);
 
 static void html_tags_to_string(DynHtmlElements elements, DynU8 *sb,
                                 Arena *arena) {
-  for (uint64_t i = 0; i < elements.len; i++) {
+  for (u64 i = 0; i < elements.len; i++) {
     HtmlElement e = dyn_at(elements, i);
     html_tag_to_string(e, sb, arena);
   }
@@ -1108,7 +1107,7 @@ http_req_extract_cookie_with_name(HttpRequest req, String cookie_name,
                                   Arena *arena) {
   String res = {0};
   {
-    for (uint64_t i = 0; i < req.headers.len; i++) {
+    for (u64 i = 0; i < req.headers.len; i++) {
       KeyValue h = slice_at(req.headers, i);
 
       if (!string_ieq_ascii(h.key, S("Cookie"), arena)) {
@@ -1119,7 +1118,7 @@ http_req_extract_cookie_with_name(HttpRequest req, String cookie_name,
       }
 
       SplitIterator it_semicolon = string_split(h.value, ';');
-      for (uint64_t j = 0; j < h.value.len; j++) {
+      for (u64 j = 0; j < h.value.len; j++) {
         SplitResult split_semicolon = string_split_next(&it_semicolon);
         if (!split_semicolon.ok) {
           break;
@@ -1151,8 +1150,8 @@ http_req_extract_cookie_with_name(HttpRequest req, String cookie_name,
 [[nodiscard]] static String html_sanitize(String s, Arena *arena) {
   DynU8 res = {0};
   dyn_ensure_cap(&res, s.len, arena);
-  for (uint64_t i = 0; i < s.len; i++) {
-    uint8_t c = slice_at(s, i);
+  for (u64 i = 0; i < s.len; i++) {
+    u8 c = slice_at(s, i);
 
     if ('&' == c) {
       dyn_append_slice(&res, S("&amp"), arena);

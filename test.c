@@ -31,7 +31,7 @@ static void test_string_indexof_slice() {
 
 typedef struct {
   String s;
-  uint64_t idx;
+  u64 idx;
 } MemReadContext;
 
 static IoOperationResult reader_read_from_slice(void *ctx, void *buf,
@@ -45,8 +45,8 @@ static IoOperationResult reader_read_from_slice(void *ctx, void *buf,
     return (IoOperationResult){0};
   }
 
-  const uint64_t remaining = mem_ctx->s.len - mem_ctx->idx;
-  const uint64_t can_fill = MIN(remaining, buf_len);
+  const u64 remaining = mem_ctx->s.len - mem_ctx->idx;
+  const u64 can_fill = MIN(remaining, buf_len);
   ASSERT(can_fill <= remaining);
 
   IoOperationResult res = {
@@ -156,13 +156,13 @@ static void test_log_entry_quote_value() {
     ASSERT(string_eq(expected, json_escape_string(s, &arena)));
   }
   {
-    uint8_t backslash = 0x5c;
-    uint8_t double_quote = '"';
-    uint8_t data[] = {backslash, double_quote};
+    u8 backslash = 0x5c;
+    u8 double_quote = '"';
+    u8 data[] = {backslash, double_quote};
     String s = {.data = data, .len = sizeof(data)};
 
-    uint8_t data_expected[] = {double_quote, backslash,    backslash,
-                               backslash,    double_quote, double_quote};
+    u8 data_expected[] = {double_quote, backslash,    backslash,
+                          backslash,    double_quote, double_quote};
     String expected = {.data = data_expected, .len = sizeof(data_expected)};
     ASSERT(string_eq(expected, json_escape_string(s, &arena)));
   }
@@ -182,7 +182,7 @@ static void test_make_log_line() {
 }
 
 static void test_dyn_ensure_cap() {
-  uint64_t arena_cap = 4 * KiB;
+  u64 arena_cap = 4 * KiB;
 
   // Trigger the optimization when the last allocation in the arena gets
   // extended.
@@ -194,16 +194,14 @@ static void test_dyn_ensure_cap() {
     ASSERT(1 == dyn.len);
     ASSERT(2 == dyn.cap);
 
-    uint64_t arena_size_expected =
-        arena_cap - ((uint64_t)arena.end - (uint64_t)arena.start);
+    u64 arena_size_expected = arena_cap - ((u64)arena.end - (u64)arena.start);
     ASSERT(2 == arena_size_expected);
     ASSERT(dyn.cap == arena_size_expected);
 
-    uint64_t desired_cap = 13;
+    u64 desired_cap = 13;
     dyn_ensure_cap(&dyn, desired_cap, &arena);
     ASSERT(16 == dyn.cap);
-    arena_size_expected =
-        arena_cap - ((uint64_t)arena.end - (uint64_t)arena.start);
+    arena_size_expected = arena_cap - ((u64)arena.end - (u64)arena.start);
     ASSERT(16 == arena_size_expected);
   }
   // General case.
@@ -219,8 +217,7 @@ static void test_dyn_ensure_cap() {
     *dyn_push(&dummy, &arena) = 2;
     *dyn_push(&dummy, &arena) = 3;
 
-    uint64_t arena_size_expected =
-        arena_cap - ((uint64_t)arena.end - (uint64_t)arena.start);
+    u64 arena_size_expected = arena_cap - ((u64)arena.end - (u64)arena.start);
     ASSERT(2 + 2 == arena_size_expected);
 
     // This triggers a new allocation.
@@ -228,16 +225,14 @@ static void test_dyn_ensure_cap() {
     ASSERT(3 == dummy.len);
     ASSERT(4 == dummy.cap);
 
-    arena_size_expected =
-        arena_cap - ((uint64_t)arena.end - (uint64_t)arena.start);
+    arena_size_expected = arena_cap - ((u64)arena.end - (u64)arena.start);
     ASSERT(2 + 4 == arena_size_expected);
 
-    uint64_t desired_cap = 13;
+    u64 desired_cap = 13;
     dyn_ensure_cap(&dyn, desired_cap, &arena);
     ASSERT(16 == dyn.cap);
 
-    arena_size_expected =
-        arena_cap - ((uint64_t)arena.end - (uint64_t)arena.start);
+    arena_size_expected = arena_cap - ((u64)arena.end - (u64)arena.start);
     ASSERT(16 + 6 == arena_size_expected);
   }
 }
@@ -262,11 +257,11 @@ static HttpResponse handle_request_post(HttpRequest req, void *ctx,
   return res;
 }
 
-static uint16_t random_port() {
-  uint16_t max_port = UINT16_MAX;
-  uint16_t min_port = 3000;
+static u16 random_port() {
+  u16 max_port = UINT16_MAX;
+  u16 min_port = 3000;
 
-  uint16_t port = (uint16_t)arc4random_uniform(max_port);
+  u16 port = (u16)arc4random_uniform(max_port);
   CLAMP(&port, min_port, max_port);
 
   return port;
@@ -277,7 +272,7 @@ static void test_http_server_post() {
 
   // The http server runs in its own child process.
   // The parent process acts as a HTTP client contacting the server.
-  uint16_t port = random_port();
+  u16 port = random_port();
 
   pid_t pid = fork();
   ASSERT(-1 != pid);
@@ -286,7 +281,7 @@ static void test_http_server_post() {
 
   } else { // Parent
 
-    for (uint64_t i = 0; i < 5; i++) {
+    for (u64 i = 0; i < 5; i++) {
       struct sockaddr_in addr = {
           .sin_family = AF_INET,
           .sin_port = htons(port),
@@ -359,7 +354,7 @@ static void test_http_server_serve_file() {
 
   // The http server runs in its own child process.
   // The parent process acts as a HTTP client contacting the server.
-  uint16_t port = random_port();
+  u16 port = random_port();
 
   pid_t pid = fork();
   ASSERT(-1 != pid);
@@ -368,7 +363,7 @@ static void test_http_server_serve_file() {
 
   } else { // Parent
 
-    for (uint64_t i = 0; i < 5; i++) {
+    for (u64 i = 0; i < 5; i++) {
       struct sockaddr_in addr = {
           .sin_family = AF_INET,
           .sin_port = htons(port),
@@ -399,14 +394,14 @@ static void test_http_server_serve_file() {
         ASSERT(-1 != stat("main.css", &st));
 
         ASSERT(st.st_size >= 0);
-        ASSERT((uint64_t)st.st_size == resp.body.len);
+        ASSERT((u64)st.st_size == resp.body.len);
 
-        void *file_content = mmap(nullptr, (uint64_t)st.st_size, PROT_READ,
-                                  MAP_PRIVATE, file, 0);
+        void *file_content =
+            mmap(nullptr, (u64)st.st_size, PROT_READ, MAP_PRIVATE, file, 0);
         ASSERT(nullptr != file_content);
 
         String file_content_slice = {.data = file_content,
-                                     .len = (uint64_t)st.st_size};
+                                     .len = (u64)st.st_size};
         ASSERT(string_eq(file_content_slice, resp.body));
 
         // Stop the http server and check it had no issue.
@@ -466,7 +461,7 @@ static void test_json_encode_decode_string_slice() {
   JsonParseStringStrResult decoded = json_decode_string_slice(encoded, &arena);
   ASSERT(!decoded.err);
   ASSERT(decoded.string_slice.len == dyn.len);
-  for (uint64_t i = 0; i < dyn.len; i++) {
+  for (u64 i = 0; i < dyn.len; i++) {
     String expected = dyn_at(dyn, i);
     String got = AT(decoded.string_slice.data, decoded.string_slice.len, i);
     ASSERT(string_eq(got, expected));

@@ -16,14 +16,14 @@ typedef enum {
   DB_ERR_INVALID_DATA,
 } DatabaseError;
 
-typedef enum : uint8_t {
+typedef enum : u8 {
   POLL_STATE_OPEN,
   POLL_STATE_CLOSED,
   POLL_STATE_MAX, // Pseudo-value.
 } PollState;
 
 typedef struct {
-  int64_t db_id;
+  i64 db_id;
   String human_readable_id;
   PollState state;
   String name;
@@ -186,7 +186,7 @@ http_respond_with_unprocessable_entity(String req_id, Arena *arena) {
     }
 
     DynString dyn_options = {0};
-    for (uint64_t i = 0; i < form.form.len; i++) {
+    for (u64 i = 0; i < form.form.len; i++) {
       FormDataKV kv = dyn_at(form.form, i);
       String value = html_sanitize(kv.value, arena);
 
@@ -267,8 +267,8 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
 
   res.poll.db_id = sqlite3_column_int64(db_select_poll_stmt, 0);
   ASSERT(0 != res.poll.db_id);
-  res.poll.name.data = (uint8_t *)sqlite3_column_text(db_select_poll_stmt, 1);
-  res.poll.name.len = (uint64_t)sqlite3_column_bytes(db_select_poll_stmt, 1);
+  res.poll.name.data = (u8 *)sqlite3_column_text(db_select_poll_stmt, 1);
+  res.poll.name.len = (u64)sqlite3_column_bytes(db_select_poll_stmt, 1);
 
   int state = sqlite3_column_int(db_select_poll_stmt, 2);
   if (state >= POLL_STATE_MAX) {
@@ -280,10 +280,8 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
   res.poll.state = (PollState)state;
 
   String options_json_encoded = {0};
-  options_json_encoded.data =
-      (uint8_t *)sqlite3_column_text(db_select_poll_stmt, 3);
-  options_json_encoded.len =
-      (uint64_t)sqlite3_column_bytes(db_select_poll_stmt, 3);
+  options_json_encoded.data = (u8 *)sqlite3_column_text(db_select_poll_stmt, 3);
+  options_json_encoded.len = (u64)sqlite3_column_bytes(db_select_poll_stmt, 3);
 
   JsonParseStringStrResult options_decoded =
       json_decode_string_slice(options_json_encoded, arena);
@@ -296,16 +294,12 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
 
   res.poll.options = options_decoded.string_slice;
 
-  res.poll.created_at.data =
-      (uint8_t *)sqlite3_column_text(db_select_poll_stmt, 4);
-  res.poll.created_at.len =
-      (uint64_t)sqlite3_column_bytes(db_select_poll_stmt, 4);
+  res.poll.created_at.data = (u8 *)sqlite3_column_text(db_select_poll_stmt, 4);
+  res.poll.created_at.len = (u64)sqlite3_column_bytes(db_select_poll_stmt, 4);
   ASSERT(!slice_is_empty(res.poll.created_at));
 
-  res.poll.created_by.data =
-      (uint8_t *)sqlite3_column_text(db_select_poll_stmt, 5);
-  res.poll.created_by.len =
-      (uint64_t)sqlite3_column_bytes(db_select_poll_stmt, 5);
+  res.poll.created_by.data = (u8 *)sqlite3_column_text(db_select_poll_stmt, 5);
+  res.poll.created_by.len = (u64)sqlite3_column_bytes(db_select_poll_stmt, 5);
   ASSERT(!slice_is_empty(res.poll.created_by));
 
   return res;
@@ -358,7 +352,7 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
       }
 
       {
-        for (uint64_t i = 0; i < poll.options.len; i++) {
+        for (u64 i = 0; i < poll.options.len; i++) {
           String option = dyn_at(poll.options, i);
 
           HtmlElement option_div = {.kind = HTML_DIV};
@@ -464,11 +458,11 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
       return DB_ERR_INVALID_DATA;
     }
 
-    for (uint64_t i_vote = 0; i_vote < vote_options.len; i_vote++) {
+    for (u64 i_vote = 0; i_vote < vote_options.len; i_vote++) {
       String vote_option = slice_at(vote_options, i_vote);
 
       bool found = false;
-      for (uint64_t i_poll = 0; i_poll < get_poll.poll.options.len; i_poll++) {
+      for (u64 i_poll = 0; i_poll < get_poll.poll.options.len; i_poll++) {
         String poll_option = slice_at(get_poll.poll.options, i_poll);
 
         if (string_eq(vote_option, poll_option)) {
@@ -544,7 +538,7 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
     }
 
     DynString dyn_options = {0};
-    for (uint64_t i = 0; i < form.form.len; i++) {
+    for (u64 i = 0; i < form.form.len; i++) {
       FormDataKV kv = dyn_at(form.form, i);
       String value = html_sanitize(kv.value, arena);
 
@@ -771,7 +765,7 @@ my_http_request_handler(HttpRequest req, void *ctx, Arena *arena) {
       "PRAGMA synchronous = NORMAL", "PRAGMA cache_size = 1000000000",
       "PRAGMA foreign_keys = true",  "PRAGMA temp_store = memory",
   };
-  for (uint64_t i = 0; i < static_array_len(pragmas); i++) {
+  for (u64 i = 0; i < static_array_len(pragmas); i++) {
     if (SQLITE_OK !=
         (db_err = sqlite3_exec(db, AT(pragmas, static_array_len(pragmas), i),
                                nullptr, nullptr, nullptr))) {

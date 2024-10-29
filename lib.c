@@ -30,6 +30,7 @@ typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
+typedef __uint128_t u128;
 typedef int8_t i8;
 typedef int16_t i16;
 typedef int32_t i32;
@@ -58,22 +59,21 @@ static void print_stacktrace(const char *file, int line, const char *function) {
          0)
 
 #define AT_PTR(arr, len, idx)                                                  \
-  (((int64_t)(idx) >= (int64_t)(len))                                          \
-       ? (__builtin_trap(), &(arr)[0])                                         \
-       : (ASSERT(nullptr != arr), (&(arr)[idx])))
+  (((i64)(idx) >= (i64)(len)) ? (__builtin_trap(), &(arr)[0])                  \
+                              : (ASSERT(nullptr != arr), (&(arr)[idx])))
 
 #define AT(arr, len, idx) (*AT_PTR(arr, len, idx))
 
 #define slice_at(s, idx) (AT((s).data, (s).len, idx))
 
-typedef uint32_t Error;
+typedef u32 Error;
 
-[[nodiscard]] static bool ch_is_hex_digit(uint8_t c) {
+[[nodiscard]] static bool ch_is_hex_digit(u8 c) {
   return ('0' <= c && c <= '9') || ('A' <= c && c <= 'F') ||
          ('a' <= c && c <= 'f');
 }
 
-[[nodiscard]] static uint8_t ch_from_hex(uint8_t c) {
+[[nodiscard]] static u8 ch_from_hex(u8 c) {
   ASSERT(ch_is_hex_digit(c));
 
   if ('0' <= c && c <= '9') {
@@ -92,16 +92,16 @@ typedef uint32_t Error;
 }
 
 typedef struct {
-  uint8_t *data;
+  u8 *data;
   uint64_t len;
 } String;
 
 #define slice_is_empty(s)                                                      \
   (((s).len == 0) ? true : (ASSERT(nullptr != (s).data), false))
 
-#define S(s) ((String){.data = (uint8_t *)s, .len = sizeof(s) - 1})
+#define S(s) ((String){.data = (u8 *)s, .len = sizeof(s) - 1})
 
-[[nodiscard]] static String string_trim_left(String s, uint8_t c) {
+[[nodiscard]] static String string_trim_left(String s, u8 c) {
   String res = s;
 
   for (uint64_t s_i = 0; s_i < s.len; s_i++) {
@@ -116,10 +116,10 @@ typedef struct {
   return res;
 }
 
-[[nodiscard]] static String string_trim_right(String s, uint8_t c) {
+[[nodiscard]] static String string_trim_right(String s, u8 c) {
   String res = s;
 
-  for (int64_t s_i = (int64_t)s.len - 1; s_i >= 0; s_i--) {
+  for (i64 s_i = (i64)s.len - 1; s_i >= 0; s_i--) {
     ASSERT(s.data != nullptr);
     if (AT(s.data, s.len, s_i) != c) {
       return res;
@@ -130,7 +130,7 @@ typedef struct {
   return res;
 }
 
-[[nodiscard]] static String string_trim(String s, uint8_t c) {
+[[nodiscard]] static String string_trim(String s, u8 c) {
   String res = string_trim_left(s, c);
   res = string_trim_right(res, c);
 
@@ -139,7 +139,7 @@ typedef struct {
 
 typedef struct {
   String s;
-  uint8_t sep;
+  u8 sep;
 } SplitIterator;
 
 typedef struct {
@@ -147,17 +147,16 @@ typedef struct {
   bool ok;
 } SplitResult;
 
-[[nodiscard]] static SplitIterator string_split(String s, uint8_t sep) {
+[[nodiscard]] static SplitIterator string_split(String s, u8 sep) {
   return (SplitIterator){.s = s, .sep = sep};
 }
 
-[[nodiscard]] static int64_t string_indexof_byte(String haystack,
-                                                 uint8_t needle) {
+[[nodiscard]] static i64 string_indexof_byte(String haystack, u8 needle) {
   if (slice_is_empty(haystack)) {
     return -1;
   }
 
-  const uint8_t *res = memchr(haystack.data, needle, haystack.len);
+  const u8 *res = memchr(haystack.data, needle, haystack.len);
   if (res == nullptr) {
     return -1;
   }
@@ -180,7 +179,7 @@ typedef struct {
   }
 
   for (uint64_t _i = 0; _i < it->s.len; _i++) {
-    const int64_t idx = string_indexof_byte(it->s, it->sep);
+    const i64 idx = string_indexof_byte(it->s, it->sep);
     if (-1 == idx) {
       // Last element.
       SplitResult res = {.s = it->s, .ok = true};
@@ -227,8 +226,7 @@ typedef struct {
   return memcmp(a.data, b.data, a.len) == 0;
 }
 
-[[nodiscard]] static int64_t string_indexof_string(String haystack,
-                                                   String needle) {
+[[nodiscard]] static i64 string_indexof_string(String haystack, String needle) {
   if (haystack.data == nullptr) {
     return -1;
   }
@@ -254,9 +252,9 @@ typedef struct {
     return -1;
   }
 
-  uint64_t res = (uint64_t)((uint8_t *)ptr - haystack.data);
+  uint64_t res = (uint64_t)((u8 *)ptr - haystack.data);
   ASSERT(res < haystack.len);
-  return (int64_t)res;
+  return (i64)res;
 }
 
 [[nodiscard]] static bool string_starts_with(String haystack, String needle) {
@@ -296,7 +294,7 @@ typedef struct {
   ParseNumberResult res = {0};
 
   for (uint64_t i = 0; i < trimmed.len; i++) {
-    uint8_t c = AT(trimmed.data, trimmed.len, i);
+    u8 c = AT(trimmed.data, trimmed.len, i);
 
     if (!('0' <= c && c <= '9')) { // Error.
       res.err = true;
@@ -304,15 +302,15 @@ typedef struct {
     }
 
     res.n *= 10;
-    res.n += (uint8_t)AT(trimmed.data, trimmed.len, i) - '0';
+    res.n += (u8)AT(trimmed.data, trimmed.len, i) - '0';
   }
   res.present = true;
   return res;
 }
 
 typedef struct {
-  uint8_t *start;
-  uint8_t *end;
+  u8 *start;
+  u8 *end;
 } Arena;
 
 __attribute((malloc, alloc_size(2, 4), alloc_align(3)))
@@ -323,8 +321,7 @@ arena_alloc(Arena *a, uint64_t size, uint64_t align, uint64_t count) {
   const uint64_t padding = (-(uint64_t)a->start & (align - 1));
   ASSERT(padding <= align);
 
-  const int64_t available =
-      (int64_t)a->end - (int64_t)a->start - (int64_t)padding;
+  const i64 available = (i64)a->end - (i64)a->start - (i64)padding;
   ASSERT(available >= 0);
   ASSERT(count <= (uint64_t)available / size);
 
@@ -413,7 +410,7 @@ static void dyn_grow(void *slice, uint64_t size, uint64_t align, uint64_t count,
       0 : 0
 
 typedef struct {
-  uint8_t *data;
+  u8 *data;
   uint64_t len, cap;
 } DynU8;
 
@@ -449,7 +446,7 @@ typedef struct {
 #define dyn_slice(T, dyn) ((T){.data = dyn.data, .len = dyn.len})
 
 static void dynu8_append_u64(DynU8 *dyn, uint64_t n, Arena *arena) {
-  uint8_t tmp[30] = {0};
+  u8 tmp[30] = {0};
   const int written_count = snprintf((char *)tmp, sizeof(tmp), "%lu", n);
 
   ASSERT(written_count > 0);
@@ -458,7 +455,7 @@ static void dynu8_append_u64(DynU8 *dyn, uint64_t n, Arena *arena) {
   dyn_append_slice(dyn, s, arena);
 }
 
-[[nodiscard]] static uint8_t u8_to_ch_hex(uint8_t n) {
+[[nodiscard]] static u8 u8_to_ch_hex(u8 n) {
   ASSERT(n < 16);
 
   if (n <= 9) {
@@ -479,17 +476,17 @@ static void dynu8_append_u64(DynU8 *dyn, uint64_t n, Arena *arena) {
   ASSERT(0);
 }
 
-static void dynu8_append_u128_hex(DynU8 *dyn, __uint128_t n, Arena *arena) {
+static void dynu8_append_u128_hex(DynU8 *dyn, u128 n, Arena *arena) {
   dyn_ensure_cap(dyn, dyn->len + 32, arena);
   uint64_t dyn_original_len = dyn->len;
 
-  uint8_t it[16] = {0};
+  u8 it[16] = {0};
   ASSERT(sizeof(it) == sizeof(n));
-  memcpy(it, (uint8_t *)&n, sizeof(n));
+  memcpy(it, (u8 *)&n, sizeof(n));
 
   for (uint64_t i = 0; i < sizeof(it); i++) {
-    uint8_t c1 = it[i] % 16;
-    uint8_t c2 = it[i] / 16;
+    u8 c1 = it[i] % 16;
+    u8 c2 = it[i] / 16;
     *dyn_push(dyn, arena) = u8_to_ch_hex(c2);
     *dyn_push(dyn, arena) = u8_to_ch_hex(c1);
   }
@@ -521,8 +518,8 @@ static void dynu8_append_u128_hex(DynU8 *dyn, __uint128_t n, Arena *arena) {
   // Page guard after.
   ASSERT(false == ckd_add(&mmap_size, mmap_size, page_size));
 
-  uint8_t *alloc = mmap(nullptr, mmap_size, PROT_READ | PROT_WRITE,
-                        MAP_ANON | MAP_PRIVATE, -1, 0);
+  u8 *alloc = mmap(nullptr, mmap_size, PROT_READ | PROT_WRITE,
+                   MAP_ANON | MAP_PRIVATE, -1, 0);
   ASSERT(nullptr != alloc);
 
   uint64_t page_guard_before = (uint64_t)alloc;
@@ -540,9 +537,9 @@ static void dynu8_append_u128_hex(DynU8 *dyn, __uint128_t n, Arena *arena) {
 
   // Trigger a page fault preemptively to detect invalid virtual memory
   // mappings.
-  *(uint8_t *)alloc = 0;
+  *(u8 *)alloc = 0;
 
-  return (Arena){.start = alloc, .end = (uint8_t *)alloc + size};
+  return (Arena){.start = alloc, .end = (u8 *)alloc + size};
 }
 
 typedef enum {
@@ -562,7 +559,7 @@ typedef struct {
   union {
     String s;
     uint64_t n64;
-    __uint128_t n128;
+    u128 n128;
   };
 } LogValue;
 
@@ -594,7 +591,7 @@ typedef struct {
   };
 }
 
-[[nodiscard]] static LogEntry log_entry_u16(String k, uint16_t v) {
+[[nodiscard]] static LogEntry log_entry_u16(String k, u16 v) {
   return (LogEntry){
       .key = k,
       .value.kind = LV_U64,
@@ -602,7 +599,7 @@ typedef struct {
   };
 }
 
-[[nodiscard]] static LogEntry log_entry_u32(String k, uint32_t v) {
+[[nodiscard]] static LogEntry log_entry_u32(String k, u32 v) {
   return (LogEntry){
       .key = k,
       .value.kind = LV_U64,
@@ -629,8 +626,8 @@ typedef struct {
 #define L(k, v)                                                                \
   (_Generic((v),                                                               \
       int: log_entry_int,                                                      \
-      uint16_t: log_entry_u16,                                                 \
-      uint32_t: log_entry_u32,                                                 \
+      u16: log_entry_u16,                                                      \
+      u32: log_entry_u32,                                                      \
       uint64_t: log_entry_u64,                                                 \
       String: log_entry_slice)((S(k)), v))
 
@@ -648,8 +645,8 @@ typedef struct {
   DynU8 sb = {0};
   *dyn_push(&sb, arena) = '"';
 
-  for (uint64_t i = 0; i < entry.len; i++) {
-    uint8_t c = AT(entry.data, entry.len, i);
+  for (u64 i = 0; i < entry.len; i++) {
+    u8 c = AT(entry.data, entry.len, i);
     if ('"' == c) {
       *dyn_push(&sb, arena) = '\\';
       *dyn_push(&sb, arena) = '"';
@@ -683,9 +680,9 @@ typedef struct {
 [[nodiscard]] static String json_unescape_string(String entry, Arena *arena) {
   DynU8 sb = {0};
 
-  for (uint64_t i = 0; i < entry.len; i++) {
-    uint8_t c = AT(entry.data, entry.len, i);
-    uint8_t next = i + 1 < entry.len ? AT(entry.data, entry.len, i + 1) : 0;
+  for (u64 i = 0; i < entry.len; i++) {
+    u8 c = AT(entry.data, entry.len, i);
+    u8 next = i + 1 < entry.len ? AT(entry.data, entry.len, i + 1) : 0;
 
     if ('\\' == c) {
       if ('"' == next) {
@@ -736,7 +733,7 @@ static void dynu8_append_json_object_key_string_value_string(DynU8 *sb,
 }
 
 static void dynu8_append_json_object_key_string_value_u64(DynU8 *sb, String key,
-                                                          uint64_t value,
+                                                          u64 value,
                                                           Arena *arena) {
   String json_key = json_escape_string(key, arena);
   dyn_append_slice(sb, json_key, arena);
@@ -749,17 +746,15 @@ static void dynu8_append_json_object_key_string_value_u64(DynU8 *sb, String key,
 }
 
 [[nodiscard]] static String make_log_line(LogLevel level, String msg,
-                                          Arena *arena, int32_t args_count,
-                                          ...) {
+                                          Arena *arena, i32 args_count, ...) {
   struct timespec monotonic = {0};
   clock_gettime(CLOCK_MONOTONIC, &monotonic);
-  uint64_t monotonic_ns =
-      (uint64_t)monotonic.tv_sec * 1000'000'000 + (uint64_t)monotonic.tv_nsec;
+  u64 monotonic_ns =
+      (u64)monotonic.tv_sec * 1000'000'000 + (u64)monotonic.tv_nsec;
 
   struct timespec now = {0};
   clock_gettime(CLOCK_REALTIME, &now);
-  uint64_t timestamp_ns =
-      (uint64_t)now.tv_sec * 1000'000'000 + (uint64_t)now.tv_nsec;
+  u64 timestamp_ns = (u64)now.tv_sec * 1000'000'000 + (u64)now.tv_nsec;
 
   DynU8 sb = {0};
   *dyn_push(&sb, arena) = '{';
@@ -775,7 +770,7 @@ static void dynu8_append_json_object_key_string_value_u64(DynU8 *sb, String key,
 
   va_list argp = {0};
   va_start(argp, args_count);
-  for (int32_t i = 0; i < args_count; i++) {
+  for (i32 i = 0; i < args_count; i++) {
     LogEntry entry = va_arg(argp, LogEntry);
 
     switch (entry.value.kind) {
@@ -801,8 +796,7 @@ static void dynu8_append_json_object_key_string_value_u64(DynU8 *sb, String key,
   return dyn_slice(String, sb);
 }
 
-[[nodiscard]] static Error os_sendfile(int fd_in, int fd_out,
-                                       uint64_t n_bytes) {
+[[nodiscard]] static Error os_sendfile(int fd_in, int fd_out, u64 n_bytes) {
 #if defined(__linux__)
   ssize_t res = sendfile(fd_out, fd_in, nullptr, n_bytes);
   if (res == -1) {
@@ -825,7 +819,7 @@ static void dynu8_append_json_object_key_string_value_u64(DynU8 *sb, String key,
 
 typedef struct {
   String *data;
-  uint64_t len;
+  u64 len;
 } StringSlice;
 
 [[nodiscard]] static String json_encode_string_slice(StringSlice strings,
@@ -833,7 +827,7 @@ typedef struct {
   DynU8 sb = {0};
   *dyn_push(&sb, arena) = '[';
 
-  for (uint64_t i = 0; i < strings.len; i++) {
+  for (u64 i = 0; i < strings.len; i++) {
     String s = dyn_at(strings, i);
     String encoded = json_escape_string(s, arena);
     dyn_append_slice(&sb, encoded, arena);
@@ -860,34 +854,34 @@ typedef enum {
   HS_ERR_INVALID_JSON,
 } HS_Error;
 
-[[nodiscard]] static int64_t string_indexof_unescaped_byte(String haystack,
-                                                           uint8_t needle) {
-  for (uint64_t i = 0; i < haystack.len; i++) {
-    uint8_t c = AT(haystack.data, haystack.len, i);
+[[nodiscard]] static i64 string_indexof_unescaped_byte(String haystack,
+                                                       u8 needle) {
+  for (u64 i = 0; i < haystack.len; i++) {
+    u8 c = AT(haystack.data, haystack.len, i);
 
     if (c != needle) {
       continue;
     }
 
     if (i == 0) {
-      return (int64_t)i;
+      return (i64)i;
     }
 
-    uint8_t previous = AT(haystack.data, haystack.len, i - 1);
+    u8 previous = AT(haystack.data, haystack.len, i - 1);
     if ('\\' != previous) {
-      return (int64_t)i;
+      return (i64)i;
     }
   }
 
   return -1;
 }
 
-static uint64_t skip_over_whitespace(String s, uint64_t idx_start) {
+static u64 skip_over_whitespace(String s, u64 idx_start) {
   ASSERT(idx_start < s.len);
 
-  uint64_t idx = idx_start;
+  u64 idx = idx_start;
   for (; idx < s.len; idx++) {
-    uint8_t c = AT(s.data, s.len, idx);
+    u8 c = AT(s.data, s.len, idx);
     if (' ' != c) {
       return idx;
     }
@@ -909,10 +903,10 @@ json_decode_string_slice(String s, Arena *arena) {
   }
 
   DynString dyn = {0};
-  for (uint64_t i = 1; i < s.len - 2;) {
+  for (u64 i = 1; i < s.len - 2;) {
     i = skip_over_whitespace(s, i);
 
-    uint8_t c = AT(s.data, s.len, i);
+    u8 c = AT(s.data, s.len, i);
     if ('"' != c) { // Opening quote.
       res.err = HS_ERR_INVALID_JSON;
       return res;
@@ -920,7 +914,7 @@ json_decode_string_slice(String s, Arena *arena) {
     i += 1;
 
     String remaining = slice_range(s, i, 0);
-    int64_t end_quote_idx = string_indexof_unescaped_byte(remaining, '"');
+    i64 end_quote_idx = string_indexof_unescaped_byte(remaining, '"');
     if (-1 == end_quote_idx) {
       res.err = HS_ERR_INVALID_JSON;
       return res;
@@ -928,11 +922,11 @@ json_decode_string_slice(String s, Arena *arena) {
 
     ASSERT(0 <= end_quote_idx);
 
-    String str = slice_range(s, i, i + (uint64_t)end_quote_idx);
+    String str = slice_range(s, i, i + (u64)end_quote_idx);
     String unescaped = json_unescape_string(str, arena);
     *dyn_push(&dyn, arena) = unescaped;
 
-    i += (uint64_t)end_quote_idx;
+    i += (u64)end_quote_idx;
 
     if ('"' != c) { // Closing quote.
       res.err = HS_ERR_INVALID_JSON;
@@ -972,8 +966,8 @@ json_decode_string_slice(String s, Arena *arena) {
 }
 
 static void string_lowercase_ascii_mut(String s) {
-  for (uint64_t i = 0; i < s.len; i++) {
-    uint8_t *c = AT_PTR(s.data, s.len, i);
+  for (u64 i = 0; i < s.len; i++) {
+    u8 *c = AT_PTR(s.data, s.len, i);
     if ('A' <= *c && *c <= 'Z') {
       *c += 32;
     }
