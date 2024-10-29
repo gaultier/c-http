@@ -349,16 +349,19 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
         *dyn_push(&body_div.children, arena) =
             (HtmlElement){.kind = HTML_TEXT, .text = dyn_slice(String, text)};
       }
+      // TODO: Button to close the poll.
 
       {
+        HtmlElement tag_ol = {.kind = HTML_OL};
         for (u64 i = 0; i < poll.options.len; i++) {
           String option = dyn_at(poll.options, i);
 
-          HtmlElement option_div = {.kind = HTML_DIV};
-          *dyn_push(&option_div.children, arena) =
+          HtmlElement tag_li = {.kind = HTML_LI};
+          *dyn_push(&tag_li.children, arena) =
               (HtmlElement){.kind = HTML_TEXT, .text = option};
-          *dyn_push(&body_div.children, arena) = option_div;
+          *dyn_push(&tag_ol.children, arena) = tag_li;
         }
+        *dyn_push(&body_div.children, arena) = tag_ol;
       }
       {
         HtmlElement created_at_div = {.kind = HTML_DIV};

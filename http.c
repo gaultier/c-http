@@ -930,6 +930,8 @@ typedef enum {
   HTML_HEAD,
   HTML_BODY,
   HTML_DIV,
+  HTML_OL,
+  HTML_LI,
   HTML_TEXT,
   HTML_FORM,
   HTML_FIELDSET,
@@ -1028,15 +1030,25 @@ static void html_document_to_string(HtmlDocument doc, DynU8 *sb, Arena *arena) {
 
 static void html_tag_to_string(HtmlElement e, DynU8 *sb, Arena *arena) {
   static const String tag_to_string[HTML_MAX] = {
-      [HTML_NONE] = S("FIXME"),        [HTML_TITLE] = S("title"),
-      [HTML_SPAN] = S("span"),         [HTML_INPUT] = S("input"),
-      [HTML_BUTTON] = S("button"),     [HTML_LINK] = S("link"),
-      [HTML_META] = S("meta"),         [HTML_HEAD] = S("head"),
-      [HTML_BODY] = S("body"),         [HTML_DIV] = S("div"),
-      [HTML_TEXT] = S("span"),         [HTML_FORM] = S("form"),
-      [HTML_FIELDSET] = S("fieldset"), [HTML_LABEL] = S("label"),
-      [HTML_SCRIPT] = S("script"),     [HTML_STYLE] = S("style"),
+      [HTML_NONE] = S("FIXME"),
+      [HTML_TITLE] = S("title"),
+      [HTML_SPAN] = S("span"),
+      [HTML_INPUT] = S("input"),
+      [HTML_BUTTON] = S("button"),
+      [HTML_LINK] = S("link"),
+      [HTML_META] = S("meta"),
+      [HTML_HEAD] = S("head"),
+      [HTML_BODY] = S("body"),
+      [HTML_DIV] = S("div"),
+      [HTML_TEXT] = S("span"),
+      [HTML_FORM] = S("form"),
+      [HTML_FIELDSET] = S("fieldset"),
+      [HTML_LABEL] = S("label"),
+      [HTML_SCRIPT] = S("script"),
+      [HTML_STYLE] = S("style"),
       [HTML_LEGEND] = S("legend"),
+      [HTML_OL] = S("ol"),
+      [HTML_LI] = S("li"),
   };
 
   ASSERT(!(HTML_NONE == e.kind || HTML_MAX == e.kind));
@@ -1055,6 +1067,10 @@ static void html_tag_to_string(HtmlElement e, DynU8 *sb, Arena *arena) {
     return;
 
   // 'Normal' tags.
+  case HTML_OL:
+    [[fallthrough]];
+  case HTML_LI:
+    [[fallthrough]];
   case HTML_HEAD:
     [[fallthrough]];
   case HTML_DIV:
