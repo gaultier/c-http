@@ -59,7 +59,8 @@ typedef struct {
           break;
         }
         if (!string_eq(split_equals_left.s, user_id_cookie_name)) {
-          break;
+          // Could be: `; Secure;`
+          continue;
         }
         SplitResult split_equals_right = string_split_next(&it_equals);
         if (!slice_is_empty(split_equals_right.s)) {
