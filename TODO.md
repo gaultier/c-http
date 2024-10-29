@@ -11,8 +11,8 @@ MVP:
 - [x] Collect logs into OLAP db => sqlite/duckdb
 - [x] Easy request duration stats (from OLAP db or dtrace/strace) => sqlite/duckdb/utop
 - [x] Vendor & compile db code
-- [.] Html builder
-- [ ] Hash user id to have a static size & not store PII
+- [x] Html builder
+- [.] Use cookie for user id
 - [ ] Sanitize user input in html
 - [ ] Cast a vote UI
 - [ ] See poll results

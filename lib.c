@@ -124,17 +124,17 @@ typedef struct {
 }
 
 typedef struct {
-  String slice;
+  String s;
   uint8_t sep;
 } SplitIterator;
 
 typedef struct {
-  String slice;
+  String s;
   bool ok;
 } SplitResult;
 
-[[nodiscard]] static SplitIterator string_split(String slice, uint8_t sep) {
-  return (SplitIterator){.slice = slice, .sep = sep};
+[[nodiscard]] static SplitIterator string_split(String s, uint8_t sep) {
+  return (SplitIterator){.s = s, .sep = sep};
 }
 
 [[nodiscard]] static int64_t string_indexof_byte(String haystack,
@@ -161,26 +161,25 @@ typedef struct {
                     })
 
 [[nodiscard]] static SplitResult string_split_next(SplitIterator *it) {
-  if (slice_is_empty(it->slice)) {
+  if (slice_is_empty(it->s)) {
     return (SplitResult){0};
   }
 
-  for (uint64_t _i = 0; _i < it->slice.len; _i++) {
-    const int64_t idx = string_indexof_byte(it->slice, it->sep);
+  for (uint64_t _i = 0; _i < it->s.len; _i++) {
+    const int64_t idx = string_indexof_byte(it->s, it->sep);
     if (-1 == idx) {
       // Last element.
-      SplitResult res = {.slice = it->slice, .ok = true};
-      it->slice = (String){0};
+      SplitResult res = {.s = it->s, .ok = true};
+      it->s = (String){0};
       return res;
     }
 
     if (idx == 0) { // Multiple contiguous separators.
-      it->slice = slice_range(it->slice, (uint64_t)idx + 1, 0);
+      it->s = slice_range(it->s, (uint64_t)idx + 1, 0);
       continue;
     } else {
-      SplitResult res = {.slice = slice_range(it->slice, 0, (uint64_t)idx),
-                         .ok = true};
-      it->slice = slice_range(it->slice, (uint64_t)idx + 1, 0);
+      SplitResult res = {.s = slice_range(it->s, 0, (uint64_t)idx), .ok = true};
+      it->s = slice_range(it->s, (uint64_t)idx + 1, 0);
 
       return res;
     }
@@ -273,8 +272,8 @@ typedef struct {
   bool present;
 } ParseNumberResult;
 
-[[nodiscard]] static ParseNumberResult string_parse_u64_decimal(String slice) {
-  String trimmed = string_trim(slice, ' ');
+[[nodiscard]] static ParseNumberResult string_parse_u64_decimal(String s) {
+  String trimmed = string_trim(s, ' ');
 
   ParseNumberResult res = {0};
 
@@ -437,8 +436,8 @@ static void dynu8_append_u64(DynU8 *dyn, uint64_t n, Arena *arena) {
 
   ASSERT(written_count > 0);
 
-  String slice = {.data = tmp, .len = (uint64_t)written_count};
-  dyn_append_slice(dyn, slice, arena);
+  String s = {.data = tmp, .len = (uint64_t)written_count};
+  dyn_append_slice(dyn, s, arena);
 }
 
 [[nodiscard]] static uint8_t u8_to_ch_hex(uint8_t n) {
@@ -817,8 +816,8 @@ typedef struct {
   *dyn_push(&sb, arena) = '[';
 
   for (uint64_t i = 0; i < strings.len; i++) {
-    String slice = dyn_at(strings, i);
-    String encoded = json_escape_string(slice, arena);
+    String s = dyn_at(strings, i);
+    String encoded = json_escape_string(s, arena);
     dyn_append_slice(&sb, encoded, arena);
 
     if (i + 1 < strings.len) {

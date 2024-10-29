@@ -60,7 +60,7 @@ typedef struct {
 } HttpResponse;
 
 typedef struct {
-  String slice;
+  String s;
   Error err;
 } IoOperationResult;
 
@@ -83,7 +83,7 @@ reader_read_from_socket(void *ctx, void *buf, size_t buf_len) {
   }
   ASSERT(n_read >= 0);
 
-  return (IoOperationResult){.slice.data = buf, .slice.len = (uint64_t)n_read};
+  return (IoOperationResult){.s.data = buf, .s.len = (uint64_t)n_read};
 }
 
 [[nodiscard]] static Reader reader_make_from_socket(int socket) {
@@ -108,8 +108,8 @@ writer_write_from_socket(void *ctx, void *buf, size_t buf_len) {
   }
   ASSERT(n_written >= 0);
 
-  return (IoOperationResult){.slice.data = (uint8_t *)buf,
-                             .slice.len = (uint64_t)n_written};
+  return (IoOperationResult){.s.data = (uint8_t *)buf,
+                             .s.len = (uint64_t)n_written};
 }
 
 [[nodiscard]] static Writer writer_make_from_socket(int socket) {
@@ -119,19 +119,19 @@ writer_write_from_socket(void *ctx, void *buf, size_t buf_len) {
   };
 }
 
-[[nodiscard]] static Error writer_write_all(Writer writer, String slice) {
-  for (uint64_t idx = 0; idx < slice.len;) {
-    const String to_write = slice_range(slice, idx, 0);
+[[nodiscard]] static Error writer_write_all(Writer writer, String s) {
+  for (uint64_t idx = 0; idx < s.len;) {
+    const String to_write = slice_range(s, idx, 0);
     const IoOperationResult write_res =
         writer.write(writer.ctx, to_write.data, to_write.len);
     if (write_res.err) {
       return write_res.err;
     }
 
-    ASSERT(write_res.slice.len <= slice.len);
-    ASSERT(idx <= slice.len);
-    idx += write_res.slice.len;
-    ASSERT(idx <= slice.len);
+    ASSERT(write_res.s.len <= s.len);
+    ASSERT(idx <= s.len);
+    idx += write_res.s.len;
+    ASSERT(idx <= s.len);
   }
   return 0;
 }
@@ -150,8 +150,8 @@ typedef struct {
   }
 
   IoOperationResult res = {
-      .slice.data = &reader->buf.data[reader->buf_idx],
-      .slice.len = reader->buf.len - reader->buf_idx,
+      .s.data = &reader->buf.data[reader->buf_idx],
+      .s.len = reader->buf.len - reader->buf_idx,
   };
   reader->buf_idx = reader->buf.len;
 
@@ -167,16 +167,16 @@ typedef struct {
   if (res.err) {
     return res;
   }
-  if (0 == res.slice.len) {
+  if (0 == res.s.len) {
     return res;
   }
 
-  String slice = {.data = tmp, .len = res.slice.len};
+  String s = {.data = tmp, .len = res.s.len};
 
   uint64_t reader_buf_len_prev = reader->buf.len;
-  dyn_append_slice(&reader->buf, slice, arena);
+  dyn_append_slice(&reader->buf, s, arena);
 
-  res.slice.data = dyn_at_ptr(&reader->buf, reader_buf_len_prev);
+  res.s.data = dyn_at_ptr(&reader->buf, reader_buf_len_prev);
 
   return res;
 }
@@ -186,7 +186,7 @@ typedef struct {
   ASSERT(reader->buf.len >= reader->buf_idx);
 
   IoOperationResult res = reader_read_from_buffer(reader);
-  if (!slice_is_empty(res.slice)) {
+  if (!slice_is_empty(res.s)) {
     return res;
   }
 
@@ -211,7 +211,7 @@ reader_read_until_slice(Reader *reader, String needle, Arena *arena) {
       return io;
     }
 
-    int64_t idx = string_indexof_string(io.slice, needle);
+    int64_t idx = string_indexof_string(io.s, needle);
     // Not found, continue reading.
     if (idx == -1) {
       continue;
@@ -219,10 +219,10 @@ reader_read_until_slice(Reader *reader, String needle, Arena *arena) {
     ASSERT(idx >= 0);
 
     // Found but maybe read some in excess, need to rewind a bit.
-    uint64_t excess_read = io.slice.len - ((uint64_t)idx + needle.len);
+    uint64_t excess_read = io.s.len - ((uint64_t)idx + needle.len);
     ASSERT(reader->buf_idx >= excess_read);
     reader->buf_idx -= excess_read;
-    io.slice.len = (uint64_t)idx;
+    io.s.len = (uint64_t)idx;
     return io;
   }
 
@@ -239,7 +239,7 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
 
   for (uint64_t i = 0; i < content_length; i++) {
     if (0 == remaining_to_read) {
-      ASSERT(res.slice.len == content_length);
+      ASSERT(res.s.len == content_length);
       return res;
     }
 
@@ -250,8 +250,8 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
       return res;
     }
 
-    ASSERT(res.slice.len <= remaining_to_read);
-    remaining_to_read -= res.slice.len;
+    ASSERT(res.s.len <= remaining_to_read);
+    remaining_to_read -= res.s.len;
   }
   return res;
 }
@@ -269,7 +269,7 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
   }
 
   line.present = true;
-  line.line = io_result.slice;
+  line.line = io_result.s;
   return line;
 }
 
@@ -280,7 +280,7 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
   DynString res = {0};
 
   SplitIterator split_it_question = string_split(s, '?');
-  String work = string_split_next(&split_it_question).slice;
+  String work = string_split_next(&split_it_question).s;
 
   SplitIterator split_it_slash = string_split(work, '/');
   for (uint64_t i = 0; i < s.len; i++) { // Bound.
@@ -289,11 +289,11 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
       break;
     }
 
-    if (slice_is_empty(split.slice)) {
+    if (slice_is_empty(split.s)) {
       continue;
     }
 
-    *dyn_push(&res, arena) = split.slice;
+    *dyn_push(&res, arena) = split.s;
   }
 
   return res;
@@ -331,9 +331,9 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
       return req;
     }
 
-    if (string_eq(method.slice, S("GET"))) {
+    if (string_eq(method.s, S("GET"))) {
       req.method = HM_GET;
-    } else if (string_eq(method.slice, S("POST"))) {
+    } else if (string_eq(method.s, S("POST"))) {
       req.method = HM_POST;
     } else {
       // FIXME: More.
@@ -349,18 +349,18 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
       return req;
     }
 
-    if (slice_is_empty(path.slice)) {
+    if (slice_is_empty(path.s)) {
       req.err = HS_ERR_INVALID_HTTP_REQUEST;
       return req;
     }
 
-    if (path.slice.data[0] != '/') {
+    if (path.s.data[0] != '/') {
       req.err = HS_ERR_INVALID_HTTP_REQUEST;
       return req;
     }
 
-    req.path_raw = path.slice;
-    req.path_components = http_parse_relative_path(path.slice, arena);
+    req.path_raw = path.s;
+    req.path_components = http_parse_relative_path(path.s, arena);
   }
 
   {
@@ -370,7 +370,7 @@ reader_read_exactly(Reader *reader, uint64_t content_length, Arena *arena) {
       return req;
     }
 
-    if (!string_eq(http_version.slice, S("HTTP/1.1"))) {
+    if (!string_eq(http_version.s, S("HTTP/1.1"))) {
       req.err = HS_ERR_INVALID_HTTP_REQUEST;
       return req;
     }
@@ -400,9 +400,9 @@ reader_read_headers(Reader *reader, DynKeyValue *headers, Arena *arena) {
       return HS_ERR_INVALID_HTTP_REQUEST;
     }
 
-    String key_trimmed = string_trim(key.slice, ' ');
+    String key_trimmed = string_trim(key.s, ' ');
 
-    String value = it.slice; // Remainder.
+    String value = it.s; // Remainder.
     String value_trimmed = string_trim(value, ' ');
 
     KeyValue header = {.key = key_trimmed, .value = value_trimmed};
@@ -421,26 +421,26 @@ reader_read_headers(Reader *reader, DynKeyValue *headers, Arena *arena) {
     IoOperationResult io = reader_read(reader, arena);
     if (io.err) {
       res.err = io.err;
-      // TODO: Set `res.slice` in this case?
+      // TODO: Set `res.s` in this case?
 
       return res;
     }
 
     // First read?
-    if (nullptr == res.slice.data) {
-      res.slice.data = io.slice.data;
+    if (nullptr == res.s.data) {
+      res.s.data = io.s.data;
     }
 
-    ASSERT(false == ckd_add(&res.slice.len, res.slice.len, io.slice.len));
+    ASSERT(false == ckd_add(&res.s.len, res.s.len, io.s.len));
 
     // End?
-    if (0 == io.slice.len) {
+    if (0 == io.s.len) {
       ASSERT(reader->buf_idx >= reader_initial_idx);
       ASSERT(reader->buf_idx == reader->buf.len);
-      ASSERT(res.slice.len == reader->buf_idx - reader_initial_idx);
+      ASSERT(res.s.len == reader->buf_idx - reader_initial_idx);
 
-      if (0 != res.slice.len) {
-        ASSERT(nullptr != res.slice.data);
+      if (0 != res.s.len) {
+        ASSERT(nullptr != res.s.data);
       }
 
       return res;
@@ -477,7 +477,7 @@ request_parse_content_length_maybe(HttpRequest req, Arena *arena) {
     return res;
   }
 
-  res.body = io.slice;
+  res.body = io.s;
 
   return res;
 }
@@ -536,9 +536,9 @@ request_parse_content_length_maybe(HttpRequest req, Arena *arena) {
     dyn_append_slice(&sb, res.body, arena);
   }
 
-  const String slice = dyn_slice(String, sb);
+  const String s = dyn_slice(String, sb);
 
-  Error err = writer_write_all(writer, slice);
+  Error err = writer_write_all(writer, s);
   if (0 != err) {
     return err;
   }
@@ -794,7 +794,7 @@ http_client_request(struct sockaddr *addr, uint32_t addr_sizeof,
     goto end;
   }
 
-  res.body = body.slice;
+  res.body = body.s;
 
 end:
   close(client);

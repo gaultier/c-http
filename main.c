@@ -30,20 +30,32 @@ typedef struct {
   String created_by;
 } Poll;
 
-[[nodiscard]] static String user_agent(HttpRequest req, Arena *arena) {
-  String user_agent = {0};
+[[nodiscard]] static String extract_user_id_cookie(HttpRequest req,
+                                                   Arena *arena) {
+  String res = {0};
   {
     for (uint64_t i = 0; i < req.headers.len; i++) {
       KeyValue h = slice_at(req.headers, i);
 
-      if (string_ieq_ascii(h.key, S("User-Agent"), arena) &&
-          !slice_is_empty(h.value)) {
-        user_agent = h.value;
-        break;
+      if (!string_ieq_ascii(h.key, S("Cookie"), arena)) {
+        continue;
       }
+      if (slice_is_empty(h.value)) {
+        continue;
+      }
+
+      SplitIterator it = string_split(h.value, '=');
+      SplitResult left = string_split_next(&it);
+      if (!left.ok) {
+        continue;
+      }
+      if (!string_eq(left.s, S("user_id"))) {
+        continue;
+      }
+      SplitResult right = string_split_next(&it);
     }
   }
-  return user_agent;
+  return res;
 }
 
 [[nodiscard]] static DatabaseError db_create_poll(String req_id, Poll poll,
@@ -162,7 +174,7 @@ http_respond_with_unprocessable_entity(String req_id, Arena *arena) {
   Poll poll = {.state = POLL_STATE_OPEN,
                .human_readable_id = make_unique_id_u128_string(arena)};
 
-  poll.created_by = user_agent(req, arena);
+  poll.created_by = extract_user_id_cookie(req, arena);
   if (slice_is_empty(poll.created_by)) {
     log(LOG_LEVEL_ERROR,
         "failed to create poll due to missing/empty user-agent", arena,
@@ -527,7 +539,7 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
     options = dyn_slice(StringSlice, dyn_options);
   }
 
-  String user_id = user_agent(req, arena);
+  String user_id = extract_user_id_cookie(req, arena);
   if (slice_is_empty(user_id)) {
     log(LOG_LEVEL_ERROR,
         "failed to create vote due to missing/empty user-agent", arena,

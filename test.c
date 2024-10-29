@@ -30,7 +30,7 @@ static void test_string_indexof_slice() {
 }
 
 typedef struct {
-  String slice;
+  String s;
   uint64_t idx;
 } MemReadContext;
 
@@ -39,24 +39,24 @@ static IoOperationResult reader_read_from_slice(void *ctx, void *buf,
   MemReadContext *mem_ctx = ctx;
 
   ASSERT(buf != nullptr);
-  ASSERT(mem_ctx->slice.data != nullptr);
-  if (mem_ctx->idx >= mem_ctx->slice.len) {
+  ASSERT(mem_ctx->s.data != nullptr);
+  if (mem_ctx->idx >= mem_ctx->s.len) {
     // End.
     return (IoOperationResult){0};
   }
 
-  const uint64_t remaining = mem_ctx->slice.len - mem_ctx->idx;
+  const uint64_t remaining = mem_ctx->s.len - mem_ctx->idx;
   const uint64_t can_fill = MIN(remaining, buf_len);
   ASSERT(can_fill <= remaining);
 
   IoOperationResult res = {
-      .slice.data = mem_ctx->slice.data + mem_ctx->idx,
-      .slice.len = can_fill,
+      .s.data = mem_ctx->s.data + mem_ctx->idx,
+      .s.len = can_fill,
   };
-  memcpy(buf, res.slice.data, res.slice.len);
+  memcpy(buf, res.s.data, res.s.len);
 
   mem_ctx->idx += can_fill;
-  ASSERT(mem_ctx->idx <= mem_ctx->slice.len);
+  ASSERT(mem_ctx->idx <= mem_ctx->s.len);
   return res;
 }
 
@@ -70,7 +70,7 @@ static Reader reader_make_from_slice(MemReadContext *ctx) {
 static void test_read_http_request_without_body() {
   String req_slice = S("GET /foo?bar=2 HTTP/1.1\r\nHost: "
                        "localhost:12345\r\nAccept: */*\r\n\r\n");
-  MemReadContext ctx = {.slice = req_slice};
+  MemReadContext ctx = {.s = req_slice};
   Reader reader = reader_make_from_slice(&ctx);
   Arena arena = arena_make_from_virtual_mem(4096);
   const HttpRequest req = request_read(&reader, &arena);
@@ -90,7 +90,7 @@ static void test_read_http_request_with_body() {
   String req_slice =
       S("POST /foo?bar=2 HTTP/1.1\r\nContent-Length: 13\r\nHost: "
         "localhost:12345\r\nAccept: */*\r\n\r\nhello\r\nworld!");
-  MemReadContext ctx = {.slice = req_slice};
+  MemReadContext ctx = {.s = req_slice};
   Reader reader = reader_make_from_slice(&ctx);
   Arena arena = arena_make_from_virtual_mem(4096);
   const HttpRequest req = request_read(&reader, &arena);
@@ -117,25 +117,25 @@ static void test_string_trim() {
 }
 
 static void test_string_split() {
-  String slice = S("hello..world...foobar");
-  SplitIterator it = string_split(slice, '.');
+  String s = S("hello..world...foobar");
+  SplitIterator it = string_split(s, '.');
 
   {
     SplitResult elem = string_split_next(&it);
     ASSERT(true == elem.ok);
-    ASSERT(string_eq(elem.slice, S("hello")));
+    ASSERT(string_eq(elem.s, S("hello")));
   }
 
   {
     SplitResult elem = string_split_next(&it);
     ASSERT(true == elem.ok);
-    ASSERT(string_eq(elem.slice, S("world")));
+    ASSERT(string_eq(elem.s, S("world")));
   }
 
   {
     SplitResult elem = string_split_next(&it);
     ASSERT(true == elem.ok);
-    ASSERT(string_eq(elem.slice, S("foobar")));
+    ASSERT(string_eq(elem.s, S("foobar")));
   }
 
   ASSERT(false == string_split_next(&it).ok);
@@ -171,12 +171,11 @@ static void test_log_entry_quote_value() {
 static void test_make_log_line() {
   Arena arena = arena_make_from_virtual_mem(4096);
 
-  String log_line =
-      make_log_line(LOG_LEVEL_DEBUG, S("foobar"), &arena, 2, L("num", 42),
-                    L("slice", S("hello \"world\"")));
+  String log_line = make_log_line(LOG_LEVEL_DEBUG, S("foobar"), &arena, 2,
+                                  L("num", 42), L("s", S("hello \"world\"")));
 
-  String expected_suffix = S(
-      "\"message\":\"foobar\",\"num\":42,\"slice\":\"hello \\\"world\\\"\"}\n");
+  String expected_suffix =
+      S("\"message\":\"foobar\",\"num\":42,\"s\":\"hello \\\"world\\\"\"}\n");
   ASSERT(string_starts_with(log_line,
                             S("{\"level\":\"debug\",\"timestamp_ns\":")));
   ASSERT(string_ends_with(log_line, expected_suffix));
@@ -485,12 +484,12 @@ static void test_slice_range() {
   *dyn_push(&dyn, &arena) = S("日");
   *dyn_push(&dyn, &arena) = S("本語");
 
-  StringSlice slice = dyn_slice(StringSlice, dyn);
-  StringSlice range = slice_range(slice, 1, 0);
+  StringSlice s = dyn_slice(StringSlice, dyn);
+  StringSlice range = slice_range(s, 1, 0);
   ASSERT(2 == range.len);
 
-  ASSERT(string_eq(slice_at(slice, 1), slice_at(range, 0)));
-  ASSERT(string_eq(slice_at(slice, 2), slice_at(range, 1)));
+  ASSERT(string_eq(slice_at(s, 1), slice_at(range, 0)));
+  ASSERT(string_eq(slice_at(s, 2), slice_at(range, 1)));
 }
 
 static void test_html_to_string() {
