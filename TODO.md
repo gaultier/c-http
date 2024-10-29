@@ -18,11 +18,11 @@ MVP:
 - [ ] Content security policy
 - [ ] See poll results
 - [ ] Pretty UI
-- [ ] Monkey testing/fuzz testing [Last]
-- [ ] Test with non ascii strings
 - [ ] Test with Chrome
-- [ ] Test with max options and long strings
 - [ ] e2e tests
+    - [ ] Test with non ascii strings
+    - [ ] Test with max options and long strings
+    - [ ] Monkey testing/fuzz testing
 - [ ] Benchmark
 - [ ] License
 
