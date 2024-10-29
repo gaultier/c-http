@@ -93,7 +93,7 @@ typedef u32 Error;
 
 typedef struct {
   u8 *data;
-  uint64_t len;
+  u64 len;
 } String;
 
 #define slice_is_empty(s)                                                      \
@@ -104,7 +104,7 @@ typedef struct {
 [[nodiscard]] static String string_trim_left(String s, u8 c) {
   String res = s;
 
-  for (uint64_t s_i = 0; s_i < s.len; s_i++) {
+  for (u64 s_i = 0; s_i < s.len; s_i++) {
     ASSERT(s.data != nullptr);
     if (AT(s.data, s.len, s_i) != c) {
       return res;
@@ -178,7 +178,7 @@ typedef struct {
     return (SplitResult){0};
   }
 
-  for (uint64_t _i = 0; _i < it->s.len; _i++) {
+  for (u64 _i = 0; _i < it->s.len; _i++) {
     const i64 idx = string_indexof_byte(it->s, it->sep);
     if (-1 == idx) {
       // Last element.
@@ -188,11 +188,11 @@ typedef struct {
     }
 
     if (idx == 0) { // Multiple contiguous separators.
-      it->s = slice_range(it->s, (uint64_t)idx + 1, 0);
+      it->s = slice_range(it->s, (u64)idx + 1, 0);
       continue;
     } else {
-      SplitResult res = {.s = slice_range(it->s, 0, (uint64_t)idx), .ok = true};
-      it->s = slice_range(it->s, (uint64_t)idx + 1, 0);
+      SplitResult res = {.s = slice_range(it->s, 0, (u64)idx), .ok = true};
+      it->s = slice_range(it->s, (u64)idx + 1, 0);
 
       return res;
     }
@@ -252,7 +252,7 @@ typedef struct {
     return -1;
   }
 
-  uint64_t res = (uint64_t)((u8 *)ptr - haystack.data);
+  u64 res = (u64)((u8 *)ptr - haystack.data);
   ASSERT(res < haystack.len);
   return (i64)res;
 }
@@ -283,7 +283,7 @@ typedef struct {
 }
 
 typedef struct {
-  uint64_t n;
+  u64 n;
   bool err;
   bool present;
 } ParseNumberResult;
@@ -293,7 +293,7 @@ typedef struct {
 
   ParseNumberResult res = {0};
 
-  for (uint64_t i = 0; i < trimmed.len; i++) {
+  for (u64 i = 0; i < trimmed.len; i++) {
     u8 c = AT(trimmed.data, trimmed.len, i);
 
     if (!('0' <= c && c <= '9')) { // Error.
@@ -315,15 +315,15 @@ typedef struct {
 
 __attribute((malloc, alloc_size(2, 4), alloc_align(3)))
 [[nodiscard]] static void *
-arena_alloc(Arena *a, uint64_t size, uint64_t align, uint64_t count) {
+arena_alloc(Arena *a, u64 size, u64 align, u64 count) {
   ASSERT(a->start != nullptr);
 
-  const uint64_t padding = (-(uint64_t)a->start & (align - 1));
+  const u64 padding = (-(u64)a->start & (align - 1));
   ASSERT(padding <= align);
 
   const i64 available = (i64)a->end - (i64)a->start - (i64)padding;
   ASSERT(available >= 0);
-  ASSERT(count <= (uint64_t)available / size);
+  ASSERT(count <= (u64)available / size);
 
   void *res = a->start + padding;
   ASSERT(res != nullptr);
@@ -331,7 +331,7 @@ arena_alloc(Arena *a, uint64_t size, uint64_t align, uint64_t count) {
 
   a->start += padding + count * size;
   ASSERT(a->start <= a->end);
-  ASSERT((uint64_t)a->start % align == 0); // Aligned.
+  ASSERT((u64)a->start % align == 0); // Aligned.
 
   return memset(res, 0, count * size);
 }
@@ -347,21 +347,20 @@ arena_alloc(Arena *a, uint64_t size, uint64_t align, uint64_t count) {
   return res;
 }
 
-static void dyn_grow(void *slice, uint64_t size, uint64_t align, uint64_t count,
-                     Arena *a) {
+static void dyn_grow(void *slice, u64 size, u64 align, u64 count, Arena *a) {
   ASSERT(nullptr != slice);
 
   struct {
     void *data;
-    uint64_t len;
-    uint64_t cap;
+    u64 len;
+    u64 cap;
   } replica;
 
   memcpy(&replica, slice, sizeof(replica));
   ASSERT(replica.cap < count);
 
-  uint64_t new_cap = replica.cap == 0 ? 2 : replica.cap;
-  for (uint64_t i = 0; i < 64; i++) {
+  u64 new_cap = replica.cap == 0 ? 2 : replica.cap;
+  for (u64 i = 0; i < 64; i++) {
     if (new_cap < count) {
       ASSERT(new_cap < UINT64_MAX / 2);
       ASSERT(false == ckd_mul(&new_cap, new_cap, 2));
@@ -373,18 +372,17 @@ static void dyn_grow(void *slice, uint64_t size, uint64_t align, uint64_t count,
   ASSERT(new_cap >= count);
   ASSERT(new_cap > replica.cap);
 
-  uint64_t array_end = 0;
-  uint64_t array_bytes_count = 0;
+  u64 array_end = 0;
+  u64 array_bytes_count = 0;
   ASSERT(false == ckd_mul(&array_bytes_count, size, replica.cap));
-  ASSERT(false ==
-         ckd_add(&array_end, (uint64_t)replica.data, array_bytes_count));
-  ASSERT((uint64_t)replica.data <= array_end);
-  ASSERT(array_end < (uint64_t)a->end);
+  ASSERT(false == ckd_add(&array_end, (u64)replica.data, array_bytes_count));
+  ASSERT((u64)replica.data <= array_end);
+  ASSERT(array_end < (u64)a->end);
 
   if (nullptr ==
       replica.data) { // First allocation ever for this dynamic array.
     replica.data = arena_alloc(a, size, align, new_cap);
-  } else if ((uint64_t)a->start == array_end) { // Optimization.
+  } else if ((u64)a->start == array_end) { // Optimization.
     // This is the case of growing the array which is at the end of the arena.
     // In that case we can simply bump the arena pointer and avoid any copies.
     (void)arena_alloc(a, size, 1 /* Force no padding */, new_cap - replica.cap);
@@ -411,12 +409,12 @@ static void dyn_grow(void *slice, uint64_t size, uint64_t align, uint64_t count,
 
 typedef struct {
   u8 *data;
-  uint64_t len, cap;
+  u64 len, cap;
 } DynU8;
 
 typedef struct {
   String *data;
-  uint64_t len, cap;
+  u64 len, cap;
 } DynString;
 
 #define dyn_push(s, arena)                                                     \
@@ -438,20 +436,20 @@ typedef struct {
 #define dyn_append_slice(dst, src, arena)                                      \
   do {                                                                         \
     dyn_ensure_cap(dst, (dst)->len + (src).len, arena);                        \
-    for (uint64_t _iii = 0; _iii < src.len; _iii++) {                          \
+    for (u64 _iii = 0; _iii < src.len; _iii++) {                               \
       *dyn_push(dst, arena) = AT(src.data, src.len, _iii);                     \
     }                                                                          \
   } while (0)
 
 #define dyn_slice(T, dyn) ((T){.data = dyn.data, .len = dyn.len})
 
-static void dynu8_append_u64(DynU8 *dyn, uint64_t n, Arena *arena) {
+static void dynu8_append_u64(DynU8 *dyn, u64 n, Arena *arena) {
   u8 tmp[30] = {0};
   const int written_count = snprintf((char *)tmp, sizeof(tmp), "%lu", n);
 
   ASSERT(written_count > 0);
 
-  String s = {.data = tmp, .len = (uint64_t)written_count};
+  String s = {.data = tmp, .len = (u64)written_count};
   dyn_append_slice(dyn, s, arena);
 }
 
@@ -478,13 +476,13 @@ static void dynu8_append_u64(DynU8 *dyn, uint64_t n, Arena *arena) {
 
 static void dynu8_append_u128_hex(DynU8 *dyn, u128 n, Arena *arena) {
   dyn_ensure_cap(dyn, dyn->len + 32, arena);
-  uint64_t dyn_original_len = dyn->len;
+  u64 dyn_original_len = dyn->len;
 
   u8 it[16] = {0};
   ASSERT(sizeof(it) == sizeof(n));
   memcpy(it, (u8 *)&n, sizeof(n));
 
-  for (uint64_t i = 0; i < sizeof(it); i++) {
+  for (u64 i = 0; i < sizeof(it); i++) {
     u8 c1 = it[i] % 16;
     u8 c2 = it[i] / 16;
     *dyn_push(dyn, arena) = u8_to_ch_hex(c2);
@@ -495,24 +493,23 @@ static void dynu8_append_u128_hex(DynU8 *dyn, u128 n, Arena *arena) {
 
 #define arena_new(a, t, n) (t *)arena_alloc(a, sizeof(t), _Alignof(t), n)
 
-[[nodiscard]] static uint64_t round_up_multiple_of(uint64_t n,
-                                                   uint64_t multiple) {
+[[nodiscard]] static u64 round_up_multiple_of(u64 n, u64 multiple) {
   ASSERT(0 != multiple);
 
   if (0 == n % multiple) {
     return n; // No-op.
   }
 
-  uint64_t factor = n / multiple;
+  u64 factor = n / multiple;
   return (factor + 1) * n;
 }
 
-[[nodiscard]] static Arena arena_make_from_virtual_mem(uint64_t size) {
-  uint64_t page_size = (uint64_t)sysconf(_SC_PAGE_SIZE); // FIXME
-  uint64_t alloc_real_size = round_up_multiple_of(size, page_size);
+[[nodiscard]] static Arena arena_make_from_virtual_mem(u64 size) {
+  u64 page_size = (u64)sysconf(_SC_PAGE_SIZE); // FIXME
+  u64 alloc_real_size = round_up_multiple_of(size, page_size);
   ASSERT(0 == alloc_real_size % page_size);
 
-  uint64_t mmap_size = alloc_real_size;
+  u64 mmap_size = alloc_real_size;
   // Page guard before.
   ASSERT(false == ckd_add(&mmap_size, mmap_size, page_size));
   // Page guard after.
@@ -522,14 +519,14 @@ static void dynu8_append_u128_hex(DynU8 *dyn, u128 n, Arena *arena) {
                    MAP_ANON | MAP_PRIVATE, -1, 0);
   ASSERT(nullptr != alloc);
 
-  uint64_t page_guard_before = (uint64_t)alloc;
+  u64 page_guard_before = (u64)alloc;
 
-  ASSERT(false == ckd_add((uint64_t *)&alloc, (uint64_t)alloc, page_size));
-  ASSERT(page_guard_before + page_size == (uint64_t)alloc);
+  ASSERT(false == ckd_add((u64 *)&alloc, (u64)alloc, page_size));
+  ASSERT(page_guard_before + page_size == (u64)alloc);
 
-  uint64_t page_guard_after = (uint64_t)0;
-  ASSERT(false == ckd_add(&page_guard_after, (uint64_t)alloc, alloc_real_size));
-  ASSERT((uint64_t)alloc + alloc_real_size == page_guard_after);
+  u64 page_guard_after = (u64)0;
+  ASSERT(false == ckd_add(&page_guard_after, (u64)alloc, alloc_real_size));
+  ASSERT((u64)alloc + alloc_real_size == page_guard_after);
   ASSERT(page_guard_before + page_size + alloc_real_size == page_guard_after);
 
   ASSERT(0 == mprotect((void *)page_guard_before, page_size, PROT_NONE));
@@ -558,7 +555,7 @@ typedef struct {
   LogValueKind kind;
   union {
     String s;
-    uint64_t n64;
+    u64 n64;
     u128 n128;
   };
 } LogValue;
@@ -587,7 +584,7 @@ typedef struct {
   return (LogEntry){
       .key = k,
       .value.kind = LV_U64,
-      .value.n64 = (uint64_t)v,
+      .value.n64 = (u64)v,
   };
 }
 
@@ -595,7 +592,7 @@ typedef struct {
   return (LogEntry){
       .key = k,
       .value.kind = LV_U64,
-      .value.n64 = (uint64_t)v,
+      .value.n64 = (u64)v,
   };
 }
 
@@ -603,11 +600,11 @@ typedef struct {
   return (LogEntry){
       .key = k,
       .value.kind = LV_U64,
-      .value.n64 = (uint64_t)v,
+      .value.n64 = (u64)v,
   };
 }
 
-[[nodiscard]] static LogEntry log_entry_u64(String k, uint64_t v) {
+[[nodiscard]] static LogEntry log_entry_u64(String k, u64 v) {
   return (LogEntry){
       .key = k,
       .value.kind = LV_U64,
@@ -628,7 +625,7 @@ typedef struct {
       int: log_entry_int,                                                      \
       u16: log_entry_u16,                                                      \
       u32: log_entry_u32,                                                      \
-      uint64_t: log_entry_u64,                                                 \
+      u64: log_entry_u64,                                                      \
       String: log_entry_slice)((S(k)), v))
 
 #define LOG_ARGS_COUNT(...)                                                    \
