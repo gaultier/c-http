@@ -1,6 +1,5 @@
 #include "./sqlite3.h"
 #include "http.c"
-#include <stdckdint.h>
 
 static sqlite3 *db = nullptr;
 static sqlite3_stmt *db_insert_poll_stmt = nullptr;
