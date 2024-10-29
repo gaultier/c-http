@@ -1102,3 +1102,44 @@ static void html_tag_to_string(HtmlElement e, DynU8 *sb, Arena *arena) {
   dyn_append_slice(sb, tag_to_string[e.kind], arena);
   *dyn_push(sb, arena) = '>';
 }
+
+[[nodiscard]] static String
+http_req_extract_cookie_with_name(HttpRequest req, String cookie_name,
+                                  Arena *arena) {
+  String res = {0};
+  {
+    for (uint64_t i = 0; i < req.headers.len; i++) {
+      KeyValue h = slice_at(req.headers, i);
+
+      if (!string_ieq_ascii(h.key, S("Cookie"), arena)) {
+        continue;
+      }
+      if (slice_is_empty(h.value)) {
+        continue;
+      }
+
+      SplitIterator it_semicolon = string_split(h.value, ';');
+      for (uint64_t j = 0; j < h.value.len; j++) {
+        SplitResult split_semicolon = string_split_next(&it_semicolon);
+        if (!split_semicolon.ok) {
+          break;
+        }
+
+        SplitIterator it_equals = string_split(split_semicolon.s, '=');
+        SplitResult split_equals_left = string_split_next(&it_equals);
+        if (!split_equals_left.ok) {
+          break;
+        }
+        if (!string_eq(split_equals_left.s, cookie_name)) {
+          // Could be: `; Secure;`
+          continue;
+        }
+        SplitResult split_equals_right = string_split_next(&it_equals);
+        if (!slice_is_empty(split_equals_right.s)) {
+          return split_equals_right.s;
+        }
+      }
+    }
+  }
+  return res;
+}

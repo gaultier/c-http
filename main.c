@@ -32,46 +32,6 @@ typedef struct {
   String created_by;
 } Poll;
 
-[[nodiscard]] static String extract_user_id_cookie(HttpRequest req,
-                                                   Arena *arena) {
-  String res = {0};
-  {
-    for (uint64_t i = 0; i < req.headers.len; i++) {
-      KeyValue h = slice_at(req.headers, i);
-
-      if (!string_ieq_ascii(h.key, S("Cookie"), arena)) {
-        continue;
-      }
-      if (slice_is_empty(h.value)) {
-        continue;
-      }
-
-      SplitIterator it_semicolon = string_split(h.value, ';');
-      for (uint64_t j = 0; j < h.value.len; j++) {
-        SplitResult split_semicolon = string_split_next(&it_semicolon);
-        if (!split_semicolon.ok) {
-          break;
-        }
-
-        SplitIterator it_equals = string_split(split_semicolon.s, '=');
-        SplitResult split_equals_left = string_split_next(&it_equals);
-        if (!split_equals_left.ok) {
-          break;
-        }
-        if (!string_eq(split_equals_left.s, user_id_cookie_name)) {
-          // Could be: `; Secure;`
-          continue;
-        }
-        SplitResult split_equals_right = string_split_next(&it_equals);
-        if (!slice_is_empty(split_equals_right.s)) {
-          return split_equals_right.s;
-        }
-      }
-    }
-  }
-  return res;
-}
-
 [[nodiscard]] static DatabaseError db_create_poll(String req_id, Poll poll,
                                                   Arena *arena) {
   ASSERT(!slice_is_empty(poll.created_by));
@@ -188,7 +148,8 @@ http_respond_with_unprocessable_entity(String req_id, Arena *arena) {
   Poll poll = {.state = POLL_STATE_OPEN,
                .human_readable_id = make_unique_id_u128_string(arena)};
 
-  poll.created_by = extract_user_id_cookie(req, arena);
+  poll.created_by =
+      http_req_extract_cookie_with_name(req, user_id_cookie_name, arena);
   if (slice_is_empty(poll.created_by)) {
     poll.created_by = make_unique_id_u128_string(arena);
     log(LOG_LEVEL_INFO, "generating new user id", arena, L("req.id", req.id),

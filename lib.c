@@ -188,6 +188,10 @@ typedef struct {
 }
 
 [[nodiscard]] static bool string_eq(String a, String b) {
+  if (a.len == 0 && b.len == 0) {
+    return true;
+  }
+
   if (a.data == nullptr && b.data == nullptr && a.len == b.len) {
     return true;
   }

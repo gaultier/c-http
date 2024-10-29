@@ -512,6 +512,21 @@ static void test_html_to_string() {
   ASSERT(string_eq(expected, s));
 }
 
+static void test_extract_user_id_cookie() {
+  Arena arena = arena_make_from_virtual_mem(4096);
+
+  {
+    HttpRequest req = {0};
+    *dyn_push(&req.headers, &arena) = (KeyValue){
+        .key = S("Host"),
+        .value = S("google.com"),
+    };
+
+    String value = http_req_extract_cookie_with_name(req, S("foo"), &arena);
+    ASSERT(string_eq(S(""), value));
+  }
+}
+
 int main() {
   test_string_indexof_slice();
   test_string_trim();
@@ -527,4 +542,5 @@ int main() {
   test_json_encode_decode_string_slice();
   test_slice_range();
   test_html_to_string();
+  test_extract_user_id_cookie();
 }
