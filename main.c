@@ -319,7 +319,7 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
     };
     *dyn_push(&tag_link_css.attributes, arena) = (KeyValue){
         .key = S("href"),
-        .value = S("main.css"),
+        .value = S("/main.css"),
     };
   }
   *dyn_push(&document.head.children, arena) = tag_link_css;
@@ -611,7 +611,7 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
       };
       *dyn_push(&tag_link_css.attributes, arena) = (KeyValue){
           .key = S("href"),
-          .value = S("main.css"),
+          .value = S("/main.css"),
       };
     }
     *dyn_push(&document.head.children, arena) = tag_link_css;
@@ -621,7 +621,7 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
     {
       *dyn_push(&tag_script.attributes, arena) = (KeyValue){
           .key = S("src"),
-          .value = S("main.js"),
+          .value = S("/main.js"),
       };
     }
     *dyn_push(&document.head.children, arena) = tag_script;

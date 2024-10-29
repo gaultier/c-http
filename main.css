@@ -2,7 +2,7 @@ button {
   background-color: black;
   color: white;
   border: 0;
-  margin: 1rem;
+  margin: 0.5rem;
 }
 
 button:hover {
@@ -35,4 +35,12 @@ fieldset {
 
 #add-poll-option {
   width: 3rem;
+}
+
+ol > li:first-child > button:nth-child(2) {
+  visibility: hidden;
+}
+
+ol > li:last-child > button:nth-child(3) {
+  visibility: hidden;
 }
