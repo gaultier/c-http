@@ -32,6 +32,24 @@ typedef struct {
   String created_by;
 } Poll;
 
+[[nodiscard]] static HttpResponse
+http_response_add_user_id_cookie(HttpResponse resp, String user_id,
+                                 Arena *arena) {
+  HttpResponse res = resp;
+
+  DynU8 cookie_value = {0};
+  dyn_append_slice(&cookie_value, user_id_cookie_name, arena);
+  dyn_append_slice(&cookie_value, S("="), arena);
+  dyn_append_slice(&cookie_value, user_id, arena);
+  dyn_append_slice(&cookie_value, S("; Secure"), arena);
+
+  *dyn_push(&res.headers, arena) = (KeyValue){
+      .key = S("Set-Cookie"),
+      .value = dyn_slice(String, cookie_value),
+  };
+  return res;
+}
+
 [[nodiscard]] static DatabaseError db_create_poll(String req_id, Poll poll,
                                                   Arena *arena) {
   ASSERT(!slice_is_empty(poll.created_by));
@@ -155,16 +173,7 @@ http_respond_with_unprocessable_entity(String req_id, Arena *arena) {
     log(LOG_LEVEL_INFO, "generating new user id", arena, L("req.id", req.id),
         L("user_id", poll.created_by));
 
-    DynU8 cookie_value = {0};
-    dyn_append_slice(&cookie_value, user_id_cookie_name, arena);
-    dyn_append_slice(&cookie_value, S("="), arena);
-    dyn_append_slice(&cookie_value, poll.created_by, arena);
-    dyn_append_slice(&cookie_value, S("; Secure"), arena);
-
-    *dyn_push(&res.headers, arena) = (KeyValue){
-        .key = S("Set-Cookie"),
-        .value = dyn_slice(String, cookie_value),
-    };
+    res = http_response_add_user_id_cookie(res, poll.created_by, arena);
   }
 
   {
@@ -413,6 +422,14 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
 
   String user_id =
       http_req_extract_cookie_with_name(req, user_id_cookie_name, arena);
+  if (slice_is_empty(user_id)) {
+    user_id = make_unique_id_u128_string(arena);
+    log(LOG_LEVEL_INFO, "generating new user id", arena, L("req.id", req.id),
+        L("user_id", user_id));
+
+    res = http_response_add_user_id_cookie(res, user_id, arena);
+  }
+
   res.body =
       dyn_slice(String, make_get_poll_html(get_poll.poll, user_id, arena));
   res.status = 200;
