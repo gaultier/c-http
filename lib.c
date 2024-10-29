@@ -21,6 +21,11 @@
 #include <sys/sendfile.h>
 #endif
 
+#define KiB (1024ULL)
+#define MiB (1024ULL * Ki)
+#define GiB (1024ULL * Mi)
+#define TiB (1024ULL * Gi)
+
 #define static_array_len(a) (sizeof(a) / sizeof((a)[0]))
 
 #define CLAMP(n, min, max)                                                     \
