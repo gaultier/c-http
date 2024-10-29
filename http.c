@@ -1144,6 +1144,10 @@ http_req_extract_cookie_with_name(HttpRequest req, String cookie_name,
   return res;
 }
 
+// NOTE: Only sanitation for including the string inside an HTML tag e.g.:
+// `<div>...ESCAPED_STRING..</div>`.
+// To include the string inside other context (e.g. JS, CSS, HTML attributes,
+// etc), more advance sanitation is required.
 [[nodiscard]] static String html_sanitize(String s, Arena *arena) {
   DynU8 res = {0};
   dyn_ensure_cap(&res, s.len, arena);
