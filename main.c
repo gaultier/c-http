@@ -156,7 +156,6 @@ http_respond_with_unprocessable_entity(String req_id, Arena *arena) {
         L("user_id", poll.created_by));
 
     DynU8 cookie_value = {0};
-    dyn_append_slice(&cookie_value, S("__Secure-"), arena);
     dyn_append_slice(&cookie_value, user_id_cookie_name, arena);
     dyn_append_slice(&cookie_value, S("="), arena);
     dyn_append_slice(&cookie_value, poll.created_by, arena);
@@ -301,7 +300,11 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
   return res;
 }
 
-[[nodiscard]] static String make_get_poll_html(Poll poll, Arena *arena) {
+[[nodiscard]] static String make_get_poll_html(Poll poll, String user_id,
+                                               Arena *arena) {
+  ASSERT(!slice_is_empty(poll.created_by));
+  ASSERT(!slice_is_empty(user_id));
+
   DynU8 resp_body = {0};
   HtmlDocument document = html_make(S("Poll"), arena);
   HtmlElement tag_link_css = {.kind = HTML_LINK};
@@ -359,6 +362,12 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
         dyn_append_slice(&created_at_text, S("Created at: "), arena);
         dyn_append_slice(&created_at_text, poll.created_at, arena);
 
+        if (string_eq(poll.created_by, user_id)) {
+          dyn_append_slice(&created_at_text, S(" by you."), arena);
+        } else {
+          dyn_append_slice(&created_at_text, S(" by someone else."), arena);
+        }
+
         *dyn_push(&created_at_div.children, arena) = (HtmlElement){
             .kind = HTML_TEXT,
             .text = dyn_slice(String, created_at_text),
@@ -402,7 +411,10 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
     ASSERT(false);
   }
 
-  res.body = dyn_slice(String, make_get_poll_html(get_poll.poll, arena));
+  String user_id =
+      http_req_extract_cookie_with_name(req, user_id_cookie_name, arena);
+  res.body =
+      dyn_slice(String, make_get_poll_html(get_poll.poll, user_id, arena));
   res.status = 200;
   http_push_header(&res.headers, S("Content-Type"), S("text/html"), arena);
 
@@ -525,7 +537,8 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
     options = dyn_slice(StringSlice, dyn_options);
   }
 
-  String user_id = extract_user_id_cookie(req, arena);
+  String user_id =
+      http_req_extract_cookie_with_name(req, user_id_cookie_name, arena);
   if (slice_is_empty(user_id)) {
     log(LOG_LEVEL_ERROR,
         "failed to create vote due to missing/empty user-agent", arena,
