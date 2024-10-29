@@ -574,6 +574,18 @@ static void test_extract_user_id_cookie() {
   }
 }
 
+static void test_html_sanitize() {
+  Arena arena = arena_make_from_virtual_mem(4096);
+  String s =
+      S("<pre onclick=\"alert('hello')\"><code>int main() {}</code></pre>");
+  String sanitized = html_sanitize(s, &arena);
+  String expected =
+      S("&ltpre onclick=&quotalert(&#x27hello&#x27)&quot&gt&ltcode&gtint "
+        "main() {}&lt/code&gt&lt/pre&gt");
+
+  ASSERT(string_eq(expected, sanitized));
+}
+
 int main() {
   test_string_indexof_slice();
   test_string_trim();
@@ -590,4 +602,5 @@ int main() {
   test_slice_range();
   test_html_to_string();
   test_extract_user_id_cookie();
+  test_html_sanitize();
 }
