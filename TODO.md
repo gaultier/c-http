@@ -13,7 +13,7 @@ MVP:
 - [x] Vendor & compile db code
 - [x] Html builder
 - [x] Use cookie for user id
-- [ ] Sanitize user input in html
+- [x] Sanitize user input in html
 - [ ] Cast a vote UI
 - [ ] Content security policy
 - [ ] See poll results

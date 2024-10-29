@@ -188,11 +188,12 @@ http_respond_with_unprocessable_entity(String req_id, Arena *arena) {
     DynString dyn_options = {0};
     for (uint64_t i = 0; i < form.form.len; i++) {
       FormDataKV kv = dyn_at(form.form, i);
+      String value = html_sanitize(kv.value, arena);
 
       if (string_eq(kv.key, S("name"))) {
-        poll.name = kv.value;
-      } else if (string_eq(kv.key, S("option")) && !slice_is_empty(kv.value)) {
-        *dyn_push(&dyn_options, arena) = kv.value;
+        poll.name = value;
+      } else if (string_eq(kv.key, S("option")) && !slice_is_empty(value)) {
+        *dyn_push(&dyn_options, arena) = value;
       }
       // Ignore unknown form data.
     }
@@ -545,9 +546,10 @@ db_cast_vote(String req_id, String human_readable_poll_id, String user_id,
     DynString dyn_options = {0};
     for (uint64_t i = 0; i < form.form.len; i++) {
       FormDataKV kv = dyn_at(form.form, i);
+      String value = html_sanitize(kv.value, arena);
 
-      if (string_eq(kv.key, S("option")) && !slice_is_empty(kv.value)) {
-        *dyn_push(&dyn_options, arena) = kv.value;
+      if (string_eq(kv.key, S("option")) && !slice_is_empty(value)) {
+        *dyn_push(&dyn_options, arena) = value;
       }
       // Ignore unknown form data.
     }

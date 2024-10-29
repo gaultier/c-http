@@ -1143,3 +1143,27 @@ http_req_extract_cookie_with_name(HttpRequest req, String cookie_name,
   }
   return res;
 }
+
+[[nodiscard]] static String html_sanitize(String s, Arena *arena) {
+  DynU8 res = {0};
+  dyn_ensure_cap(&res, s.len, arena);
+  for (uint64_t i = 0; i < s.len; i++) {
+    uint8_t c = slice_at(s, i);
+
+    if ('&' == c) {
+      dyn_append_slice(&res, S("&amp"), arena);
+    } else if ('<' == c) {
+      dyn_append_slice(&res, S("&lt"), arena);
+    } else if ('>' == c) {
+      dyn_append_slice(&res, S("&gt"), arena);
+    } else if ('"' == c) {
+      dyn_append_slice(&res, S("&quot"), arena);
+    } else if ('\'' == c) {
+      dyn_append_slice(&res, S("&#x27"), arena);
+    } else {
+      *dyn_push(&res, arena) = c;
+    }
+  }
+
+  return dyn_slice(String, res);
+}
