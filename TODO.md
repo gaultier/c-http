@@ -40,3 +40,4 @@ QoL:
 - [ ] Retake a poll
 - [ ] Poll options (e.g. any user can add options to the poll)
 - [ ] QR code for link
+- [ ] Crash reporting strategy
