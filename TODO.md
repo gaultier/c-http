@@ -30,7 +30,6 @@ QoL:
 - [ ] Close a poll (admin role?)
 - [ ] Live poll timer
 - [ ] Poll TTL & GC
-- [ ] Full stacktrace (better assert)
 - [ ] Shorter urls:
     - Use readable english words
 - [ ] TLS
@@ -40,4 +39,4 @@ QoL:
 - [ ] Retake a poll
 - [ ] Poll options (e.g. any user can add options to the poll)
 - [ ] QR code for link
-- [ ] Crash reporting strategy
+- [ ] Crash reporting strategy/Full stacktrace (better assert)
