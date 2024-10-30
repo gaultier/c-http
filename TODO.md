@@ -1,4 +1,5 @@
 MVP:
+
 - [x] Parse request path into components
 - [x] Parse form fields
 - [x] Db
@@ -27,6 +28,8 @@ MVP:
 - [ ] License
 
 QoL:
+
+- [ ] More robust arena (canaries etc)
 - [ ] Close a poll (admin role?)
 - [ ] Live poll timer
 - [ ] Poll TTL & GC
