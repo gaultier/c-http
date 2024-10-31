@@ -44,6 +44,11 @@ function add_candidate() {
 
 function raise_option(elem){
   console.log("raise", elem);
+
+  var parent = document.getElementById('poll-options-list');
+  for (var i=0;i<parent.childElementCount; i++){
+    console.log(i, parent.children[i], parent.children[i] == elem.parentElement);
+  }
 }
 
 function lower_option(elem){

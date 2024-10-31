@@ -363,6 +363,11 @@ db_get_poll(String req_id, String human_readable_poll_id, Arena *arena) {
 
       {
         HtmlElement tag_ol = {.kind = HTML_OL};
+        *dyn_push(&tag_ol.attributes, arena) = (KeyValue){
+            .key = S("id"),
+            .value = S("poll-options-list"),
+        };
+
         for (u64 i = 0; i < poll.options.len; i++) {
           String option = dyn_at(poll.options, i);
 
