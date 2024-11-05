@@ -26,6 +26,7 @@ MVP:
     - [ ] Monkey testing/fuzz testing
 - [ ] Benchmark
 - [ ] License
+- [ ] Pledge/unveil/mseal
 
 QoL:
 
