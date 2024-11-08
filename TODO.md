@@ -15,6 +15,7 @@ MVP:
 - [x] Html builder
 - [x] Use cookie for user id
 - [x] Sanitize user input in html
+- [ ] Consider storing the data in a file as a hashtable/treemap
 - [ ] Cast a vote UI
 - [ ] Content security policy
 - [ ] See poll results
