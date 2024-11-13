@@ -37,7 +37,9 @@ QoL:
 - [ ] Poll TTL & GC
 - [ ] Shorter urls:
     - Use readable english words
-- [ ] TLS
+- ~~[ ] TLS~~ => In-kernel TLS: https://freebsdfoundation.org/wp-content/uploads/2020/07/TLS-Offload-in-the-Kernel.pdf
+- ~~[ ] Slow Loris protections~~ => Pf timeout
+- ~~[ ] Maximum number of in-flight requests i.e. workers~~ => `setrlimit(RLIMIT_NPROC,...)` or `rctl -a jail:<jailname>:maxproc:deny:100` for 100
 - [ ] Translations
 - [ ] Button to copy url to clipboard
 - [ ] Embed static files (if any)
