@@ -1217,7 +1217,11 @@ http_req_extract_cookie_with_name(HttpRequest req, String cookie_name,
 
   for (u64 i = 0; i < value.len; i++) {
     u8 c = slice_at(value, i);
-    *dyn_push(sb, arena) = '%';
-    dynu8_append_u8_hex_upper(sb, c, arena);
+    if (ch_is_alphanumeric(c)) {
+      *dyn_push(sb, arena) = c;
+    } else {
+      *dyn_push(sb, arena) = '%';
+      dynu8_append_u8_hex_upper(sb, c, arena);
+    }
   }
 }

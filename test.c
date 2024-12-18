@@ -463,7 +463,7 @@ static void test_url_encode() {
     url_encode_string(&sb, S("日本語"), S("foo"), &arena);
     String encoded = dyn_slice(String, sb);
 
-    ASSERT(string_eq(encoded, S("%E6%97%A5%E6%9C%AC%E8%AA%9E=%66%6F%6F")));
+    ASSERT(string_eq(encoded, S("%E6%97%A5%E6%9C%AC%E8%AA%9E=foo")));
   }
 }
 
