@@ -1,6 +1,6 @@
 #pragma once
 
-#include "lib.c"
+#include "submodules/cstd/lib.c"
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <pthread.h>
@@ -458,7 +458,7 @@ request_parse_content_length_maybe(HttpRequest req, Arena *arena) {
       continue;
     }
 
-    return string_parse_u64_decimal(h.value);
+    return string_parse_u64(h.value);
   }
   return (ParseNumberResult){0};
 }
@@ -499,7 +499,7 @@ request_parse_content_length_maybe(HttpRequest req, Arena *arena) {
 
   ParseNumberResult content_length =
       request_parse_content_length_maybe(req, arena);
-  if (content_length.err) {
+  if (!content_length.present) {
     req.err = HS_ERR_INVALID_HTTP_REQUEST;
     return req;
   }
@@ -570,8 +570,8 @@ static void http_push_header(DynKeyValue *headers, String key, String value,
   *dyn_push(headers, arena) = (KeyValue){.key = key, .value = value};
 }
 
-static void http_response_register_file_for_sending(HttpResponse *res,
-                                                    String path) {
+[[maybe_unused]] static void
+http_response_register_file_for_sending(HttpResponse *res, String path) {
   ASSERT(!slice_is_empty(path));
   res->file_path = path;
 }
@@ -764,9 +764,9 @@ http_client_request(struct sockaddr *addr, u32 addr_sizeof, HttpRequest req,
 
     String status_str =
         slice_range(status_line.line, http_version_needle.len, 0);
-    ParseNumberResult status_parsed = string_parse_u64_decimal(status_str);
-    if (status_parsed.err) {
-      res.err = status_parsed.err;
+    ParseNumberResult status_parsed = string_parse_u64(status_str);
+    if (!status_parsed.present) {
+      res.err = HS_ERR_INVALID_HTTP_RESPONSE;
       goto end;
     }
     if (!status_parsed.present) {
