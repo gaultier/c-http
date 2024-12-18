@@ -719,6 +719,7 @@ static Error http_server_run(u16 port, HttpRequestHandleFn request_handler,
   }
 }
 
+// TODO: Split serializing body?
 [[nodiscard]] static String http_request_serialize(HttpRequest req,
                                                    Arena *arena) {
   DynU8 sb = {0};
