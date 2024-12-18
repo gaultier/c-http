@@ -452,7 +452,7 @@ static void test_url_encode() {
   Arena arena = arena_make_from_virtual_mem(4 * KiB);
   {
     DynU8 sb = {0};
-    url_encode_u64(&sb, S("日本語"), 123, &arena);
+    url_encode_string(&sb, S("日本語"), S("123"), &arena);
     String encoded = dyn_slice(String, sb);
 
     ASSERT(string_eq(encoded, S("%E6%97%A5%E6%9C%AC%E8%AA%9E=123")));
@@ -465,6 +465,33 @@ static void test_url_encode() {
 
     ASSERT(string_eq(encoded, S("%E6%97%A5%E6%9C%AC%E8%AA%9E=foo")));
   }
+}
+
+static void test_http_request_serialize() {
+  Arena arena = arena_make_from_virtual_mem(4 * KiB);
+
+  HttpRequest req = {0};
+  req.method = HM_GET;
+  http_push_header(&req.headers, S("Authorization"), S("Bearer abc"), &arena);
+  *dyn_push(&req.path_components, &arena) = S("announce");
+  *dyn_push(&req.url_parameters, &arena) = (KeyValue){
+      .key = S("event"),
+      .value = S("started"),
+  };
+  *dyn_push(&req.url_parameters, &arena) = (KeyValue){
+      .key = S("port"),
+      .value = S("6883"),
+  };
+
+  req.body = S("hello, world!");
+
+  String serialized = http_request_serialize(req, &arena);
+
+  String expected =
+      S("GET /announce?event=started&port=6883 HTTP/1.1\r\nAuthorization: "
+        "Bearer abc\r\n\r\nhello, world!");
+
+  ASSERT(string_eq(serialized, expected));
 }
 
 int main() {
@@ -480,4 +507,5 @@ int main() {
   test_extract_user_id_cookie();
   test_html_sanitize();
   test_url_encode();
+  test_http_request_serialize();
 }

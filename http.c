@@ -44,6 +44,7 @@ typedef struct {
   String id;
   String path_raw;
   DynString path_components;
+  DynKeyValue url_parameters;
   HttpMethod method;
   DynKeyValue headers;
   String body;
@@ -693,6 +694,74 @@ static Error http_server_run(u16 port, HttpRequestHandleFn request_handler,
   }
 }
 
+[[maybe_unused]] static void url_encode_string(DynU8 *sb, String key,
+                                               String value, Arena *arena) {
+  for (u64 i = 0; i < key.len; i++) {
+    u8 c = slice_at(key, i);
+    if (ch_is_alphanumeric(c)) {
+      *dyn_push(sb, arena) = c;
+    } else {
+      *dyn_push(sb, arena) = '%';
+      dynu8_append_u8_hex_upper(sb, c, arena);
+    }
+  }
+
+  *dyn_push(sb, arena) = '=';
+
+  for (u64 i = 0; i < value.len; i++) {
+    u8 c = slice_at(value, i);
+    if (ch_is_alphanumeric(c)) {
+      *dyn_push(sb, arena) = c;
+    } else {
+      *dyn_push(sb, arena) = '%';
+      dynu8_append_u8_hex_upper(sb, c, arena);
+    }
+  }
+}
+
+[[nodiscard]] static String http_request_serialize(HttpRequest req,
+                                                   Arena *arena) {
+  DynU8 sb = {0};
+  dyn_append_slice(&sb, http_method_to_s(req.method), arena);
+  dyn_append_slice(&sb, S(" /"), arena);
+
+  for (u64 i = 0; i < req.path_components.len; i++) {
+    String path_component = dyn_at(req.path_components, i);
+    dyn_append_slice(&sb, path_component, arena);
+
+    if (i < req.path_components.len - 1) {
+      *dyn_push(&sb, arena) = '/';
+    }
+  }
+
+  if (req.url_parameters.len > 0) {
+    *dyn_push(&sb, arena) = '?';
+    for (u64 i = 0; i < req.url_parameters.len; i++) {
+      KeyValue param = dyn_at(req.url_parameters, i);
+      url_encode_string(&sb, param.key, param.value, arena);
+
+      if (i < req.url_parameters.len - 1) {
+        *dyn_push(&sb, arena) = '&';
+      }
+    }
+  }
+
+  dyn_append_slice(&sb, S(" HTTP/1.1"), arena);
+  dyn_append_slice(&sb, S("\r\n"), arena);
+
+  for (u64 i = 0; i < req.headers.len; i++) {
+    KeyValue header = dyn_at(req.headers, i);
+    dyn_append_slice(&sb, header.key, arena);
+    dyn_append_slice(&sb, S(": "), arena);
+    dyn_append_slice(&sb, header.value, arena);
+    dyn_append_slice(&sb, S("\r\n"), arena);
+  }
+  dyn_append_slice(&sb, S("\r\n"), arena);
+  dyn_append_slice(&sb, req.body, arena);
+
+  return dyn_slice(String, sb);
+}
+
 [[maybe_unused]] [[nodiscard]] static HttpResponse
 http_client_request(struct sockaddr *addr, u32 addr_sizeof, HttpRequest req,
                     Arena *arena) {
@@ -720,30 +789,10 @@ http_client_request(struct sockaddr *addr, u32 addr_sizeof, HttpRequest req,
     goto end;
   }
 
-  DynU8 sb = {0};
-  dyn_append_slice(&sb, http_method_to_s(req.method), arena);
-  dyn_append_slice(&sb, S(" /"), arena);
+  String http_request_serialized = http_request_serialize(req, arena);
 
-  for (u64 i = 0; i < req.path_components.len; i++) {
-    String path_component = dyn_at(req.path_components, i);
-    // TODO: Need to url encode?
-    dyn_append_slice(&sb, path_component, arena);
-    *dyn_push(&sb, arena) = '/';
-  }
-  dyn_append_slice(&sb, S(" HTTP/1.1"), arena);
-  dyn_append_slice(&sb, S("\r\n"), arena);
-
-  for (u64 i = 0; i < req.headers.len; i++) {
-    KeyValue header = dyn_at(req.headers, i);
-    dyn_append_slice(&sb, header.key, arena);
-    dyn_append_slice(&sb, S(": "), arena);
-    dyn_append_slice(&sb, header.value, arena);
-    dyn_append_slice(&sb, S("\r\n"), arena);
-  }
-  dyn_append_slice(&sb, S("\r\n"), arena);
-  dyn_append_slice(&sb, req.body, arena);
-
-  ASSERT(send(client, sb.data, sb.len, 0) == (i64)sb.len);
+  ASSERT(send(client, http_request_serialized.data, http_request_serialized.len,
+              0) == (i64)http_request_serialized.len);
 
   Reader reader = reader_make_from_socket(client);
 
@@ -1190,38 +1239,4 @@ http_req_extract_cookie_with_name(HttpRequest req, String cookie_name,
   }
 
   return dyn_slice(String, res);
-}
-
-[[maybe_unused]] static void url_encode_u64(DynU8 *sb, String key, u64 value,
-                                            Arena *arena) {
-  for (u64 i = 0; i < key.len; i++) {
-    u8 c = slice_at(key, i);
-    *dyn_push(sb, arena) = '%';
-    dynu8_append_u8_hex_upper(sb, c, arena);
-  }
-
-  *dyn_push(sb, arena) = '=';
-
-  dynu8_append_u64(sb, value, arena);
-}
-
-[[maybe_unused]] static void url_encode_string(DynU8 *sb, String key,
-                                               String value, Arena *arena) {
-  for (u64 i = 0; i < key.len; i++) {
-    u8 c = slice_at(key, i);
-    *dyn_push(sb, arena) = '%';
-    dynu8_append_u8_hex_upper(sb, c, arena);
-  }
-
-  *dyn_push(sb, arena) = '=';
-
-  for (u64 i = 0; i < value.len; i++) {
-    u8 c = slice_at(value, i);
-    if (ch_is_alphanumeric(c)) {
-      *dyn_push(sb, arena) = c;
-    } else {
-      *dyn_push(sb, arena) = '%';
-      dynu8_append_u8_hex_upper(sb, c, arena);
-    }
-  }
 }
