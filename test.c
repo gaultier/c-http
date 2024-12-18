@@ -448,6 +448,25 @@ static void test_html_sanitize() {
   ASSERT(string_eq(expected, sanitized));
 }
 
+static void test_url_encode() {
+  Arena arena = arena_make_from_virtual_mem(4 * KiB);
+  {
+    DynU8 sb = {0};
+    url_encode_u64(&sb, S("日本語"), 123, &arena);
+    String encoded = dyn_slice(String, sb);
+
+    ASSERT(string_eq(encoded, S("%E6%97%A5%E6%9C%AC%E8%AA%9E=123")));
+  }
+
+  {
+    DynU8 sb = {0};
+    url_encode_string(&sb, S("日本語"), S("foo"), &arena);
+    String encoded = dyn_slice(String, sb);
+
+    ASSERT(string_eq(encoded, S("%E6%97%A5%E6%9C%AC%E8%AA%9E=%66%6F%6F")));
+  }
+}
+
 int main() {
   test_read_http_request_without_body();
   test_read_http_request_with_body();
@@ -460,4 +479,5 @@ int main() {
   test_html_to_string();
   test_extract_user_id_cookie();
   test_html_sanitize();
+  test_url_encode();
 }

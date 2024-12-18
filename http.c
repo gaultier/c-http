@@ -1191,3 +1191,33 @@ http_req_extract_cookie_with_name(HttpRequest req, String cookie_name,
 
   return dyn_slice(String, res);
 }
+
+[[maybe_unused]] static void url_encode_u64(DynU8 *sb, String key, u64 value,
+                                            Arena *arena) {
+  for (u64 i = 0; i < key.len; i++) {
+    u8 c = slice_at(key, i);
+    *dyn_push(sb, arena) = '%';
+    dynu8_append_u8_hex_upper(sb, c, arena);
+  }
+
+  *dyn_push(sb, arena) = '=';
+
+  dynu8_append_u64(sb, value, arena);
+}
+
+[[maybe_unused]] static void url_encode_string(DynU8 *sb, String key,
+                                               String value, Arena *arena) {
+  for (u64 i = 0; i < key.len; i++) {
+    u8 c = slice_at(key, i);
+    *dyn_push(sb, arena) = '%';
+    dynu8_append_u8_hex_upper(sb, c, arena);
+  }
+
+  *dyn_push(sb, arena) = '=';
+
+  for (u64 i = 0; i < value.len; i++) {
+    u8 c = slice_at(value, i);
+    *dyn_push(sb, arena) = '%';
+    dynu8_append_u8_hex_upper(sb, c, arena);
+  }
+}
