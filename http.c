@@ -12,6 +12,7 @@
 
 static const u64 HTTP_REQUEST_LINES_MAX_COUNT = 512;
 static const u64 HTTP_SERVER_HANDLER_MEM_LEN = 12 * KiB;
+[[maybe_unused]]
 static const u16 HTTP_SERVER_DEFAULT_PORT = 12345;
 static const int TCP_LISTEN_BACKLOG = 16384;
 
@@ -618,6 +619,7 @@ static void handle_client(int socket, HttpRequestHandleFn handle, void *ctx) {
   close(socket);
 }
 
+[[maybe_unused]] [[nodiscard]]
 static Error http_server_run(u16 port, HttpRequestHandleFn request_handler,
                              void *ctx, Arena *arena) {
 
@@ -895,8 +897,8 @@ form_data_kv_parse_element(String in, u8 ch_terminator, Arena *arena) {
   return res;
 }
 
-[[nodiscard]] static FormDataParseResult form_data_parse(String in,
-                                                         Arena *arena) {
+[[maybe_unused]] [[nodiscard]] static FormDataParseResult
+form_data_parse(String in, Arena *arena) {
   FormDataParseResult res = {0};
 
   String remaining = in;
@@ -963,7 +965,8 @@ typedef struct {
   HtmlElement head;
 } HtmlDocument;
 
-[[nodiscard]] static HtmlDocument html_make(String title, Arena *arena) {
+[[maybe_unused]] [[nodiscard]] static HtmlDocument html_make(String title,
+                                                             Arena *arena) {
   HtmlDocument res = {0};
 
   {
@@ -1019,6 +1022,7 @@ static void html_tags_to_string(DynHtmlElements elements, DynU8 *sb,
   }
 }
 
+[[maybe_unused]]
 static void html_document_to_string(HtmlDocument doc, DynU8 *sb, Arena *arena) {
   dyn_append_slice(sb, S("<!DOCTYPE html>"), arena);
 
@@ -1118,7 +1122,7 @@ static void html_tag_to_string(HtmlElement e, DynU8 *sb, Arena *arena) {
   *dyn_push(sb, arena) = '>';
 }
 
-[[nodiscard]] static String
+[[maybe_unused]] [[nodiscard]] static String
 http_req_extract_cookie_with_name(HttpRequest req, String cookie_name,
                                   Arena *arena) {
   String res = {0};
@@ -1163,7 +1167,8 @@ http_req_extract_cookie_with_name(HttpRequest req, String cookie_name,
 // `<div>...ESCAPED_STRING..</div>`.
 // To include the string inside other context (e.g. JS, CSS, HTML attributes,
 // etc), more advance sanitation is required.
-[[nodiscard]] static String html_sanitize(String s, Arena *arena) {
+[[maybe_unused]] [[nodiscard]] static String html_sanitize(String s,
+                                                           Arena *arena) {
   DynU8 res = {0};
   dyn_ensure_cap(&res, s.len, arena);
   for (u64 i = 0; i < s.len; i++) {
