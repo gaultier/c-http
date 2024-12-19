@@ -1,4 +1,5 @@
-#pragma once
+#ifndef CHTTP_HTTP_C
+#define CHTTP_HTTP_C
 
 #include "submodules/cstd/lib.c"
 #include <fcntl.h>
@@ -1357,3 +1358,4 @@ typedef struct {
   res.ok = true;
   return res;
 }
+#endif
