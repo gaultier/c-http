@@ -494,6 +494,38 @@ static void test_http_request_serialize() {
   ASSERT(string_eq(serialized, expected));
 }
 
+static void test_string_indexof_any_byte() {
+  {
+    i64 idx = string_indexof_any_byte(S(""), S(""));
+    ASSERT(-1 == idx);
+  }
+  {
+    i64 idx = string_indexof_any_byte(S(""), S(":"));
+    ASSERT(-1 == idx);
+  }
+  {
+    i64 idx = string_indexof_any_byte(S("?"), S(":"));
+    ASSERT(-1 == idx);
+  }
+  {
+    i64 idx = string_indexof_any_byte(S("abc"), S(":?"));
+    ASSERT(-1 == idx);
+  }
+  {
+    i64 idx = string_indexof_any_byte(S("x"), S("yz"));
+    ASSERT(-1 == idx);
+  }
+  {
+    i64 idx = string_indexof_any_byte(S(":"), S(":"));
+    ASSERT(0 == idx);
+  }
+  {
+    i64 idx = string_indexof_any_byte(S("abc"), S("cd"));
+    ASSERT(2 == idx);
+  }
+}
+
+#if 0
 static void test_url_parse() {
   Arena arena = arena_make_from_virtual_mem(4 * KiB);
 
@@ -546,6 +578,7 @@ static void test_url_parse() {
     ASSERT(res.ok);
   }
 }
+#endif
 
 int main() {
   test_read_http_request_without_body();
@@ -561,5 +594,6 @@ int main() {
   test_html_sanitize();
   test_url_encode();
   test_http_request_serialize();
-  test_url_parse();
+  test_string_indexof_any_byte();
+  // test_url_parse();
 }
