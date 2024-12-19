@@ -833,22 +833,6 @@ http_client_request(String host, u16 port, HttpRequest req, Arena *arena) {
     if (client_socket == -1)
       continue;
 
-#if 0
-    void *addr = nullptr;
-    if (rp->ai_family == AF_INET) {
-      struct sockaddr_in *ipv4 = (struct sockaddr_in *)(void *)rp->ai_addr;
-      addr = &(ipv4->sin_addr);
-    } else if (rp->ai_family == AF_INET6) {
-      struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)(void *)rp->ai_addr;
-      addr = &(ipv6->sin6_addr);
-    }
-
-    char ipstr[INET6_ADDRSTRLEN] = {0};
-    inet_ntop(rp->ai_family, addr, ipstr, sizeof ipstr);
-
-    printf("%s", ipstr); // prints IP address
-#endif
-
     if (connect(client_socket, rp->ai_addr, rp->ai_addrlen) == 0)
       break; /* Success */
 
@@ -858,13 +842,15 @@ http_client_request(String host, u16 port, HttpRequest req, Arena *arena) {
   freeaddrinfo(result); /* No longer needed */
 
   if (rp == NULL) { /* No address succeeded */
-    fprintf(stderr, "Could not connect\n");
+    log(LOG_LEVEL_ERROR, "http request did not find any suitable ip/port",
+        arena, L("req.method", req.method), L("req.path_raw", req.path_raw));
     res.err = EINVAL;
     return res;
   }
 
   String http_request_serialized = http_request_serialize(req, arena);
 
+  // TODO: should not be an assert but a returned error.
   ASSERT(send(client_socket, http_request_serialized.data,
               http_request_serialized.len,
               0) == (i64)http_request_serialized.len);
@@ -909,12 +895,18 @@ http_client_request(String host, u16 port, HttpRequest req, Arena *arena) {
 
   res.err = reader_read_headers(&reader, &res.headers, arena);
   if (res.err) {
+    log(LOG_LEVEL_ERROR, "http request failed to read headers", arena,
+        L("req.method", req.method), L("req.path_raw", req.path_raw),
+        L("err", res.err));
     goto end;
   }
 
   // Read body.
   IoOperationResult body = reader_read_until_end(&reader, arena);
   if (body.err) {
+    log(LOG_LEVEL_ERROR, "http request failed to read body", arena,
+        L("req.method", req.method), L("req.path_raw", req.path_raw),
+        L("err", body.err));
     res.err = body.err;
     goto end;
   }
