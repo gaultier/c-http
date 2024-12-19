@@ -587,6 +587,19 @@ static void test_url_parse() {
     ASSERT(string_eq(S("a.b.c"), res.url.host));
     ASSERT(string_eq(S("foo"), res.url.path_raw));
     ASSERT(80 == res.url.port);
+    ASSERT(1 == res.url.path_components.len);
+
+    String path_component = slice_at(res.url.path_components, 0);
+    ASSERT(string_eq(S("foo"), path_component));
+  }
+  {
+    ParseUrlResult res = url_parse(S("http://a.b.c:80/"), &arena);
+    ASSERT(res.ok);
+    ASSERT(string_eq(S("http"), res.url.scheme));
+    ASSERT(string_eq(S("a.b.c"), res.url.host));
+    ASSERT(string_eq(S(""), res.url.path_raw));
+    ASSERT(80 == res.url.port);
+    ASSERT(0 == res.url.path_components.len);
   }
 }
 
