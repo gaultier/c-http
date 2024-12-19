@@ -1298,29 +1298,28 @@ typedef struct {
       return res;
     }
 
+    res.url.host = slice_range(remaining, 0, (u64)any_sep_idx);
+    if (0 == res.url.host.len) {
+      return res;
+    }
+
     bool is_port_sep = slice_at(remaining, any_sep_idx) == ':';
+    remaining =
+        slice_range(remaining, (u64)any_sep_idx + (is_port_sep ? 1 : 0), 0);
+
     if (is_port_sep) {
-      if (0 == any_sep_idx) {
-        return res; // Empty host e.g. `http://:80`.
-      } else {      // Port present.
-        res.url.host = slice_range(remaining, 0, (u64)any_sep_idx);
-        ASSERT(res.url.host.len > 0);
-
-        remaining = slice_range(remaining, (u64)any_sep_idx + 1, 0);
-
-        ParseNumberResult port_parse = string_parse_u64(remaining);
-        if (!port_parse.present) { // Empty/invalid port.
-          return res;
-        }
-        if (port_parse.n > UINT16_MAX) { // Port too big.
-          return res;
-        }
-        if (0 == port_parse.n) { // Zero port e.g. `http://abc:0`.
-          return res;
-        }
-        res.url.port = (u16)port_parse.n;
-        remaining = port_parse.remaining;
+      ParseNumberResult port_parse = string_parse_u64(remaining);
+      if (!port_parse.present) { // Empty/invalid port.
+        return res;
       }
+      if (port_parse.n > UINT16_MAX) { // Port too big.
+        return res;
+      }
+      if (0 == port_parse.n) { // Zero port e.g. `http://abc:0`.
+        return res;
+      }
+      res.url.port = (u16)port_parse.n;
+      remaining = port_parse.remaining;
     }
   }
 

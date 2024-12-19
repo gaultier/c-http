@@ -593,8 +593,8 @@ static void test_url_parse() {
     ASSERT(80 == res.url.port);
     ASSERT(1 == res.url.path_components.len);
 
-    String path_component = slice_at(res.url.path_components, 0);
-    ASSERT(string_eq(S("foo"), path_component));
+    String path_component0 = slice_at(res.url.path_components, 0);
+    ASSERT(string_eq(S("foo"), path_component0));
   }
   {
     ParseUrlResult res = url_parse(S("http://a.b.c:80/"), &arena);
@@ -606,6 +606,26 @@ static void test_url_parse() {
     ASSERT(string_eq(S(""), res.url.path_raw));
     ASSERT(80 == res.url.port);
     ASSERT(0 == res.url.path_components.len);
+  }
+  {
+    ParseUrlResult res = url_parse(S("http://a.b.c/foo/bar/baz"), &arena);
+    ASSERT(res.ok);
+    ASSERT(string_eq(S("http"), res.url.scheme));
+    ASSERT(0 == res.url.username.len);
+    ASSERT(0 == res.url.password.len);
+    ASSERT(string_eq(S("a.b.c"), res.url.host));
+    ASSERT(string_eq(S("foo/bar/baz"), res.url.path_raw));
+    ASSERT(0 == res.url.port);
+    ASSERT(3 == res.url.path_components.len);
+
+    String path_component0 = slice_at(res.url.path_components, 0);
+    ASSERT(string_eq(S("foo"), path_component0));
+
+    String path_component1 = slice_at(res.url.path_components, 1);
+    ASSERT(string_eq(S("bar"), path_component1));
+
+    String path_component2 = slice_at(res.url.path_components, 2);
+    ASSERT(string_eq(S("baz"), path_component2));
   }
 }
 
