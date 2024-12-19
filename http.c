@@ -1326,6 +1326,7 @@ typedef struct {
 
   // Path, optional.
   // Query parameters, optional.
+  // FIXME: Messy code.
   {
     i64 any_sep_idx = string_indexof_any_byte(remaining, S("/?#"));
     if (-1 == any_sep_idx) {
@@ -1333,13 +1334,24 @@ typedef struct {
       return res;
     }
 
+    bool is_sep_path = slice_at(remaining, any_sep_idx) == '/';
+    bool is_sep_fragment = slice_at(remaining, any_sep_idx) == '#';
     bool is_sep_query_params = slice_at(remaining, any_sep_idx) == '?';
     if (is_sep_query_params) {
       ASSERT(0 && "TODO");
-    } else {
-      res.url.path_raw = remaining;
+    }
+    if (is_sep_fragment) {
+      ASSERT(0 && "TODO");
+    } else if (is_sep_path) {
+      if (any_sep_idx != 0) {
+        return res;
+      }
+
+      res.url.path_raw = slice_range(remaining, (u64)any_sep_idx + 1, 0);
       res.url.path_components =
           http_parse_relative_path(res.url.path_raw, false, arena);
+    } else {
+      ASSERT(0);
     }
   }
 

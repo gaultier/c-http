@@ -575,6 +575,18 @@ static void test_url_parse() {
   {
     ParseUrlResult res = url_parse(S("http://a:80"), &arena);
     ASSERT(res.ok);
+    ASSERT(string_eq(S("http"), res.url.scheme));
+    ASSERT(string_eq(S("a"), res.url.host));
+    ASSERT(string_eq(S(""), res.url.path_raw));
+    ASSERT(80 == res.url.port);
+  }
+  {
+    ParseUrlResult res = url_parse(S("http://a.b.c:80/foo"), &arena);
+    ASSERT(res.ok);
+    ASSERT(string_eq(S("http"), res.url.scheme));
+    ASSERT(string_eq(S("a.b.c"), res.url.host));
+    ASSERT(string_eq(S("foo"), res.url.path_raw));
+    ASSERT(80 == res.url.port);
   }
 }
 
