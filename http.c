@@ -868,14 +868,16 @@ http_client_request(String host, u16 port, HttpRequest req, Arena *arena) {
       goto end;
     }
 
-    String http_version_needle = S("HTTP/1.1 ");
-    if (!string_starts_with(status_line.line, http_version_needle)) {
+    String http1_1_version_needle = S("HTTP/1.1 ");
+    String http1_0_version_needle = S("HTTP/1.0 ");
+    if (!(string_starts_with(status_line.line, http1_0_version_needle) ||
+          string_starts_with(status_line.line, http1_1_version_needle))) {
       res.err = HS_ERR_INVALID_HTTP_RESPONSE;
       goto end;
     }
 
     String status_str =
-        slice_range(status_line.line, http_version_needle.len, 0);
+        slice_range(status_line.line, http1_1_version_needle.len, 0);
     ParseNumberResult status_parsed = string_parse_u64(status_str);
     if (!status_parsed.present) {
       res.err = HS_ERR_INVALID_HTTP_RESPONSE;
