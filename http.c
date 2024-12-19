@@ -834,7 +834,7 @@ http_client_request(String host, u16 port, HttpRequest req, Arena *arena) {
   freeaddrinfo(result); /* No longer needed */
 
   if (rp == NULL) { /* No address succeeded */
-    fprintf(stderr, "Could not bind\n");
+    fprintf(stderr, "Could not connect\n");
     res.err = EINVAL;
     return res;
   }
