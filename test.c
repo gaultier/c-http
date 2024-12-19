@@ -494,6 +494,59 @@ static void test_http_request_serialize() {
   ASSERT(string_eq(serialized, expected));
 }
 
+static void test_url_parse() {
+  Arena arena = arena_make_from_virtual_mem(4 * KiB);
+
+  {
+    ParseUrlResult res = url_parse(S(""), &arena);
+    ASSERT(!res.ok);
+  }
+  {
+    ParseUrlResult res = url_parse(S("x"), &arena);
+    ASSERT(!res.ok);
+  }
+  {
+    ParseUrlResult res = url_parse(S("http:"), &arena);
+    ASSERT(!res.ok);
+  }
+  {
+    ParseUrlResult res = url_parse(S("http:/"), &arena);
+    ASSERT(!res.ok);
+  }
+  {
+    ParseUrlResult res = url_parse(S("http://"), &arena);
+    ASSERT(!res.ok);
+  }
+  {
+    ParseUrlResult res = url_parse(S("://"), &arena);
+    ASSERT(!res.ok);
+  }
+  {
+    ParseUrlResult res = url_parse(S("http://a:"), &arena);
+    ASSERT(!res.ok);
+  }
+  {
+    ParseUrlResult res = url_parse(S("http://a:/"), &arena);
+    ASSERT(!res.ok);
+  }
+  {
+    ParseUrlResult res = url_parse(S("http://a:bc"), &arena);
+    ASSERT(!res.ok);
+  }
+  {
+    ParseUrlResult res = url_parse(S("http://abc:0"), &arena);
+    ASSERT(!res.ok);
+  }
+  {
+    ParseUrlResult res = url_parse(S("http://abc:999999"), &arena);
+    ASSERT(!res.ok);
+  }
+  {
+    ParseUrlResult res = url_parse(S("http://a:80"), &arena);
+    ASSERT(res.ok);
+  }
+}
+
 int main() {
   test_read_http_request_without_body();
   test_read_http_request_with_body();
@@ -508,4 +561,5 @@ int main() {
   test_html_sanitize();
   test_url_encode();
   test_http_request_serialize();
+  test_url_parse();
 }

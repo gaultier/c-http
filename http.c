@@ -274,9 +274,11 @@ reader_read_exactly(Reader *reader, u64 content_length, Arena *arena) {
   return line;
 }
 
-[[nodiscard]] static DynString http_parse_relative_path(String s,
-                                                        Arena *arena) {
-  ASSERT(string_starts_with(s, S("/")));
+[[nodiscard]] static DynString
+http_parse_relative_path(String s, bool must_start_with_slash, Arena *arena) {
+  if (must_start_with_slash) {
+    ASSERT(string_starts_with(s, S("/")));
+  }
 
   DynString res = {0};
 
@@ -361,7 +363,7 @@ reader_read_exactly(Reader *reader, u64 content_length, Arena *arena) {
     }
 
     req.path_raw = path.s;
-    req.path_components = http_parse_relative_path(path.s, arena);
+    req.path_components = http_parse_relative_path(path.s, true, arena);
   }
 
   {
@@ -1240,4 +1242,107 @@ http_req_extract_cookie_with_name(HttpRequest req, String cookie_name,
   }
 
   return dyn_slice(String, res);
+}
+
+typedef struct {
+  String scheme;
+  String username, password;
+  String host; // Including subdomains.
+  String path_raw;
+  DynString path_components;
+  // TODO: DynKeyValue url_parameters;
+  u16 port;
+  // TODO: fragment.
+} Url;
+
+typedef struct {
+  bool ok;
+  Url url;
+} ParseUrlResult;
+
+[[maybe_unused]] [[nodiscard]] static ParseUrlResult url_parse(String s,
+                                                               Arena *arena) {
+  ParseUrlResult res = {0};
+
+  String remaining = s;
+
+  // Scheme, mandatory.
+  {
+    String scheme_sep = S("://");
+    i64 scheme_sep_idx = string_indexof_string(remaining, scheme_sep);
+    if (scheme_sep_idx <= 1) { // Absent/empty scheme.
+      return res;
+    }
+    res.url.scheme = slice_range(remaining, 0, (u64)scheme_sep_idx);
+    remaining = slice_range(remaining, (u64)scheme_sep_idx + scheme_sep.len, 0);
+  }
+
+  // Username/password, optional.
+  {
+    i64 user_password_sep_idx = string_indexof_byte(remaining, '@');
+    if (user_password_sep_idx >= 0) {
+      ASSERT(0 && "TODO");
+    }
+  }
+
+  // Host, mandatory (?).
+  {
+    i64 any_sep_idx = string_indexof_any_byte(remaining, S(":/?#"));
+    if (-1 == any_sep_idx) {
+      res.url.host = remaining;
+      if (0 == res.url.host.len) {
+        return res;
+      }
+
+      res.ok = true;
+      return res;
+    }
+
+    bool is_port_sep = slice_at(remaining, any_sep_idx) == ':';
+    if (is_port_sep) {
+      if (0 == any_sep_idx) {
+        return res; // Empty host e.g. `http://:80`.
+      } else {      // Port present.
+        res.url.host = slice_range(remaining, 0, (u64)any_sep_idx);
+        ASSERT(res.url.host.len > 0);
+
+        remaining = slice_range(remaining, (u64)any_sep_idx + 1, 0);
+
+        ParseNumberResult port_parse = string_parse_u64(remaining);
+        if (!port_parse.present) { // Empty/invalid port.
+          return res;
+        }
+        if (port_parse.n > UINT16_MAX) { // Port too big.
+          return res;
+        }
+        if (0 == port_parse.n) { // Zero port e.g. `http://abc:0`.
+          return res;
+        }
+        res.url.port = (u16)port_parse.n;
+        remaining = port_parse.remaining;
+      }
+    }
+  }
+
+  // Path, optional.
+  // Query parameters, optional.
+  {
+    i64 any_sep_idx = string_indexof_any_byte(remaining, S("/?#"));
+    if (-1 == any_sep_idx) {
+      res.ok = true;
+      return res;
+    }
+
+    bool is_sep_query_params = slice_at(remaining, any_sep_idx) == '?';
+    if (is_sep_query_params) {
+      ASSERT(0 && "TODO");
+    } else {
+      res.url.path_raw = remaining;
+      res.url.path_components =
+          http_parse_relative_path(res.url.path_raw, false, arena);
+    }
+  }
+
+  res.ok = true;
+  return res;
 }
