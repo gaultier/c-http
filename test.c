@@ -525,7 +525,6 @@ static void test_string_indexof_any_byte() {
   }
 }
 
-#if 0
 static void test_url_parse() {
   Arena arena = arena_make_from_virtual_mem(4 * KiB);
 
@@ -578,7 +577,6 @@ static void test_url_parse() {
     ASSERT(res.ok);
   }
 }
-#endif
 
 int main() {
   test_read_http_request_without_body();
@@ -595,5 +593,5 @@ int main() {
   test_url_encode();
   test_http_request_serialize();
   test_string_indexof_any_byte();
-  // test_url_parse();
+  test_url_parse();
 }
