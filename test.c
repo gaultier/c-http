@@ -579,7 +579,7 @@ static void test_url_parse() {
     ASSERT(0 == res.url.username.len);
     ASSERT(0 == res.url.password.len);
     ASSERT(string_eq(S("a"), res.url.host));
-    ASSERT(string_eq(S(""), res.url.path_raw));
+    ASSERT(0 == res.url.path_components.len);
     ASSERT(80 == res.url.port);
   }
   {
@@ -589,7 +589,6 @@ static void test_url_parse() {
     ASSERT(0 == res.url.username.len);
     ASSERT(0 == res.url.password.len);
     ASSERT(string_eq(S("a.b.c"), res.url.host));
-    ASSERT(string_eq(S("foo"), res.url.path_raw));
     ASSERT(80 == res.url.port);
     ASSERT(1 == res.url.path_components.len);
 
@@ -603,7 +602,6 @@ static void test_url_parse() {
     ASSERT(0 == res.url.username.len);
     ASSERT(0 == res.url.password.len);
     ASSERT(string_eq(S("a.b.c"), res.url.host));
-    ASSERT(string_eq(S(""), res.url.path_raw));
     ASSERT(80 == res.url.port);
     ASSERT(0 == res.url.path_components.len);
   }
@@ -614,7 +612,6 @@ static void test_url_parse() {
     ASSERT(0 == res.url.username.len);
     ASSERT(0 == res.url.password.len);
     ASSERT(string_eq(S("a.b.c"), res.url.host));
-    ASSERT(string_eq(S("foo/bar/baz"), res.url.path_raw));
     ASSERT(0 == res.url.port);
     ASSERT(3 == res.url.path_components.len);
 

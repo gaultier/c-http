@@ -1249,7 +1249,6 @@ typedef struct {
   String scheme;
   String username, password;
   String host; // Including subdomains.
-  String path_raw;
   DynString path_components;
   // TODO: DynKeyValue url_parameters;
   u16 port;
@@ -1347,9 +1346,9 @@ typedef struct {
         return res;
       }
 
-      res.url.path_raw = slice_range(remaining, (u64)any_sep_idx + 1, 0);
+      String path_raw = slice_range(remaining, (u64)any_sep_idx + 1, 0);
       res.url.path_components =
-          http_parse_relative_path(res.url.path_raw, false, arena);
+          http_parse_relative_path(path_raw, false, arena);
     } else {
       ASSERT(0);
     }
