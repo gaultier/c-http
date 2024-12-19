@@ -2,6 +2,7 @@
 #define CHTTP_HTTP_C
 
 #include "submodules/cstd/lib.c"
+#include <arpa/inet.h>
 #include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -786,6 +787,7 @@ http_client_request(String host, u16 port, HttpRequest req, Arena *arena) {
   struct addrinfo *result = nullptr, *rp = nullptr;
   struct addrinfo hints = {0};
   hints.ai_socktype = SOCK_STREAM;
+  hints.ai_protocol = IPPROTO_TCP;
 
   int res_getaddrinfo = getaddrinfo(
       string_to_cstr(host, arena),
@@ -806,6 +808,22 @@ http_client_request(String host, u16 port, HttpRequest req, Arena *arena) {
     client_socket = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
     if (client_socket == -1)
       continue;
+
+#if 0
+    void *addr = nullptr;
+    if (rp->ai_family == AF_INET) {
+      struct sockaddr_in *ipv4 = (struct sockaddr_in *)(void *)rp->ai_addr;
+      addr = &(ipv4->sin_addr);
+    } else if (rp->ai_family == AF_INET6) {
+      struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)(void *)rp->ai_addr;
+      addr = &(ipv6->sin6_addr);
+    }
+
+    char ipstr[INET6_ADDRSTRLEN] = {0};
+    inet_ntop(rp->ai_family, addr, ipstr, sizeof ipstr);
+
+    printf("%s", ipstr); // prints IP address
+#endif
 
     if (connect(client_socket, rp->ai_addr, rp->ai_addrlen) == 0)
       break; /* Success */
