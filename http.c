@@ -870,6 +870,8 @@ http_client_request(String host, u16 port, HttpRequest req, Arena *arena) {
 
     String http1_1_version_needle = S("HTTP/1.1 ");
     String http1_0_version_needle = S("HTTP/1.0 ");
+    ASSERT(http1_0_version_needle.len == http1_1_version_needle.len);
+
     if (!(string_starts_with(status_line.line, http1_0_version_needle) ||
           string_starts_with(status_line.line, http1_1_version_needle))) {
       res.err = HS_ERR_INVALID_HTTP_RESPONSE;
