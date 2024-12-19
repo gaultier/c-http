@@ -168,10 +168,6 @@ static void test_http_server_post() {
   } else { // Parent
 
     for (u64 i = 0; i < 5; i++) {
-      struct sockaddr_in addr = {
-          .sin_family = AF_INET,
-          .sin_port = htons(port),
-      };
       HttpRequest req = {
           .method = HM_POST,
           .body = S("foo\nbar"),
@@ -181,8 +177,7 @@ static void test_http_server_post() {
       http_push_header(&req.headers, S("Content-Type"), S("text/plain"),
                        &arena);
       http_push_header(&req.headers, S("Content-Length"), S("7"), &arena);
-      HttpResponse resp = http_client_request((struct sockaddr *)&addr,
-                                              sizeof(addr), req, &arena);
+      HttpResponse resp = http_client_request(S("0.0.0.0"), port, req, &arena);
 
       if (!resp.err) {
         ASSERT(201 == resp.status);
@@ -250,16 +245,11 @@ static void test_http_server_serve_file() {
   } else { // Parent
 
     for (u64 i = 0; i < 5; i++) {
-      struct sockaddr_in addr = {
-          .sin_family = AF_INET,
-          .sin_port = htons(port),
-      };
       HttpRequest req = {
           .method = HM_GET,
       };
       *dyn_push(&req.path_components, &arena) = S("main.css");
-      HttpResponse resp = http_client_request((struct sockaddr *)&addr,
-                                              sizeof(addr), req, &arena);
+      HttpResponse resp = http_client_request(S("0.0.0.0"), port, req, &arena);
 
       if (!resp.err) {
         ASSERT(200 == resp.status);
