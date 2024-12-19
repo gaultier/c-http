@@ -107,7 +107,7 @@ typedef struct {
 } Writer;
 
 [[nodiscard]] static IoOperationResult
-writer_write_from_socket(void *ctx, void *buf, size_t buf_len) {
+writer_write_to_socket(void *ctx, void *buf, size_t buf_len) {
   const ssize_t n_written = send((int)(u64)ctx, buf, buf_len, 0);
   if (n_written == -1) {
     return (IoOperationResult){.err = (Error)errno};
@@ -120,7 +120,7 @@ writer_write_from_socket(void *ctx, void *buf, size_t buf_len) {
 [[nodiscard]] static Writer writer_make_from_socket(int socket) {
   return (Writer){
       .ctx = (void *)(u64)socket,
-      .write = writer_write_from_socket,
+      .write = writer_write_to_socket,
   };
 }
 
@@ -139,6 +139,30 @@ writer_write_from_socket(void *ctx, void *buf, size_t buf_len) {
     ASSERT(idx <= s.len);
   }
   return 0;
+}
+
+typedef struct {
+  DynU8 sb;
+  Arena *arena;
+} WriterBufCtx;
+
+[[nodiscard]] static IoOperationResult
+writer_write_to_buf(void *ctx_any, void *buf, size_t buf_len) {
+  WriterBufCtx *ctx = ctx_any;
+  String src = {.data = buf, .len = buf_len};
+  dyn_append_slice(&ctx->sb, src, ctx->arena);
+
+  return (IoOperationResult){.s = src};
+}
+
+[[maybe_unused]] [[nodiscard]] static Writer writer_make_for_buf(Arena *arena) {
+  WriterBufCtx *ctx = arena_new(arena, WriterBufCtx, 1);
+  ctx->arena = arena;
+
+  return (Writer){
+      .ctx = ctx,
+      .write = writer_write_to_buf,
+  };
 }
 
 typedef struct {
