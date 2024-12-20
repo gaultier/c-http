@@ -100,11 +100,28 @@ reader_read_from_socket(void *ctx, void *buf, size_t buf_len) {
 }
 
 typedef IoOperationResult (*WriteFn)(void *ctx, void *buf, size_t buf_len);
+typedef void (*CloseFn)(void *ctx);
 
 typedef struct {
   WriteFn write;
+  CloseFn close;
   void *ctx;
 } Writer;
+
+[[maybe_unused]]
+static void writer_close_socket(void *ctx) {
+  int socket_fd = (int)(u64)ctx;
+  if (socket_fd > 0) {
+    close(socket_fd);
+  }
+}
+
+[[maybe_unused]]
+static void writer_close(Writer *writer) {
+  if (writer->close) {
+    writer->close(writer->ctx);
+  }
+}
 
 [[nodiscard]] static IoOperationResult
 writer_write_to_socket(void *ctx, void *buf, size_t buf_len) {
@@ -121,6 +138,7 @@ writer_write_to_socket(void *ctx, void *buf, size_t buf_len) {
   return (Writer){
       .ctx = (void *)(u64)socket,
       .write = writer_write_to_socket,
+      .close = writer_close_socket,
   };
 }
 
