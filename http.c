@@ -233,7 +233,7 @@ typedef struct {
   ASSERT(reader->buf.len >= reader->buf_idx);
 
   IoOperationResult res = reader_read_from_buffer(reader);
-  if (!slice_is_empty(res.s)) {
+  if (res.err || !slice_is_empty(res.s)) {
     return res;
   }
 
@@ -278,21 +278,30 @@ reader_read_until_slice(Reader *reader, String needle, Arena *arena) {
 }
 
 [[nodiscard]] static IoOperationResult
-reader_read_exactly(Reader *reader, u64 content_length, Arena *arena) {
-  u64 remaining_to_read = content_length;
+reader_read_up_to(Reader *reader, u64 count, Arena *arena) {
+  dyn_ensure_cap(&reader->buf, count, arena);
 
-  dyn_ensure_cap(&reader->buf, content_length, arena);
+  IoOperationResult res =
+      reader->read_fn(reader->ctx, &reader->buf.data[reader->buf.len], count);
+  return res;
+}
+
+[[nodiscard]] static IoOperationResult
+reader_read_exactly(Reader *reader, u64 count, Arena *arena) {
+  u64 remaining_to_read = count;
+
+  dyn_ensure_cap(&reader->buf, count, arena);
   IoOperationResult res = {0};
 
-  for (u64 i = 0; i < content_length; i++) {
+  for (u64 i = 0; i < count; i++) {
     if (0 == remaining_to_read) {
-      ASSERT(res.s.len == content_length);
+      ASSERT(res.s.len == count);
       return res;
     }
 
     ASSERT(remaining_to_read > 0);
 
-    res = reader_read(reader, arena);
+    res = reader_read_up_to(reader, remaining_to_read, arena);
     if (res.err) {
       return res;
     }
