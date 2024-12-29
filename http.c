@@ -357,16 +357,6 @@ http_parse_relative_path(String s, bool must_start_with_slash, Arena *arena) {
   return res;
 }
 
-[[nodiscard]] static String make_unique_id_u128_string(Arena *arena) {
-  u128 id = 0;
-  arc4random_buf(&id, sizeof(id));
-
-  DynU8 dyn = {0};
-  dynu8_append_u128_hex(&dyn, id, arena);
-
-  return dyn_slice(String, dyn);
-}
-
 [[nodiscard]] static HttpRequest request_parse_status_line(LineRead status_line,
                                                            Arena *arena) {
   HttpRequest req = {.id = make_unique_id_u128_string(arena)};
@@ -747,31 +737,6 @@ static Error http_server_run(u16 port, HttpRequestHandleFn request_handler,
       exit(0);
     } else { // Parent.
       close(conn_fd);
-    }
-  }
-}
-
-[[maybe_unused]] static void url_encode_string(DynU8 *sb, String key,
-                                               String value, Arena *arena) {
-  for (u64 i = 0; i < key.len; i++) {
-    u8 c = slice_at(key, i);
-    if (ch_is_alphanumeric(c)) {
-      *dyn_push(sb, arena) = c;
-    } else {
-      *dyn_push(sb, arena) = '%';
-      dynu8_append_u8_hex_upper(sb, c, arena);
-    }
-  }
-
-  *dyn_push(sb, arena) = '=';
-
-  for (u64 i = 0; i < value.len; i++) {
-    u8 c = slice_at(value, i);
-    if (ch_is_alphanumeric(c)) {
-      *dyn_push(sb, arena) = c;
-    } else {
-      *dyn_push(sb, arena) = '%';
-      dynu8_append_u8_hex_upper(sb, c, arena);
     }
   }
 }
