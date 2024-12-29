@@ -278,37 +278,43 @@ reader_read_until_slice(Reader *reader, String needle, Arena *arena) {
 }
 
 [[nodiscard]] static IoOperationResult
-reader_read_up_to(Reader *reader, u64 count, Arena *arena) {
-  dyn_ensure_cap(&reader->buf, count, arena);
+reader_read_up_to(Reader *reader, String dst, u64 count) {
+  IoOperationResult res = {0};
 
-  IoOperationResult res =
-      reader->read_fn(reader->ctx, &reader->buf.data[reader->buf.len], count);
+  if (dst.len < count) {
+    res.err = EINVAL;
+    return res;
+  }
+
+  res = reader->read_fn(reader->ctx, dst.data, count);
   return res;
 }
 
-[[nodiscard]] static IoOperationResult
-reader_read_exactly(Reader *reader, u64 count, Arena *arena) {
-  u64 remaining_to_read = count;
+[[nodiscard]] static IoOperationResult reader_read_exactly(Reader *reader,
+                                                           String dst) {
+  String current = {.data = dst.data, .len = 0};
 
-  dyn_ensure_cap(&reader->buf, count, arena);
   IoOperationResult res = {0};
 
-  for (u64 i = 0; i < count; i++) {
-    if (0 == remaining_to_read) {
-      ASSERT(res.s.len == count);
-      return res;
+  for (u64 i = 0; i < dst.len; i++) {
+    ASSERT(current.len <= dst.len);
+
+    if (dst.len == current.len) {
+      break;
     }
 
-    ASSERT(remaining_to_read > 0);
-
-    res = reader_read_up_to(reader, remaining_to_read, arena);
+    String rem = slice_range(dst, current.len, 0);
+    res = reader_read_up_to(reader, rem, dst.len);
     if (res.err) {
       return res;
     }
+    current.len += res.s.len;
 
-    ASSERT(res.s.len <= remaining_to_read);
-    remaining_to_read -= res.s.len;
+    ASSERT(res.s.len <= dst.len - current.len);
   }
+
+  ASSERT(dst.len == current.len);
+  res.s = dst;
   return res;
 }
 
@@ -519,13 +525,15 @@ request_parse_content_length_maybe(HttpRequest req, Arena *arena) {
   ASSERT(!req.err);
   HttpRequest res = req;
 
-  IoOperationResult io = reader_read_exactly(reader, content_length, arena);
+  String body = {
+      .data = arena_new(arena, u8, content_length),
+      .len = content_length,
+  };
+  IoOperationResult io = reader_read_exactly(reader, body);
   if (io.err) {
     res.err = io.err;
     return res;
   }
-
-  res.body = io.s;
 
   return res;
 }
