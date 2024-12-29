@@ -277,16 +277,11 @@ reader_read_until_slice(Reader *reader, String needle, Arena *arena) {
   return io;
 }
 
-[[nodiscard]] static IoOperationResult
-reader_read_up_to(Reader *reader, String dst, u64 count) {
+[[nodiscard]] static IoOperationResult reader_read_up_to(Reader *reader,
+                                                         String dst) {
   IoOperationResult res = {0};
 
-  if (dst.len < count) {
-    res.err = EINVAL;
-    return res;
-  }
-
-  res = reader->read_fn(reader->ctx, dst.data, count);
+  res = reader->read_fn(reader->ctx, dst.data, dst.len);
   return res;
 }
 
@@ -304,13 +299,12 @@ reader_read_up_to(Reader *reader, String dst, u64 count) {
     }
 
     String rem = slice_range(dst, current.len, 0);
-    res = reader_read_up_to(reader, rem, dst.len);
+    res = reader_read_up_to(reader, rem);
     if (res.err) {
       return res;
     }
-    current.len += res.s.len;
 
-    ASSERT(res.s.len <= dst.len - current.len);
+    current.len += res.s.len;
   }
 
   ASSERT(dst.len == current.len);
