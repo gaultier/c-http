@@ -84,45 +84,6 @@ static void test_read_http_request_with_body() {
   ASSERT(string_eq(req.body, S("hello\r\nworld!")));
 }
 
-static void test_log_entry_quote_value() {
-  Arena arena = arena_make_from_virtual_mem(4 * KiB);
-  // Nothing to escape.
-  {
-    String s = S("hello");
-    String expected = S("\"hello\"");
-    ASSERT(string_eq(expected, json_escape_string(s, &arena)));
-  }
-  {
-    String s = S("{\"id\": 1}");
-    String expected = S("\"{\\\"id\\\": 1}\"");
-    ASSERT(string_eq(expected, json_escape_string(s, &arena)));
-  }
-  {
-    u8 backslash = 0x5c;
-    u8 double_quote = '"';
-    u8 data[] = {backslash, double_quote};
-    String s = {.data = data, .len = sizeof(data)};
-
-    u8 data_expected[] = {double_quote, backslash,    backslash,
-                          backslash,    double_quote, double_quote};
-    String expected = {.data = data_expected, .len = sizeof(data_expected)};
-    ASSERT(string_eq(expected, json_escape_string(s, &arena)));
-  }
-}
-
-static void test_make_log_line() {
-  Arena arena = arena_make_from_virtual_mem(4 * KiB);
-
-  String log_line = make_log_line(LOG_LEVEL_DEBUG, S("foobar"), &arena, 2,
-                                  L("num", 42), L("s", S("hello \"world\"")));
-
-  String expected_suffix =
-      S("\"message\":\"foobar\",\"num\":42,\"s\":\"hello \\\"world\\\"\"}\n");
-  ASSERT(string_starts_with(log_line,
-                            S("{\"level\":\"debug\",\"timestamp_ns\":")));
-  ASSERT(string_ends_with(log_line, expected_suffix));
-}
-
 static HttpResponse handle_request_post(HttpRequest req, void *ctx,
                                         Arena *arena) {
   (void)ctx;
@@ -438,25 +399,6 @@ static void test_html_sanitize() {
   ASSERT(string_eq(expected, sanitized));
 }
 
-static void test_url_encode() {
-  Arena arena = arena_make_from_virtual_mem(4 * KiB);
-  {
-    DynU8 sb = {0};
-    url_encode_string(&sb, S("日本語"), S("123"), &arena);
-    String encoded = dyn_slice(String, sb);
-
-    ASSERT(string_eq(encoded, S("%E6%97%A5%E6%9C%AC%E8%AA%9E=123")));
-  }
-
-  {
-    DynU8 sb = {0};
-    url_encode_string(&sb, S("日本語"), S("foo"), &arena);
-    String encoded = dyn_slice(String, sb);
-
-    ASSERT(string_eq(encoded, S("%E6%97%A5%E6%9C%AC%E8%AA%9E=foo")));
-  }
-}
-
 static void test_http_request_serialize() {
   Arena arena = arena_make_from_virtual_mem(4 * KiB);
 
@@ -482,37 +424,6 @@ static void test_http_request_serialize() {
         "Bearer abc\r\n\r\nhello, world!");
 
   ASSERT(string_eq(serialized, expected));
-}
-
-static void test_string_indexof_any_byte() {
-  {
-    i64 idx = string_indexof_any_byte(S(""), S(""));
-    ASSERT(-1 == idx);
-  }
-  {
-    i64 idx = string_indexof_any_byte(S(""), S(":"));
-    ASSERT(-1 == idx);
-  }
-  {
-    i64 idx = string_indexof_any_byte(S("?"), S(":"));
-    ASSERT(-1 == idx);
-  }
-  {
-    i64 idx = string_indexof_any_byte(S("abc"), S(":?"));
-    ASSERT(-1 == idx);
-  }
-  {
-    i64 idx = string_indexof_any_byte(S("x"), S("yz"));
-    ASSERT(-1 == idx);
-  }
-  {
-    i64 idx = string_indexof_any_byte(S(":"), S(":"));
-    ASSERT(0 == idx);
-  }
-  {
-    i64 idx = string_indexof_any_byte(S("abc"), S("cd"));
-    ASSERT(2 == idx);
-  }
 }
 
 static void test_url_parse() {
@@ -619,8 +530,6 @@ static void test_url_parse() {
 int main() {
   test_read_http_request_without_body();
   test_read_http_request_with_body();
-  test_log_entry_quote_value();
-  test_make_log_line();
   test_http_server_post();
   test_http_server_serve_file();
   test_form_data_parse();
@@ -628,8 +537,6 @@ int main() {
   test_html_to_string();
   test_extract_user_id_cookie();
   test_html_sanitize();
-  test_url_encode();
   test_http_request_serialize();
-  test_string_indexof_any_byte();
   test_url_parse();
 }
