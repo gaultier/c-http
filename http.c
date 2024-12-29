@@ -876,6 +876,8 @@ http_client_request(String host, u16 port, HttpRequest req, Arena *arena) {
   }
 
   String http_request_serialized = http_request_serialize(req, arena);
+  log(LOG_LEVEL_DEBUG, "http request", arena, L("host", host), L("port", port),
+      L("serialized", http_request_serialized));
 
   // TODO: should not be an assert but a returned error.
   ASSERT(send(client_socket, http_request_serialized.data,
