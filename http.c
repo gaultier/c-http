@@ -285,8 +285,7 @@ reader_read_until_slice(Reader *reader, String needle, Arena *arena) {
   return res;
 }
 
-[[nodiscard]] static IoOperationResult reader_read_exactly(Reader *reader,
-                                                           String dst) {
+[[nodiscard]] static Error reader_read_exactly(Reader *reader, String dst) {
   String current = {.data = dst.data, .len = 0};
 
   IoOperationResult res = {0};
@@ -301,15 +300,14 @@ reader_read_until_slice(Reader *reader, String needle, Arena *arena) {
     String rem = slice_range(dst, current.len, 0);
     res = reader_read_up_to(reader, rem);
     if (res.err) {
-      return res;
+      return res.err;
     }
 
     current.len += res.s.len;
   }
 
   ASSERT(dst.len == current.len);
-  res.s = dst;
-  return res;
+  return res.err;
 }
 
 [[nodiscard]] static LineRead reader_read_line(Reader *reader, Arena *arena) {
@@ -523,9 +521,9 @@ request_parse_content_length_maybe(HttpRequest req, Arena *arena) {
       .data = arena_new(arena, u8, content_length),
       .len = content_length,
   };
-  IoOperationResult io = reader_read_exactly(reader, body);
-  if (io.err) {
-    res.err = io.err;
+  Error io_err = reader_read_exactly(reader, body);
+  if (io_err) {
+    res.err = io_err;
     return res;
   }
 
