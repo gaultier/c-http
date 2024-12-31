@@ -786,7 +786,7 @@ static Error http_server_run(u16 port, HttpRequestHandleFn request_handler,
 }
 
 [[maybe_unused]] [[nodiscard]] static HttpResponse
-http_client_request(String host, u16 port, HttpRequest req, Arena *arena) {
+http_client_request(Ipv4AddressSocket sock, HttpRequest req, Arena *arena) {
   HttpResponse res = {0};
 
   if (!slice_is_empty(req.path_raw)) {
@@ -800,56 +800,16 @@ http_client_request(String host, u16 port, HttpRequest req, Arena *arena) {
     return res;
   }
 
-  struct addrinfo *result = nullptr, *rp = nullptr;
-  struct addrinfo hints = {0};
-  hints.ai_socktype = SOCK_STREAM;
-  hints.ai_protocol = IPPROTO_TCP;
-
-  int res_getaddrinfo = getaddrinfo(
-      string_to_cstr(host, arena),
-      string_to_cstr(u64_to_string(port, arena), arena), &hints, &result);
-  if (res_getaddrinfo != 0) {
-    fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(res_getaddrinfo));
-    res.status = EINVAL;
-    return res;
-  }
-
-  /* getaddrinfo() returns a list of address structures.
-     Try each address until we successfully connect(2).
-     If socket(2) (or connect(2)) fails, we (close the socket
-     and) try the next address. */
-
-  int client_socket = 0;
-  for (rp = result; rp != NULL; rp = rp->ai_next) {
-    client_socket = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-    if (client_socket == -1)
-      continue;
-
-    if (connect(client_socket, rp->ai_addr, rp->ai_addrlen) == 0)
-      break; /* Success */
-
-    close(client_socket);
-  }
-
-  freeaddrinfo(result); /* No longer needed */
-
-  if (rp == NULL) { /* No address succeeded */
-    log(LOG_LEVEL_ERROR, "http request did not find any suitable ip/port",
-        arena, L("req.method", req.method), L("req.path_raw", req.path_raw));
-    res.err = EINVAL;
-    return res;
-  }
-
   String http_request_serialized = http_request_serialize(req, arena);
-  log(LOG_LEVEL_DEBUG, "http request", arena, L("host", host), L("port", port),
-      L("serialized", http_request_serialized));
+  log(LOG_LEVEL_DEBUG, "http request", arena, L("ip", sock.address.ip),
+      L("port", sock.address.port), L("serialized", http_request_serialized));
 
   // TODO: should not be an assert but a returned error.
-  ASSERT(send(client_socket, http_request_serialized.data,
+  ASSERT(send(sock.socket, http_request_serialized.data,
               http_request_serialized.len,
               0) == (i64)http_request_serialized.len);
 
-  Reader reader = reader_make_from_socket(client_socket);
+  Reader reader = reader_make_from_socket(sock.socket);
 
   {
     LineRead status_line = reader_read_line(&reader, arena);
@@ -912,7 +872,7 @@ http_client_request(String host, u16 port, HttpRequest req, Arena *arena) {
   res.body = body.s;
 
 end:
-  close(client_socket);
+  (void)net_close_socket(sock.socket);
   return res;
 }
 
