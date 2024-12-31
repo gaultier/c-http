@@ -30,6 +30,7 @@ static IoOperationResult reader_read_from_slice(void *ctx, void *buf,
 
   mem_ctx->idx += can_fill;
   ASSERT(mem_ctx->idx <= mem_ctx->s.len);
+  ASSERT(res.s.len <= buf_len);
   return res;
 }
 
@@ -138,7 +139,10 @@ static void test_http_server_post() {
       http_push_header(&req.headers, S("Content-Type"), S("text/plain"),
                        &arena);
       http_push_header(&req.headers, S("Content-Length"), S("7"), &arena);
-      HttpResponse resp = http_client_request(S("0.0.0.0"), port, req, &arena);
+      DnsResolveIpv4AddressSocketResult res_resolve =
+          net_dns_resolve_ipv4_tcp(S("0.0.0.0"), port, arena);
+      ASSERT(!res_resolve.err);
+      HttpResponse resp = http_client_request(res_resolve.res, req, &arena);
 
       if (!resp.err) {
         ASSERT(201 == resp.status);
@@ -210,7 +214,10 @@ static void test_http_server_serve_file() {
           .method = HM_GET,
       };
       *dyn_push(&req.path_components, &arena) = S("main.css");
-      HttpResponse resp = http_client_request(S("0.0.0.0"), port, req, &arena);
+      DnsResolveIpv4AddressSocketResult res_resolve =
+          net_dns_resolve_ipv4_tcp(S("0.0.0.0"), port, arena);
+      ASSERT(!res_resolve.err);
+      HttpResponse resp = http_client_request(res_resolve.res, req, &arena);
 
       if (!resp.err) {
         ASSERT(200 == resp.status);

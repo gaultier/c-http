@@ -3,6 +3,7 @@
 
 #include "submodules/cstd/lib.c"
 #include <arpa/inet.h>
+#include <asm-generic/errno.h>
 #include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -64,13 +65,6 @@ typedef struct {
   String file_path;
   String body;
 } HttpResponse;
-
-typedef struct {
-  String s;
-  Error err;
-} IoOperationResult;
-
-typedef IoOperationResult (*ReadFn)(void *ctx, void *buf, size_t buf_len);
 
 typedef struct {
   u64 buf_idx;
@@ -302,6 +296,9 @@ reader_read_until_slice(Reader *reader, String needle, Arena *arena) {
     if (res.err) {
       return res.err;
     }
+    /* if (0 == res.s.len) { */
+    /*   return EIO; */
+    /* } */
 
     current.len += res.s.len;
   }
