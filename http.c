@@ -66,140 +66,6 @@ typedef struct {
   String body;
 } HttpResponse;
 
-typedef struct {
-  u64 buf_idx;
-  DynU8 buf;
-  void *ctx;
-  ReadFn read_fn;
-} Reader;
-
-#define READER_IO_BUF_LEN (4 * KiB)
-
-[[nodiscard]] static IoOperationResult
-reader_read_from_socket(void *ctx, void *buf, size_t buf_len) {
-  const ssize_t n_read = recv((int)(u64)ctx, buf, buf_len, 0);
-  if (n_read == -1) {
-    return (IoOperationResult){.err = (Error)errno};
-  }
-  ASSERT(n_read >= 0);
-
-  return (IoOperationResult){.s.data = buf, .s.len = (u64)n_read};
-}
-
-[[nodiscard]] static Reader reader_make_from_socket(int socket) {
-  return (Reader){
-      .ctx = (void *)(u64)socket,
-      .read_fn = reader_read_from_socket,
-  };
-}
-
-typedef IoOperationResult (*WriteFn)(void *ctx, void *buf, size_t buf_len);
-typedef void (*CloseFn)(void *ctx);
-
-typedef struct {
-  WriteFn write;
-  CloseFn close;
-  void *ctx;
-} Writer;
-
-[[maybe_unused]]
-static void writer_close_socket(void *ctx) {
-  int socket_fd = (int)(u64)ctx;
-  if (socket_fd > 0) {
-    close(socket_fd);
-  }
-}
-
-[[maybe_unused]]
-static void writer_close(Writer *writer) {
-  if (writer->close) {
-    writer->close(writer->ctx);
-  }
-}
-
-[[nodiscard]] static IoOperationResult
-writer_write_to_socket(void *ctx, void *buf, size_t buf_len) {
-  const ssize_t n_written = send((int)(u64)ctx, buf, buf_len, 0);
-  if (n_written == -1) {
-    return (IoOperationResult){.err = (Error)errno};
-  }
-  ASSERT(n_written >= 0);
-
-  return (IoOperationResult){.s.data = (u8 *)buf, .s.len = (u64)n_written};
-}
-
-[[nodiscard]] static Writer writer_make_from_socket(int socket) {
-  return (Writer){
-      .ctx = (void *)(u64)socket,
-      .write = writer_write_to_socket,
-      .close = writer_close_socket,
-  };
-}
-
-[[nodiscard]] static Error writer_write_all(Writer writer, String s) {
-  for (u64 idx = 0; idx < s.len;) {
-    const String to_write = slice_range(s, idx, 0);
-    const IoOperationResult write_res =
-        writer.write(writer.ctx, to_write.data, to_write.len);
-    if (write_res.err) {
-      return write_res.err;
-    }
-
-    ASSERT(write_res.s.len <= s.len);
-    ASSERT(idx <= s.len);
-    idx += write_res.s.len;
-    ASSERT(idx <= s.len);
-  }
-  return 0;
-}
-
-typedef struct {
-  DynU8 sb;
-  Arena *arena;
-} WriterBufCtx;
-
-[[nodiscard]] static IoOperationResult
-writer_write_to_buf(void *ctx_any, void *buf, size_t buf_len) {
-  WriterBufCtx *ctx = ctx_any;
-  String src = {.data = buf, .len = buf_len};
-  dyn_append_slice(&ctx->sb, src, ctx->arena);
-
-  return (IoOperationResult){.s = src};
-}
-
-[[maybe_unused]] [[nodiscard]] static Writer writer_make_for_buf(Arena *arena) {
-  WriterBufCtx *ctx = arena_new(arena, WriterBufCtx, 1);
-  ctx->arena = arena;
-
-  return (Writer){
-      .ctx = ctx,
-      .write = writer_write_to_buf,
-  };
-}
-
-typedef struct {
-  String line;
-  Error err;
-  bool present;
-} LineRead;
-
-[[nodiscard]] static LineRead reader_read_line(Reader *reader, Arena *arena) {
-  const String NEWLINE = S("\r\n");
-
-  LineRead line = {0};
-
-  const IoOperationResult io_result =
-      reader_read_until_slice(reader, NEWLINE, arena);
-  if (io_result.err) {
-    line.err = io_result.err;
-    return line;
-  }
-
-  line.present = true;
-  line.line = io_result.s;
-  return line;
-}
-
 [[nodiscard]] static DynString
 http_parse_relative_path(String s, bool must_start_with_slash, Arena *arena) {
   if (must_start_with_slash) {
@@ -228,20 +94,16 @@ http_parse_relative_path(String s, bool must_start_with_slash, Arena *arena) {
   return res;
 }
 
-[[nodiscard]] static HttpRequest request_parse_status_line(LineRead status_line,
+[[nodiscard]] static HttpRequest request_parse_status_line(String status_line,
                                                            Arena *arena) {
   HttpRequest req = {.id = make_unique_id_u128_string(arena)};
 
-  if (!status_line.present) {
+  if (slice_is_empty(status_line)) {
     req.err = HS_ERR_INVALID_HTTP_REQUEST;
     return req;
   }
-  if (status_line.err) {
-    req.err = status_line.err;
-    return req;
-  }
 
-  SplitIterator it = string_split(status_line.line, ' ');
+  SplitIterator it = string_split(status_line, ' ');
 
   {
     SplitResult method = string_split_next(&it);
@@ -298,22 +160,24 @@ http_parse_relative_path(String s, bool must_start_with_slash, Arena *arena) {
   return req;
 }
 
-[[nodiscard]] static Error
-reader_read_headers(Reader *reader, DynKeyValue *headers, Arena *arena) {
+[[nodiscard]] static Error reader_read_headers(BufferedReader *reader,
+                                               DynKeyValue *headers,
+                                               Arena *arena) {
   dyn_ensure_cap(headers, 30, arena);
 
   for (u64 _i = 0; _i < HTTP_REQUEST_LINES_MAX_COUNT; _i++) {
-    const LineRead line = reader_read_line(reader, arena);
+    const IoResult res_io =
+        buffered_reader_read_until_slice(reader, S("\r\n"), arena);
 
-    if (line.err) {
-      return line.err;
+    if (res_io.err) {
+      return res_io.err;
     }
 
-    if (!line.present || slice_is_empty(line.line)) {
+    if (slice_is_empty(res_io.res)) {
       break;
     }
 
-    SplitIterator it = string_split(line.line, ':');
+    SplitIterator it = string_split(res_io.res, ':');
     SplitResult key = string_split_next(&it);
     if (!key.ok) {
       return HS_ERR_INVALID_HTTP_REQUEST;
@@ -328,43 +192,6 @@ reader_read_headers(Reader *reader, DynKeyValue *headers, Arena *arena) {
     *dyn_push(headers, arena) = header;
   }
   return 0;
-}
-
-[[nodiscard]] static IoOperationResult reader_read_until_end(Reader *reader,
-                                                             Arena *arena) {
-  IoOperationResult res = {0};
-
-  u64 reader_initial_idx = reader->buf_idx;
-
-  for (;;) { // TODO: Bound?
-    IoOperationResult io = reader_read(reader, arena);
-    if (io.err) {
-      res.err = io.err;
-      // TODO: Set `res.s` in this case?
-
-      return res;
-    }
-
-    // First read?
-    if (nullptr == res.s.data) {
-      res.s.data = io.s.data;
-    }
-
-    ASSERT(false == ckd_add(&res.s.len, res.s.len, io.s.len));
-
-    // End?
-    if (0 == io.s.len) {
-      ASSERT(reader->buf_idx >= reader_initial_idx);
-      ASSERT(reader->buf_idx == reader->buf.len);
-      ASSERT(res.s.len == reader->buf_idx - reader_initial_idx);
-
-      if (0 != res.s.len) {
-        ASSERT(nullptr != res.s.data);
-      }
-
-      return res;
-    }
-  }
 }
 
 [[nodiscard]] static ParseNumberResult
@@ -384,32 +211,30 @@ request_parse_content_length_maybe(HttpRequest req, Arena *arena) {
 }
 
 [[nodiscard]] static HttpRequest request_read_body(HttpRequest req,
-                                                   Reader *reader,
+                                                   BufferedReader *reader,
                                                    u64 content_length,
                                                    Arena *arena) {
   ASSERT(!req.err);
   HttpRequest res = req;
 
-  String body = {
-      .data = arena_new(arena, u8, content_length),
-      .len = content_length,
-  };
-  Error io_err = reader_read_exactly(reader, body);
-  if (io_err) {
-    res.err = io_err;
+  IoResult res_io = buffered_reader_read_exactly(reader, content_length, arena);
+  if (res_io.err) {
+    res.err = res_io.err;
     return res;
   }
 
   return res;
 }
 
-[[nodiscard]] static HttpRequest request_read(Reader *reader, Arena *arena) {
-  const LineRead status_line = reader_read_line(reader, arena);
+[[nodiscard]] static HttpRequest request_read(BufferedReader *reader,
+                                              Arena *arena) {
+  const IoResult status_line =
+      buffered_reader_read_until_slice(reader, S("\r\n"), arena);
   if (status_line.err) {
     return (HttpRequest){.err = status_line.err};
   }
 
-  HttpRequest req = request_parse_status_line(status_line, arena);
+  HttpRequest req = request_parse_status_line(status_line.res, arena);
   if (req.err) {
     return req;
   }
@@ -433,7 +258,7 @@ request_parse_content_length_maybe(HttpRequest req, Arena *arena) {
   return req;
 }
 
-[[nodiscard]] static Error response_write(Writer writer, HttpResponse res,
+[[nodiscard]] static Error response_write(Writer *writer, HttpResponse res,
                                           Arena *arena) {
   // Invalid to both want to serve a file and a body.
   ASSERT(slice_is_empty(res.file_path) || slice_is_empty(res.body));
@@ -459,7 +284,7 @@ request_parse_content_length_maybe(HttpRequest req, Arena *arena) {
 
   const String s = dyn_slice(String, sb);
 
-  Error err = writer_write_all(writer, s);
+  Error err = writer_write_all_sync(writer, s);
   if (0 != err) {
     return err;
   }
@@ -478,7 +303,7 @@ request_parse_content_length_maybe(HttpRequest req, Arena *arena) {
 
     ASSERT(st.st_size >= 0);
 
-    err = os_sendfile(file_fd, (int)(u64)writer.ctx, (u64)st.st_size);
+    err = os_sendfile(file_fd, writer->fd, (u64)st.st_size);
     if (err) {
       return err;
     }
@@ -503,7 +328,7 @@ typedef HttpResponse (*HttpRequestHandleFn)(HttpRequest req, void *ctx,
 
 static void handle_client(int socket, HttpRequestHandleFn handle, void *ctx) {
   Arena arena = arena_make_from_virtual_mem(HTTP_SERVER_HANDLER_MEM_LEN);
-  Reader reader = reader_make_from_socket(socket);
+  BufferedReader reader = buffered_reader_make(socket, &arena);
   const HttpRequest req = request_read(&reader, &arena);
 
   log(LOG_LEVEL_INFO, "http request start", &arena, L("req.path", req.path_raw),
@@ -519,8 +344,8 @@ static void handle_client(int socket, HttpRequestHandleFn handle, void *ctx) {
   HttpResponse res = handle(req, ctx, &arena);
   http_push_header(&res.headers, S("Connection"), S("close"), &arena);
 
-  Writer writer = writer_make_from_socket(socket);
-  Error err = response_write(writer, res, &arena);
+  Writer writer = {.fd = socket};
+  Error err = response_write(&writer, res, &arena);
   if (err) {
     log(LOG_LEVEL_ERROR, "http request write", &arena, L("err", err),
         L("req.id", req.id));
@@ -682,15 +507,16 @@ http_client_request(Ipv4AddressSocket sock, HttpRequest req, Arena *arena) {
               http_request_serialized.len,
               0) == (i64)http_request_serialized.len);
 
-  Reader reader = reader_make_from_socket(sock.socket);
+  BufferedReader reader = buffered_reader_make(sock.socket, arena);
 
   {
-    LineRead status_line = reader_read_line(&reader, arena);
-    if (status_line.err) {
-      res.err = status_line.err;
+    IoResult io_result =
+        buffered_reader_read_until_slice(&reader, S("\r\n"), arena);
+    if (io_result.err) {
+      res.err = io_result.err;
       goto end;
     }
-    if (!status_line.present) {
+    if (slice_is_empty(io_result.res)) {
       res.err = HS_ERR_INVALID_HTTP_RESPONSE;
       goto end;
     }
@@ -699,14 +525,14 @@ http_client_request(Ipv4AddressSocket sock, HttpRequest req, Arena *arena) {
     String http1_0_version_needle = S("HTTP/1.0 ");
     ASSERT(http1_0_version_needle.len == http1_1_version_needle.len);
 
-    if (!(string_starts_with(status_line.line, http1_0_version_needle) ||
-          string_starts_with(status_line.line, http1_1_version_needle))) {
+    if (!(string_starts_with(io_result.res, http1_0_version_needle) ||
+          string_starts_with(io_result.res, http1_1_version_needle))) {
       res.err = HS_ERR_INVALID_HTTP_RESPONSE;
       goto end;
     }
 
     String status_str =
-        slice_range(status_line.line, http1_1_version_needle.len, 0);
+        slice_range(io_result.res, http1_1_version_needle.len, 0);
     ParseNumberResult status_parsed = string_parse_u64(status_str);
     if (!status_parsed.present) {
       res.err = HS_ERR_INVALID_HTTP_RESPONSE;
@@ -733,7 +559,7 @@ http_client_request(Ipv4AddressSocket sock, HttpRequest req, Arena *arena) {
   }
 
   // Read body.
-  IoOperationResult body = reader_read_until_end(&reader, arena);
+  IoResult body = buffered_reader_read_until_end(&reader, arena);
   if (body.err) {
     log(LOG_LEVEL_ERROR, "http request failed to read body", arena,
         L("req.method", req.method), L("req.path_raw", req.path_raw),
@@ -742,7 +568,7 @@ http_client_request(Ipv4AddressSocket sock, HttpRequest req, Arena *arena) {
     goto end;
   }
 
-  res.body = body.s;
+  res.body = body.res;
 
 end:
   (void)net_close_socket(sock.socket);
