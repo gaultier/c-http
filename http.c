@@ -15,109 +15,10 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-static const u64 HTTP_REQUEST_LINES_MAX_COUNT = 512;
 static const u64 HTTP_SERVER_HANDLER_MEM_LEN = 12 * KiB;
 [[maybe_unused]]
 static const u16 HTTP_SERVER_DEFAULT_PORT = 12345;
 static const int TCP_LISTEN_BACKLOG = 16384;
-
-[[nodiscard]] static Error reader_read_headers(BufferedReader *reader,
-                                               DynKeyValue *headers,
-                                               Arena *arena) {
-  dyn_ensure_cap(headers, 30, arena);
-
-  for (u64 _i = 0; _i < HTTP_REQUEST_LINES_MAX_COUNT; _i++) {
-    const IoResult res_io =
-        buffered_reader_read_until_slice(reader, S("\r\n"), arena);
-
-    if (res_io.err) {
-      return res_io.err;
-    }
-
-    if (slice_is_empty(res_io.res)) {
-      break;
-    }
-
-    SplitIterator it = string_split(res_io.res, ':');
-    SplitResult key = string_split_next(&it);
-    if (!key.ok) {
-      return HS_ERR_INVALID_HTTP_REQUEST;
-    }
-
-    String key_trimmed = string_trim(key.s, ' ');
-
-    String value = it.s; // Remainder.
-    String value_trimmed = string_trim(value, ' ');
-
-    KeyValue header = {.key = key_trimmed, .value = value_trimmed};
-    *dyn_push(headers, arena) = header;
-  }
-  return 0;
-}
-
-[[nodiscard]] static ParseNumberResult
-request_parse_content_length_maybe(HttpRequest req, Arena *arena) {
-  ASSERT(!req.err);
-
-  for (u64 i = 0; i < req.headers.len; i++) {
-    KeyValue h = req.headers.data[i];
-
-    if (!string_ieq_ascii(S("Content-Length"), h.key, arena)) {
-      continue;
-    }
-
-    return string_parse_u64(h.value);
-  }
-  return (ParseNumberResult){0};
-}
-
-[[nodiscard]] static HttpRequest request_read_body(HttpRequest req,
-                                                   BufferedReader *reader,
-                                                   u64 content_length,
-                                                   Arena *arena) {
-  ASSERT(!req.err);
-  HttpRequest res = req;
-
-  IoResult res_io = buffered_reader_read_exactly(reader, content_length, arena);
-  if (res_io.err) {
-    res.err = res_io.err;
-    return res;
-  }
-
-  return res;
-}
-
-[[nodiscard]] static HttpRequest request_read(BufferedReader *reader,
-                                              Arena *arena) {
-  const IoResult status_line =
-      buffered_reader_read_until_slice(reader, S("\r\n"), arena);
-  if (status_line.err) {
-    return (HttpRequest){.err = status_line.err};
-  }
-
-  HttpRequest req = request_parse_status_line(status_line.res, arena);
-  if (req.err) {
-    return req;
-  }
-
-  req.err = reader_read_headers(reader, &req.headers, arena);
-  if (req.err) {
-    return req;
-  }
-
-  ParseNumberResult content_length =
-      request_parse_content_length_maybe(req, arena);
-  if (!content_length.present) {
-    req.err = HS_ERR_INVALID_HTTP_REQUEST;
-    return req;
-  }
-
-  if (content_length.present) {
-    req = request_read_body(req, reader, content_length.n, arena);
-  }
-
-  return req;
-}
 
 [[nodiscard]] static Error response_write(Writer *writer, HttpResponse res,
                                           Arena *arena) {
